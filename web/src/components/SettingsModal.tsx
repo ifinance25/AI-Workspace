@@ -15,6 +15,11 @@ import {
   setStoredTheme,
   type Theme,
 } from "@/lib/theme";
+import {
+  SEND_KEY_OPTIONS,
+  setStoredSendKey,
+  useSendKey,
+} from "@/lib/sendKey";
 import { useModelInfo } from "@/lib/useModelInfo";
 import ConnectionsPanel from "@/components/ConnectionsPanel";
 import ApiKeyPanel from "@/components/ApiKeyPanel";
@@ -52,6 +57,7 @@ export default function SettingsModal({ open, onClose }: Props) {
   const { user, logout } = useAuth();
   const [tab, setTab] = useState<Tab>("general");
   const [theme, setTheme] = useState<Theme>(getStoredTheme());
+  const sendKey = useSendKey();
   const [verbose, setVerbose] = useState<0 | 1 | 2 | 3 | null>(null);
   const { info: model, error: modelError, setModel, refetch: refetchModel } = useModelInfo(false);
   const [saving, setSaving] = useState(false);
@@ -229,6 +235,37 @@ export default function SettingsModal({ open, onClose }: Props) {
                       >
                         {label}
                       </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="mb-3 text-[12px] font-semibold uppercase tracking-wider text-[var(--fg-muted)]">
+                    Отправка сообщения
+                  </div>
+                  <div className="space-y-2">
+                    {SEND_KEY_OPTIONS.map(({ value, label, hint }) => (
+                      <label
+                        key={value}
+                        className={`flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--border-subtle)] p-3 text-sm transition-colors ${
+                          sendKey === value
+                            ? "bg-[var(--bg-hover)] text-[var(--fg-primary)] ring-1 ring-[var(--border-subtle)]"
+                            : "text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="send-key"
+                          className="mt-1 h-4 w-4 accent-white"
+                          checked={sendKey === value}
+                          onChange={() => setStoredSendKey(value)}
+                        />
+                        <div>
+                          <div className="font-semibold">{label}</div>
+                          <div className="mt-0.5 text-[13px] text-[var(--fg-muted)]">
+                            {hint}
+                          </div>
+                        </div>
+                      </label>
                     ))}
                   </div>
                 </div>

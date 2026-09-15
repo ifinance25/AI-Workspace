@@ -14,6 +14,14 @@ import {
 import CommandsPopover from "@/components/CommandsPopover";
 import InputModelButton from "@/components/InputModelButton";
 import type { Attachment, SlashCommand } from "@/lib/types";
+import {
+  isPlainEnter,
+  sendButtonTitle,
+  sendKeyHint,
+  shouldInsertNewlineOnKey,
+  shouldSendOnKey,
+  useSendKey,
+} from "@/lib/sendKey";
 
 interface Props {
   /** UUID активной сессии — нужен для POST /api/uploads. */
@@ -63,6 +71,7 @@ export default function MessageInput({
   const [uploadError, setUploadError] = useState<string | null>(null);
   // Меню команд/скиллов, открытое кнопкой (а не вводом "/").
   const [menu, setMenu] = useState<null | "cmd" | "skill">(null);
+  const sendKey = useSendKey();
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Актуальный sessionUuid — чтобы in-flight upload-цикл мог заметить
@@ -131,6 +140,16 @@ export default function MessageInput({
     setText("");
     setAttachments([]);
     setUploadError(null);
+  };
+
+  const insertNewline = (el: HTMLTextAreaElement) => {
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const next = el.value.slice(0, start) + "\n" + el.value.slice(end);
+    setText(next);
+    requestAnimationFrame(() => {
+      el.selectionStart = el.selectionEnd = start + 1;
+    });
   };
 
   const insertSlash = (cmd: string) => {
@@ -317,7 +336,7 @@ export default function MessageInput({
                   setText(filtered[focusedIdx].cmd + " ");
                   return;
                 }
-                if (e.key === "Enter" && !e.shiftKey) {
+                if (isPlainEnter(e)) {
                   e.preventDefault();
                   insertSlash(filtered[focusedIdx].cmd);
                   return;
@@ -328,9 +347,14 @@ export default function MessageInput({
                   return;
                 }
               }
-              if (e.key === "Enter" && !e.shiftKey) {
+              if (shouldSendOnKey(e, sendKey)) {
                 e.preventDefault();
                 submit();
+                return;
+              }
+              if (shouldInsertNewlineOnKey(e, sendKey)) {
+                e.preventDefault();
+                insertNewline(e.currentTarget);
               }
             }}
             disabled={disabled}
@@ -397,7 +421,7 @@ export default function MessageInput({
                     ? "bg-[var(--accent)] text-[var(--accent-fg)] hover:opacity-90"
                     : "bg-[var(--bg-hover)] text-[var(--fg-muted)] cursor-not-allowed"
                 }`}
-                title="Отправить (Enter)"
+                title={sendButtonTitle(sendKey)}
               >
                 <SendIcon size={20} />
               </button>
@@ -405,7 +429,7 @@ export default function MessageInput({
           </div>
         </div>
         <div className="mt-3 text-center text-xs text-[var(--fg-muted)]">
-          Enter — отправить · Shift+Enter — перенос строки · «/» — команды
+          {sendKeyHint(sendKey)}
         </div>
       </div>
     </div>

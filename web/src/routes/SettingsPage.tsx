@@ -9,6 +9,11 @@ import {
   setStoredTheme,
   type Theme,
 } from "@/lib/theme";
+import {
+  SEND_KEY_OPTIONS,
+  setStoredSendKey,
+  useSendKey,
+} from "@/lib/sendKey";
 
 const VERBOSE_LEVELS: { level: 0 | 1 | 2 | 3; label: string; hint: string }[] = [
   { level: 0, label: "Тихий", hint: "Только финальный ответ Claude" },
@@ -37,6 +42,7 @@ function Section({
 export default function SettingsPage() {
   const { user, logout } = useAuth();
   const [theme, setTheme] = useState<Theme>(getStoredTheme());
+  const sendKey = useSendKey();
   const [verbose, setVerbose] = useState<0 | 1 | 2 | 3 | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,6 +129,35 @@ export default function SettingsPage() {
                 >
                   {label}
                 </button>
+              ))}
+            </div>
+          </Section>
+
+          <Section title="Отправка сообщения">
+            <div className="space-y-2.5">
+              {SEND_KEY_OPTIONS.map(({ value, label, hint }) => (
+                <label
+                  key={value}
+                  className={`flex cursor-pointer items-start gap-4 rounded-2xl border border-[var(--border-subtle)] p-4 text-[15px] transition-colors ${
+                    sendKey === value
+                      ? "bg-[var(--bg-hover)] text-[var(--fg-primary)]"
+                      : "text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="send-key"
+                    className="mt-1.5 h-4 w-4 accent-white"
+                    checked={sendKey === value}
+                      onChange={() => setStoredSendKey(value)}
+                  />
+                  <div>
+                    <div className="font-semibold">{label}</div>
+                    <div className="mt-1 text-sm text-[var(--fg-muted)]">
+                      {hint}
+                    </div>
+                  </div>
+                </label>
               ))}
             </div>
           </Section>
