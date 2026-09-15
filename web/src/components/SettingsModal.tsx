@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
@@ -7,7 +7,6 @@ import {
   LogOutIcon,
   RefreshIcon,
   SettingsIcon,
-  SparklesIcon,
 } from "@/components/icons";
 import {
   applyTheme,
@@ -20,22 +19,15 @@ import {
   setStoredSendKey,
   useSendKey,
 } from "@/lib/sendKey";
-import { useModelInfo } from "@/lib/useModelInfo";
 import ConnectionsPanel from "@/components/ConnectionsPanel";
-import ApiKeyPanel from "@/components/ApiKeyPanel";
+import ProvidersPanel from "@/components/ProvidersPanel";
 
 interface Props {
   open: boolean;
   onClose: () => void;
 }
 
-type Tab =
-  | "general"
-  | "model"
-  | "verbose"
-  | "connections"
-  | "apikey"
-  | "session";
+type Tab = "general" | "model" | "verbose" | "connections" | "session";
 
 const VERBOSE_LEVELS: { level: 0 | 1 | 2 | 3; label: string; hint: string }[] = [
   { level: 0, label: "Тихий", hint: "Только финальный ответ Claude" },
@@ -49,7 +41,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "model", label: "Модель" },
   { id: "verbose", label: "Логи" },
   { id: "connections", label: "Подключения" },
-  { id: "apikey", label: "API-ключ" },
   { id: "session", label: "Аккаунт" },
 ];
 
@@ -59,30 +50,16 @@ export default function SettingsModal({ open, onClose }: Props) {
   const [theme, setTheme] = useState<Theme>(getStoredTheme());
   const sendKey = useSendKey();
   const [verbose, setVerbose] = useState<0 | 1 | 2 | 3 | null>(null);
-  const { info: model, error: modelError, setModel, refetch: refetchModel } = useModelInfo(false);
   const [saving, setSaving] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
-  // Когда последний раз перечитывали модель — внутри cache-window не
-  // дёргаем бэк повторно (юзер часто открывает/закрывает модалку,
-  // settings.json вряд ли поменялся за секунды).
-  const lastModelRefetchRef = useRef(0);
-  const MODEL_CACHE_WINDOW_MS = 30_000;
 
-  // verbose грузится отдельно (не имеет общего хука), модель — через
-  // useModelInfo. Cleanup-флаг ловит закрытие модала до завершения
-  // промиса, чтобы setState не прилетал на размонтированный компонент.
-  // Перечитываем модель при открытии только если кэш протух (>30 с) —
-  // иначе доверяем pub-sub из useModelInfo: если кто-то менял модель
-  // через InputModelButton, state уже свежий.
+  // verbose грузится отдельно. Cleanup-флаг ловит закрытие модала до
+  // завершения промиса, чтобы setState не прилетал на размонтированный
+  // компонент. Модели и ключи грузит ProvidersPanel на вкладке «Модель».
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     setSettingsError(null);
-    const now = Date.now();
-    if (now - lastModelRefetchRef.current > MODEL_CACHE_WINDOW_MS) {
-      lastModelRefetchRef.current = now;
-      void refetchModel();
-    }
     if (verbose === null) {
       api
         .getSettings()
@@ -102,9 +79,7 @@ export default function SettingsModal({ open, onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const error =
-    settingsError ??
-    (modelError ? `Не удалось загрузить модель: ${modelError}` : null);
+  const error = settingsError;
 
   // Esc закрывает модал.
   useEffect(() => {
@@ -130,18 +105,6 @@ export default function SettingsModal({ open, onClose }: Props) {
       await api.patchSettings(next);
     } catch (e) {
       setSettingsError(`Не удалось сохранить: ${(e as Error).message}`);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const onModelChange = async (id: string) => {
-    setSaving(true);
-    setSettingsError(null);
-    try {
-      await setModel(id);
-    } catch (e) {
-      setSettingsError(`Не удалось сменить модель: ${(e as Error).message}`);
     } finally {
       setSaving(false);
     }
@@ -273,52 +236,7 @@ export default function SettingsModal({ open, onClose }: Props) {
             )}
 
             {tab === "model" && (
-              <div className="space-y-3">
-                <div className="mb-2 flex items-center gap-2 text-[var(--fg-secondary)]">
-                  <SparklesIcon size={18} />
-                  <span className="text-sm">
-                    Применится со следующего сообщения
-                  </span>
-                </div>
-                {model === null ? (
-                  <div className="text-sm text-[var(--fg-muted)]">Загрузка…</div>
-                ) : (
-                  model.known.map((m) => {
-                    const active = m.id === model.current;
-                    return (
-                      <button
-                        key={m.id}
-                        onClick={() => void onModelChange(m.id)}
-                        disabled={saving || active}
-                        className={`flex w-full items-start gap-3 rounded-2xl border border-[var(--border-subtle)] p-4 text-left transition-colors ${
-                          active
-                            ? "bg-[var(--bg-hover)] text-[var(--fg-primary)]"
-                            : "text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)] disabled:cursor-not-allowed"
-                        }`}
-                      >
-                        <span
-                          className={`mt-1.5 inline-block h-2.5 w-2.5 rounded-full ${
-                            active ? "bg-emerald-500" : "bg-[var(--bg-hover)]"
-                          }`}
-                        />
-                        <span className="flex-1">
-                          <span className="block text-sm font-semibold">
-                            {m.label}
-                          </span>
-                          <span className="mt-1 block text-xs text-[var(--fg-muted)]">
-                            {m.hint}
-                          </span>
-                        </span>
-                      </button>
-                    );
-                  })
-                )}
-                {model && (
-                  <div className="pt-2 text-[11px] text-[var(--fg-muted)]">
-                    Режим разрешений Claude: <code>{model.permission_mode}</code>
-                  </div>
-                )}
-              </div>
+              <ProvidersPanel privileged={user?.is_admin || false} />
             )}
 
             {tab === "verbose" && (
@@ -371,10 +289,6 @@ export default function SettingsModal({ open, onClose }: Props) {
             )}
 
             {tab === "connections" && <ConnectionsPanel />}
-
-            {tab === "apikey" && (
-              <ApiKeyPanel privileged={user?.is_admin || false} />
-            )}
 
             {tab === "session" && (
               <div className="space-y-6">

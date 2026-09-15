@@ -17,7 +17,7 @@ logger = structlog.get_logger(__name__)
 # Shown to a caller who must bring their own Anthropic key (Path B) but hasn't.
 # Surfaced via AgentFinished.error, the same channel bot/web use for run errors.
 NEEDS_API_KEY_MESSAGE = (
-    "Добавьте свой Anthropic API-ключ в Настройки → API-ключ, "
+    "Добавьте свой Anthropic API-ключ в Настройки → Модель, "
     "чтобы отправлять сообщения"
 )
 

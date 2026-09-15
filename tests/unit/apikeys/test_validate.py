@@ -125,6 +125,14 @@ def test_validate_key_format_returns_bool_not_match_object():
     assert validate_key_format("nope") is False
 
 
+def test_validate_openai_and_oauth_shapes():
+    assert validate_key_format("sk-" + "a" * 24, provider="openai") is True
+    assert validate_key_format("sk-proj-" + "a" * 40, provider="openai") is True
+    assert validate_key_format(VALID_KEY, provider="openai") is False
+    assert validate_key_format("x" * 24, auth_kind="oauth") is True
+    assert validate_key_format("short", auth_kind="oauth") is False
+
+
 def test_key_pattern_is_compiled_and_reusable():
     import re
 

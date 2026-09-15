@@ -1,9 +1,9 @@
 """End-to-end (Playwright) tests for the per-user API-key panel in the web UI.
 
 These drive the *real* built SPA (``web/dist``) in a headless Chromium and
-exercise ``ApiKeyPanel`` through the same path a user takes:
+exercise the Claude key field inside the Model tab:
 
-    load app → Sidebar profile button → Settings modal → «API-ключ» tab.
+    load app → Sidebar profile button → Settings modal → «Модель» tab.
 
 The FastAPI backend is *not* started. Instead every ``/api/**`` call is
 intercepted at the browser layer (Playwright request routing) and answered by
@@ -90,7 +90,7 @@ def app_url():
 class FakeBackend:
     """In-memory stand-in for the REST API, driven via Playwright routing.
 
-    Only ``/api/me`` and ``/api/apikey`` carry meaningful behaviour; the few
+    Only ``/api/me`` and ``/api/providers`` carry meaningful behaviour; the few
     other bootstrap calls (projects/sessions/settings/model/…) get benign
     empty answers so the app renders far enough to reach the settings modal.
     """
@@ -129,6 +129,8 @@ class FakeBackend:
         method = req.method
         if path.endswith("/api/me"):
             await self._json(route, 200, self.user)
+        elif path.rstrip("/").endswith("/api/providers") or "/api/providers/" in path:
+            await self._providers(route, method, path)
         elif path.endswith("/api/apikey"):
             await self._apikey(route, method)
         elif path.endswith("/api/projects") or path.endswith("/api/sessions"):
@@ -170,6 +172,81 @@ class FakeBackend:
         else:
             await self._raw(route, 405, "{}")
 
+    async def _providers(self, route, method: str, path: str):
+        if self.get_status != 200 and method == "GET" and path.rstrip("/").endswith(
+            "/api/providers"
+        ):
+            await self._json(
+                route, self.get_status, {"detail": "api key store not configured"}
+            )
+            return
+        if method == "GET" and path.rstrip("/").endswith("/api/providers"):
+            claude = {
+                "id": "claude",
+                "label": "Claude Code",
+                "description": "Подписка Claude",
+                "key_placeholder": "sk-ant-…",
+                "key_hint": "Ключ Anthropic",
+                "how_to_url": "https://console.anthropic.com/settings/keys",
+                "oauth_url": "https://claude.ai/login",
+                "oauth_label": "Подключить подписку",
+                "base_url": None,
+                "base_url_editable": False,
+                "default_model": "claude-sonnet-4-6",
+                "models": [
+                    {"id": "claude-haiku-4-5-20251001", "label": "Haiku", "hint": "быстрый"},
+                    {"id": "claude-sonnet-4-6", "label": "Sonnet", "hint": "баланс"},
+                    {"id": "claude-opus-4-8", "label": "Opus", "hint": "сильный"},
+                ],
+                "connected": bool(self.meta.get("status") and self.meta.get("last4")),
+                "status": self.meta.get("status"),
+                "last4": self.meta.get("last4"),
+                "auth_kind": "api_key" if self.meta.get("last4") else None,
+                "current_model": "claude-sonnet-4-6",
+                "active": True,
+            }
+            openai = {
+                "id": "openai",
+                "label": "OpenAI",
+                "description": "Ключ OpenAI",
+                "key_placeholder": "sk-…",
+                "key_hint": "Ключ OpenAI",
+                "how_to_url": "https://platform.openai.com/api-keys",
+                "oauth_url": None,
+                "oauth_label": None,
+                "base_url": None,
+                "base_url_editable": True,
+                "default_model": "gpt-4.1",
+                "models": [{"id": "gpt-4.1", "label": "GPT-4.1", "hint": "основная"}],
+                "connected": False,
+                "status": None,
+                "last4": None,
+                "auth_kind": None,
+                "current_model": "gpt-4.1",
+                "active": False,
+            }
+            await self._json(
+                route,
+                200,
+                {
+                    "enabled": True,
+                    "privileged": self.user["is_admin"],
+                    "active_provider": "claude",
+                    "providers": [claude, openai],
+                },
+            )
+            return
+        if method == "PUT":
+            await self._apikey(route, "PUT")
+            return
+        if method == "DELETE":
+            await self._apikey(route, "DELETE")
+            return
+        if method == "PATCH":
+            await self._json(route, 200, {"active_provider": "claude", "models": {}})
+            return
+        await self._raw(route, 405, "{}")
+
     @staticmethod
     async def _json(route, status: int, payload):
         await route.fulfill(
@@ -182,11 +259,11 @@ class FakeBackend:
 
 
 # --------------------------------------------------------------------------- #
-# Navigation helper: open the app → Settings modal → «API-ключ» tab
+# Navigation helper: open the app → Settings modal → «Модель» tab
 # --------------------------------------------------------------------------- #
 @asynccontextmanager
 async def apikey_panel(app_url: str, backend: FakeBackend, *, open_tab: bool = True):
-    """Yield a Page parked on the API-key panel, tearing the browser down after."""
+    """Yield a Page parked on the Model tab, tearing the browser down after."""
     async with async_playwright() as pw:
         try:
             browser = await pw.chromium.launch()
@@ -201,7 +278,7 @@ async def apikey_panel(app_url: str, backend: FakeBackend, *, open_tab: bool = T
             # Sidebar footer profile button opens the settings modal.
             await page.get_by_role("button", name=re.compile("TestUser")).click()
             if open_tab:
-                await page.get_by_role("button", name="API-ключ").click()
+                await page.get_by_role("button", name="Модель").click()
             yield page
         finally:
             await browser.close()
@@ -214,9 +291,13 @@ async def test_navigate_to_apikey_tab_shows_panel(app_url):
     backend = FakeBackend(is_admin=False)
     async with apikey_panel(app_url, backend) as page:
         # The panel's hallmark controls are present.
-        await expect(page.get_by_text("Текущий ключ")).to_be_visible()
+        await expect(page.get_by_text("Текущий ключ").first).to_be_visible()
         await expect(page.get_by_placeholder("sk-ant-…")).to_be_visible()
-        await expect(page.get_by_role("button", name="Сохранить")).to_be_visible()
+        await expect(
+            page.locator("section").filter(has_text="Claude Code").get_by_role(
+                "button", name="Сохранить"
+            )
+        ).to_be_visible()
 
 
 # --------------------------------------------------------------------------- #
@@ -235,9 +316,11 @@ async def test_displays_current_key_status(app_url):
 async def test_save_valid_key_shows_success(app_url):
     backend = FakeBackend()  # starts with no key stored
     async with apikey_panel(app_url, backend) as page:
-        await expect(page.get_by_text("не задан")).to_be_visible()
+        await expect(page.get_by_text("не задан").first).to_be_visible()
         await page.get_by_placeholder("sk-ant-…").fill(NEW_KEY)
-        await page.get_by_role("button", name="Сохранить").click()
+        await page.locator("section").filter(has_text="Claude Code").get_by_role(
+            "button", name="Сохранить"
+        ).click()
 
         await expect(page.get_by_text("API key saved")).to_be_visible()
         # Panel reloaded and now shows the masked, freshly-saved key.
@@ -252,7 +335,9 @@ async def test_invalid_format_rejected_client_side(app_url):
     backend = FakeBackend()
     async with apikey_panel(app_url, backend) as page:
         await page.get_by_placeholder("sk-ant-…").fill("not-a-real-key")
-        await page.get_by_role("button", name="Сохранить").click()
+        await page.locator("section").filter(has_text="Claude Code").get_by_role(
+            "button", name="Сохранить"
+        ).click()
 
         await expect(page.get_by_text(re.compile("должен начинаться с sk-ant-"))).to_be_visible()
         # The client short-circuits — the backend PUT is never reached.
@@ -266,7 +351,9 @@ async def test_probe_failure_shows_server_error(app_url):
     backend = FakeBackend(put_mode="invalid")
     async with apikey_panel(app_url, backend) as page:
         await page.get_by_placeholder("sk-ant-…").fill(NEW_KEY)
-        await page.get_by_role("button", name="Сохранить").click()
+        await page.locator("section").filter(has_text="Claude Code").get_by_role(
+            "button", name="Сохранить"
+        ).click()
 
         await expect(
             page.get_by_text(re.compile("failed validation \\(401 Unauthorized\\)"))
@@ -285,7 +372,7 @@ async def test_delete_key_refreshes_panel(app_url):
         await page.get_by_role("button", name="Удалить").click()
 
         await expect(page.get_by_text("API key deleted")).to_be_visible()
-        await expect(page.get_by_text("не задан")).to_be_visible()
+        await expect(page.get_by_text("не задан").first).to_be_visible()
         assert backend.delete_calls == 1
 
 

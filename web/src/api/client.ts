@@ -18,6 +18,8 @@ import type {
   ProjectAccess,
   ProjectAdmin,
   ProjectMember,
+  ProviderSaveResult,
+  ProvidersInfo,
   SearchResponse,
   Session,
   SlashCommand,
@@ -388,6 +390,27 @@ export const api = {
   },
   deleteApiKey() {
     return req<{ message: string }>("DELETE", "/api/apikey");
+  },
+
+  // ── LLM providers (вкладка «Модель»: ключ живёт в группе провайдера) ─
+  listProviders() {
+    return req<ProvidersInfo>("GET", "/api/providers");
+  },
+  putProvider(
+    providerId: string,
+    body: { api_key?: string; oauth_token?: string; base_url?: string; model?: string },
+  ) {
+    return req<ProviderSaveResult>("PUT", `/api/providers/${providerId}`, body);
+  },
+  deleteProvider(providerId: string) {
+    return req<{ message: string }>("DELETE", `/api/providers/${providerId}`);
+  },
+  setActiveProvider(provider: string, model?: string) {
+    return req<{ active_provider: string; models: Record<string, string> }>(
+      "PATCH",
+      "/api/providers/active",
+      { provider, model },
+    );
   },
 
   // ── Project members (self-service sharing) ────────────────

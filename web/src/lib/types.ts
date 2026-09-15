@@ -240,3 +240,45 @@ export interface ConnectionsInfo {
   enabled: boolean;
   services: ConnectionService[];
 }
+
+export interface LlmProviderModel {
+  id: string;
+  label: string;
+  hint: string;
+}
+
+export interface LlmProvider {
+  id: string;
+  label: string;
+  description: string;
+  key_placeholder: string;
+  key_hint: string;
+  how_to_url: string;
+  oauth_url: string | null;
+  oauth_label: string | null;
+  base_url: string | null;
+  base_url_editable: boolean;
+  default_model: string;
+  models: LlmProviderModel[];
+  connected: boolean;
+  status: string | null;
+  last4: string | null;
+  auth_kind: string | null;
+  current_model: string;
+  active: boolean;
+}
+
+export interface ProvidersInfo {
+  enabled: boolean;
+  privileged: boolean;
+  active_provider: string;
+  providers: LlmProvider[];
+}
+
+export interface ProviderSaveResult {
+  status: string;
+  message?: string;
+  warning?: string;
+  current_model?: string;
+  active_provider?: string;
+}

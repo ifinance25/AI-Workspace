@@ -43,19 +43,41 @@ class ProbeResult(enum.Enum):
     UNKNOWN = "unknown"  # couldn't determine (timeout, network error, other)
 
 
-def validate_key_format(key: str) -> bool:
-    """Return ``True`` iff ``key`` looks like an Anthropic API key.
+_OPENAI_PATTERN = re.compile(r"^sk-[A-Za-z0-9_-]{16,}$")
+_GENERIC_SECRET_PATTERN = re.compile(r"^[A-Za-z0-9._-]{12,}$")
+
+
+def validate_key_format(
+    key: str,
+    *,
+    provider: str = "claude",
+    auth_kind: str = "api_key",
+) -> bool:
+    """Return ``True`` iff ``key`` looks like a key for ``provider``.
 
     Offline check only — a ``True`` result means the string is *shaped* like a
     key, not that it is live. ``None``, empty, or malformed input returns
-    ``False`` rather than raising.
+    ``False`` rather than raising. Default ``provider='claude'`` keeps the
+    historical Anthropic ``sk-ant-`` check for ``/api/apikey``.
     """
     if not key:
         return False
-    return KEY_PATTERN.match(key) is not None
+    if auth_kind == "oauth":
+        return len(key.strip()) >= 20
+    if provider == "claude":
+        return KEY_PATTERN.match(key) is not None
+    if provider == "openai":
+        return _OPENAI_PATTERN.match(key) is not None and not key.startswith("sk-ant-")
+    if provider == "kimi":
+        return _OPENAI_PATTERN.match(key) is not None
+    if provider == "cursor":
+        return _GENERIC_SECRET_PATTERN.match(key) is not None
+    return len(key.strip()) >= 16
 
 
-async def probe_key(key: str, timeout: float = 10.0) -> ProbeResult:
+async def probe_key(
+    key: str, timeout: float = 10.0, *, provider: str = "claude"
+) -> ProbeResult:
     """Check ``key`` against the Anthropic API and classify the response.
 
     Performs ``GET /v1/models`` with the key in the ``x-api-key`` header and
@@ -70,9 +92,13 @@ async def probe_key(key: str, timeout: float = 10.0) -> ProbeResult:
     transient outage is not mistaken for a bad key.
 
     Args:
-        key: The Anthropic API key to test.
+        key: The API key to test.
         timeout: Total request timeout in seconds (default 10).
+        provider: Live Anthropic probe runs only for ``claude``. Other
+            providers are accepted after the offline format check.
     """
+    if provider != "claude":
+        return ProbeResult.VALID
     headers = {
         "x-api-key": key,
         "anthropic-version": _ANTHROPIC_VERSION,

@@ -23,6 +23,7 @@ from src.web.origin_check import build_allowed_origins, is_allowed_origin
 from src.web.routes_admin import make_admin_router
 from src.web.routes_apikey import make_apikey_router
 from src.web.routes_auth import make_auth_router
+from src.web.routes_providers import make_providers_router
 from src.web.routes_connections import make_connections_router
 from src.web.routes_docs import make_docs_router
 from src.web.routes_files import make_files_router
@@ -335,6 +336,16 @@ class WebServer:
         # отвечает 501, когда api_key_store is None (фича выключена).
         self.app.include_router(
             make_apikey_router(
+                jwt_secret=self.jwt_secret,
+                session_manager=self.session_manager,
+                api_key_store=self.api_key_store,
+                allowed_user_ids=self.allowed_user_ids,
+            )
+        )
+        # Ключи и модели по провайдерам (вкладка «Модель»). Тот же store, что
+        # у /api/apikey; 501, если store is None.
+        self.app.include_router(
+            make_providers_router(
                 jwt_secret=self.jwt_secret,
                 session_manager=self.session_manager,
                 api_key_store=self.api_key_store,
