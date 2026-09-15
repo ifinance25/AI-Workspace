@@ -438,6 +438,11 @@ class Settings(BaseSettings):
 
         return sorted(project_paths, key=lambda p: p.name.lower())
 
+    def get_light_project_paths(self) -> list[Path]:
+        """Первый проект из каталога: так устроен light-вход без явного списка."""
+        paths = self.get_project_paths()
+        return paths[:1]
+
     def get_session_database_path(self) -> Path:
         """Get the SQLite database path for persisted topic sessions."""
         path_str = self.session_database_path_env or self.persistence.session_database_path
