@@ -12,6 +12,16 @@ function Centered({ children }: { children: React.ReactNode }) {
   );
 }
 
+async function fetchBytes(url: string): Promise<ArrayBuffer> {
+  const resp = await fetch(url, { credentials: "include" });
+  if (!resp.ok) {
+    if (resp.status === 403) throw new Error("нет доступа");
+    if (resp.status === 404) throw new Error("файл не найден");
+    throw new Error("не удалось загрузить файл");
+  }
+  return resp.arrayBuffer();
+}
+
 function TruncatedNote({ shown, total }: { shown: number; total: number }) {
   if (total <= shown) return null;
   return (
@@ -73,11 +83,13 @@ export function XlsxView({ url }: { url: string }) {
         setLoading(true);
         const XLSX = await import("xlsx");
         xlsxRef.current = XLSX;
-        const resp = await fetch(url, { credentials: "include" });
-        if (!resp.ok) throw new Error("не удалось загрузить файл");
-        const buf = await resp.arrayBuffer();
+        const buf = await fetchBytes(url);
         const wb = XLSX.read(buf, { type: "array" });
         if (cancelled) return;
+        if (!wb.SheetNames.length) {
+          setErr("в книге нет листов");
+          return;
+        }
         wbRef.current = wb;
         setNames(wb.SheetNames);
         setActive(0);
@@ -142,9 +154,7 @@ export function DocxView({ url }: { url: string }) {
     (async () => {
       try {
         const mammoth = await import("mammoth");
-        const resp = await fetch(url, { credentials: "include" });
-        if (!resp.ok) throw new Error("не удалось загрузить файл");
-        const buf = await resp.arrayBuffer();
+        const buf = await fetchBytes(url);
         const res = await mammoth.convertToHtml({ arrayBuffer: buf });
         if (!cancelled) setHtml(res.value || "<p><em>Пустой документ</em></p>");
       } catch (e) {

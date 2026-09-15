@@ -20,14 +20,43 @@ const IMAGE_EXTS = new Set([
 
 // Тяжёлые форматы (docx/xlsx) грузятся целиком в браузер — выше лимита
 // показываем «Скачать», чтобы не подвесить вкладку.
-const MAX_RICH_BYTES = 12 * 1024 * 1024;
+export const MAX_RICH_BYTES = 12 * 1024 * 1024;
 
-function ext(rel: string): string {
+export type FileViewerKind =
+  | "image"
+  | "pdf"
+  | "docx"
+  | "xlsx"
+  | "csv"
+  | "html"
+  | "markdown"
+  | "text"
+  | "download";
+
+export function fileExt(rel: string): string {
   return rel.split(".").pop()?.toLowerCase() ?? "";
 }
 
+/** Какой viewer открыть по расширению и размеру. Тестируется отдельно от React. */
+export function fileViewerKind(
+  rel: string,
+  opts: { sizeBytes?: number; binary?: boolean; tooLarge?: boolean } = {},
+): FileViewerKind {
+  const e = fileExt(rel);
+  const tooBig = (opts.sizeBytes ?? 0) > MAX_RICH_BYTES;
+  if (IMAGE_EXTS.has(e)) return "image";
+  if (e === "pdf") return "pdf";
+  if (e === "docx") return tooBig ? "download" : "docx";
+  if (e === "xlsx" || e === "xls" || e === "xlsm") return tooBig ? "download" : "xlsx";
+  if (opts.binary || opts.tooLarge) return "download";
+  if (e === "csv" || e === "tsv") return "csv";
+  if (e === "html" || e === "htm" || e === "svg") return "html";
+  if (e === "md" || e === "markdown" || e === "mdx") return "markdown";
+  return "text";
+}
+
 function extLang(rel: string): string {
-  return EXT_LANG[ext(rel)] ?? "";
+  return EXT_LANG[fileExt(rel)] ?? "";
 }
 
 // Оборачиваем содержимое в fenced-блок длиннее любой внутренней серии бэктиков,
@@ -74,11 +103,14 @@ export default function FileViewer({
   downloadUrl: string;
   onDownload: () => void;
 }) {
-  const e = ext(file.rel);
-  const tooBig = file.size_bytes > MAX_RICH_BYTES;
+  const kind = fileViewerKind(file.rel, {
+    sizeBytes: file.size_bytes,
+    binary: file.binary,
+    tooLarge: file.too_large,
+  });
+  const e = fileExt(file.rel);
 
-  // Картинки.
-  if (IMAGE_EXTS.has(e)) {
+  if (kind === "image") {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-[var(--bg-canvas)] p-3">
         <img
@@ -92,7 +124,7 @@ export default function FileViewer({
 
   // PDF — встроенный просмотрщик браузера + страховка «открыть в новой вкладке»
   // (на случай, если встроенный просмотр PDF где-то заблокирован политиками).
-  if (e === "pdf") {
+  if (kind === "pdf") {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex shrink-0 items-center justify-end gap-3 border-b border-[var(--border-subtle)] px-3 py-1.5 text-xs">
@@ -114,34 +146,26 @@ export default function FileViewer({
     );
   }
 
-  // DOCX / XLSX — рендер по требованию (с лимитом размера).
-  if (e === "docx") {
-    return tooBig ? (
-      <DownloadFallback label="Документ слишком большой для просмотра" onDownload={onDownload} />
-    ) : (
-      <DocxView url={downloadUrl} />
-    );
+  if (kind === "docx") {
+    return <DocxView url={downloadUrl} />;
   }
-  if (e === "xlsx" || e === "xls" || e === "xlsm") {
-    return tooBig ? (
-      <DownloadFallback label="Таблица слишком большая для просмотра" onDownload={onDownload} />
-    ) : (
-      <XlsxView url={downloadUrl} />
-    );
+  if (kind === "xlsx") {
+    return <XlsxView url={downloadUrl} />;
   }
 
-  // Дальше — текстовые форматы: нужно загруженное содержимое.
-  if (file.binary || file.too_large) {
-    return (
-      <DownloadFallback
-        label={file.binary ? "Бинарный файл" : "Файл слишком большой для просмотра"}
-        onDownload={onDownload}
-      />
-    );
+  if (kind === "download") {
+    const label =
+      e === "docx"
+        ? "Документ слишком большой для просмотра"
+        : e === "xlsx" || e === "xls" || e === "xlsm"
+          ? "Таблица слишком большая для просмотра"
+          : file.binary
+            ? "Бинарный файл"
+            : "Файл слишком большой для просмотра";
+    return <DownloadFallback label={label} onDownload={onDownload} />;
   }
 
-  // CSV / TSV → таблица.
-  if (e === "csv" || e === "tsv") {
+  if (kind === "csv") {
     return <CsvView text={file.content} delimiter={e === "tsv" ? "\t" : ","} />;
   }
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/api/client";
 import { CloseIcon, MaximizeIcon, RefreshIcon, SearchIcon } from "@/components/icons";
 import FileTree from "@/components/files/FileTree";
-import FileViewer from "@/components/files/FileViewer";
+import FileViewer, { fileViewerKind } from "@/components/files/FileViewer";
 import FileEditor from "@/components/files/FileEditor";
 import FileSearch from "@/components/files/FileSearch";
 import ResizeHandle from "@/components/ResizeHandle";
@@ -66,6 +66,23 @@ export default function FilesPanel({
   }
 
   const canEdit = accessLevel === "full";
+  const openKind = open
+    ? fileViewerKind(open.rel, {
+        sizeBytes: open.size_bytes,
+        binary: open.binary,
+        tooLarge: open.too_large,
+      })
+    : null;
+  // PDF/DOCX/XLSX: только просмотр. ZIP без NUL мог бы пройти как «текст»
+  // и кнопка «Править» перезаписала бы бинарь.
+  const canToggleEdit =
+    canEdit &&
+    open != null &&
+    !open.binary &&
+    !open.too_large &&
+    openKind !== "pdf" &&
+    openKind !== "docx" &&
+    openKind !== "xlsx";
   const { width, startResize, toggleMax } = usePanelWidth();
 
   return (
@@ -109,7 +126,7 @@ export default function FilesPanel({
                 )}
               </span>
               <div className="flex shrink-0 items-center gap-2">
-                {canEdit && !open.binary && !open.too_large && (
+                {canToggleEdit && (
                   <button onClick={() => setMode((m) => (m === "edit" ? "view" : "edit"))} className="text-[var(--accent)]">
                     {mode === "edit" ? "Просмотр" : "Править"}
                   </button>

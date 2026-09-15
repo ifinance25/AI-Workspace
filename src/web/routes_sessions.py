@@ -374,8 +374,11 @@ def make_sessions_router(
                 or guessed == "application/pdf"
             )
             if inline_ok:
+                # filename обязателен: иначе Starlette не пишет Content-Disposition,
+                # и браузер может скачать PDF вместо показа в iframe.
                 return FileResponse(
                     resolved,
+                    filename=resolved.name,
                     media_type=guessed,
                     content_disposition_type="inline",
                     headers={"X-Content-Type-Options": "nosniff"},
