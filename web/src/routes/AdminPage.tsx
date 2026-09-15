@@ -43,10 +43,10 @@ export default function AdminPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--fg-primary)]">
-      <div className="mx-auto max-w-4xl p-6">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Админ-панель</h1>
+    <div className="min-h-dvh bg-[var(--bg-canvas)] text-[var(--fg-primary)]">
+      <div className="mx-auto max-w-4xl p-4 sm:p-6">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-xl font-semibold sm:text-2xl">Админ-панель</h1>
           <button
             onClick={() => nav("/")}
             className="rounded-lg bg-[var(--bg-hover)] px-3 py-1.5 text-sm"
@@ -61,12 +61,12 @@ export default function AdminPage() {
           </div>
         )}
 
-        <div className="mb-6 flex gap-2 border-b border-[var(--border-subtle)]">
+        <div className="mb-6 flex gap-2 overflow-x-auto border-b border-[var(--border-subtle)]">
           {tabs.map((t) => (
             <button
               key={t.id}
               onClick={() => selectTab(t.id)}
-              className={`px-4 py-2 text-sm font-medium transition-colors ${
+              className={`shrink-0 px-4 py-2 text-sm font-medium transition-colors ${
                 tab === t.id
                   ? "border-b-2 border-[var(--accent)] text-[var(--accent)]"
                   : "text-[var(--fg-secondary)] hover:text-[var(--fg-primary)]"
@@ -77,7 +77,7 @@ export default function AdminPage() {
           ))}
         </div>
 
-        <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-sidebar)] p-6">
+        <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-sidebar)] p-3 sm:p-6">
           <AnimatePresence mode="wait">
             <motion.div
               key={tab}

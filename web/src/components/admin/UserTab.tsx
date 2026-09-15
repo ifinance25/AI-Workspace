@@ -288,7 +288,7 @@ function UserRow({
             value={pwValue}
             onChange={(e) => setPwValue(e.target.value)}
             placeholder="новый пароль (мин. 12 символов)"
-            className="flex-1 rounded-lg bg-[var(--bg-input)] px-3 py-1.5 text-sm min-w-52"
+            className="flex-1 rounded-lg bg-[var(--bg-input)] px-3 py-1.5 text-sm min-w-0 sm:min-w-52"
           />
           <button
             onClick={() => void savePw()}

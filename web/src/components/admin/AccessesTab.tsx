@@ -127,7 +127,7 @@ export default function AccessesTab() {
       )}
 
       <div className="mb-6 flex flex-wrap items-end gap-2 rounded-2xl border border-[var(--border-subtle)] p-4">
-        <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--fg-muted)]">
+        <label className="flex min-w-0 flex-1 flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--fg-muted)]">
           Пользователь
           <select
             value={form.user_id}
@@ -143,7 +143,7 @@ export default function AccessesTab() {
           </select>
         </label>
 
-        <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--fg-muted)]">
+        <label className="flex min-w-0 flex-1 flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--fg-muted)]">
           Проект
           <select
             value={form.project_id}
@@ -159,7 +159,7 @@ export default function AccessesTab() {
           </select>
         </label>
 
-        <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--fg-muted)]">
+        <label className="flex min-w-0 flex-1 flex-col gap-1 text-[11px] uppercase tracking-wide text-[var(--fg-muted)]">
           Уровень
           <select
             value={form.access_level}

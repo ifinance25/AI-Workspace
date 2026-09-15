@@ -24,6 +24,8 @@ interface Props {
   collapsed: boolean;
   onToggleCollapsed: () => void;
   onOpenSettings: () => void;
+  /** Выезжающая панель на телефоне/планшете: всегда полная ширина, без мини-режима. */
+  overlay?: boolean;
 }
 
 const SEARCH_DEBOUNCE_MS = 200;
@@ -120,7 +122,7 @@ function SessionRow({
       <span className="flex-1 truncate">{preview}</span>
       <button
         onClick={handleDeleteClick}
-        className="shrink-0 rounded-lg p-1.5 opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-60 hover:!opacity-100"
+        className="shrink-0 rounded-lg p-1.5 opacity-100 transition-opacity hover:text-red-400 lg:opacity-0 lg:group-hover:opacity-60 lg:hover:!opacity-100"
         title="Удалить сессию"
         aria-label="Удалить сессию"
       >
@@ -136,6 +138,7 @@ export default function Sidebar({
   collapsed,
   onToggleCollapsed,
   onOpenSettings,
+  overlay = false,
 }: Props) {
   const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -522,6 +525,7 @@ export default function Sidebar({
         <div className="px-3 pt-2">
           <Link
             to="/admin"
+            onClick={() => overlay && onToggleCollapsed()}
             className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
           >
             <SettingsIcon size={18} />
@@ -548,23 +552,27 @@ export default function Sidebar({
     </div>
   );
 
+  const expanded = overlay || !collapsed;
+
   return (
     <motion.aside
-      animate={{ width: collapsed ? 64 : 320 }}
-      transition={{ duration: 0.28, ease: "easeOut" }}
+      animate={{ width: expanded ? 320 : 64 }}
+      transition={{ duration: overlay ? 0 : 0.28, ease: "easeOut" }}
       initial={false}
-      className="flex h-screen shrink-0 flex-col overflow-hidden bg-[var(--bg-sidebar)]"
+      className={`flex h-dvh shrink-0 flex-col overflow-hidden bg-[var(--bg-sidebar)] ${
+        overlay ? "max-w-[min(20rem,85vw)] shadow-2xl" : ""
+      }`}
     >
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
-          key={collapsed ? "collapsed" : "full"}
+          key={expanded ? "full" : "collapsed"}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
           className="flex h-full flex-col items-center"
         >
-          {collapsed ? collapsedContent : fullContent}
+          {expanded ? fullContent : collapsedContent}
         </motion.div>
       </AnimatePresence>
 

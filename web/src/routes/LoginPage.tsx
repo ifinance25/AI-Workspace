@@ -151,12 +151,12 @@ export default function LoginPage() {
   }, [nav, refresh, capturedToken, capturedMagic]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--bg-canvas)] px-6">
+    <div className="flex min-h-dvh items-center justify-center bg-[var(--bg-canvas)] px-4 py-8 sm:px-6">
       <div className="w-full max-w-md animate-riseIn text-center">
         <div className="mx-auto mb-8 flex h-20 w-20 animate-iconPop items-center justify-center rounded-full bg-[var(--bg-hover)] text-[var(--fg-primary)]">
           <SparklesIcon size={40} />
         </div>
-        <h1 className="font-display text-4xl font-normal tracking-tight text-[var(--fg-primary)]">
+        <h1 className="font-display text-3xl font-normal tracking-tight text-[var(--fg-primary)] sm:text-4xl">
           AI-Panel
         </h1>
         <p className="mt-2 text-base text-[var(--fg-muted)]">

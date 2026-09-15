@@ -20,12 +20,12 @@ export function ContinueInTelegram({
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="icon-btn flex h-9 shrink-0 items-center gap-2 rounded-xl px-2.5 text-sm text-[var(--fg-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
+      className="icon-btn flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-xl text-sm text-[var(--fg-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)] lg:h-9 lg:w-auto lg:px-2.5"
       title="Продолжить эту сессию в Telegram"
       aria-label="Продолжить в Telegram"
     >
       <ReplyIcon size={18} />
-      <span>В Telegram</span>
+      <span className="sr-only lg:not-sr-only">В Telegram</span>
     </a>
   );
 }

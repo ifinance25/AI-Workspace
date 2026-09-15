@@ -220,7 +220,7 @@ function Dir(props: DirProps) {
             <span className="truncate">{name}</span>
           </button>
           {canEdit && (
-            <span className="hidden gap-1 group-hover:flex">
+            <span className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100">
               <button title="Новый файл" aria-label="Новый файл" className="icon-btn text-[var(--fg-muted)] hover:text-[var(--fg-primary)]" onClick={() => { setOpen(true); setInline("new-file"); }}><PlusIcon size={15} /></button>
               <button title="Новая папка" aria-label="Новая папка" className="icon-btn text-[var(--fg-muted)] hover:text-[var(--fg-primary)]" onClick={() => { setOpen(true); setInline("new-dir"); }}><FolderPlusIcon size={15} /></button>
               <button title="Переименовать" aria-label="Переименовать" className="icon-btn text-[var(--fg-muted)] hover:text-[var(--fg-primary)]" onClick={() => { setInline("rename"); setInlineVal(name); }}><EditIcon size={15} /></button>
@@ -403,7 +403,7 @@ function FileRow({
         <FileIcon name={entry.name} />
         <span className="truncate">{entry.name}</span>
       </button>
-      <span className="hidden items-center gap-1 group-hover:flex">
+      <span className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100">
         {downloadHref && (
           <a
             href={downloadHref(entry.rel)}

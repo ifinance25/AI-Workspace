@@ -95,7 +95,7 @@ export default function ProjectsTab() {
           placeholder="Имя проекта, например CRM"
           value={form.abspath}
           onChange={(e) => setForm({ abspath: e.target.value })}
-          className="flex-1 rounded-lg bg-[var(--bg-input)] px-3 py-2 min-w-60"
+          className="flex-1 rounded-lg bg-[var(--bg-input)] px-3 py-2 min-w-0 sm:min-w-60"
         />
         <button
           onClick={() => void create()}
@@ -114,7 +114,7 @@ export default function ProjectsTab() {
                   autoFocus
                   value={editPath}
                   onChange={(e) => setEditPath(e.target.value)}
-                  className="flex-1 rounded-lg bg-[var(--bg-input)] px-3 py-2 min-w-60"
+                  className="flex-1 rounded-lg bg-[var(--bg-input)] px-3 py-2 min-w-0 sm:min-w-60"
                 />
                 <button
                   onClick={() => void saveEdit()}

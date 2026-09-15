@@ -61,7 +61,7 @@ export default function ModelSelector({ onChange }: Props) {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 8, scale: 0.98 }}
           transition={{ duration: 0.16, ease: "easeOut" }}
-          className="absolute left-0 z-20 mt-2 w-72 origin-top overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] shadow-lg"
+          className="absolute left-0 z-20 mt-2 w-[min(18rem,calc(100vw-1.5rem))] origin-top overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] shadow-lg"
         >
           {info.known.map((m) => {
             const active = m.id === info.current;

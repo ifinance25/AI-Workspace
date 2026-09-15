@@ -151,7 +151,7 @@ export default function SettingsModal({ open, onClose }: Props) {
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
           onClick={onClose}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -159,7 +159,7 @@ export default function SettingsModal({ open, onClose }: Props) {
           transition={{ duration: 0.2 }}
         >
           <motion.div
-            className="flex h-[640px] max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-3xl bg-[var(--bg-elevated)] shadow-2xl ring-1 ring-[var(--border-subtle)]"
+            className="flex max-h-[min(92dvh,640px)] w-full max-w-3xl flex-col overflow-hidden rounded-t-3xl bg-[var(--bg-elevated)] shadow-2xl ring-1 ring-[var(--border-subtle)] sm:rounded-3xl md:h-[640px] md:max-h-[90vh] md:flex-row"
             onClick={(e) => e.stopPropagation()}
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -167,17 +167,17 @@ export default function SettingsModal({ open, onClose }: Props) {
             transition={{ duration: 0.2, ease: "easeOut" }}
           >
         {/* Левая колонка — вкладки */}
-        <aside className="flex w-56 shrink-0 flex-col border-r border-[var(--border-subtle)] bg-[var(--bg-sidebar)] p-3">
-          <div className="flex items-center gap-2 px-3 py-3 text-base font-semibold text-[var(--fg-primary)]">
+        <aside className="flex w-full shrink-0 flex-col border-b border-[var(--border-subtle)] bg-[var(--bg-sidebar)] p-2 sm:p-3 md:w-56 md:border-b-0 md:border-r">
+          <div className="flex items-center gap-2 px-3 py-2 text-base font-semibold text-[var(--fg-primary)] md:py-3">
             <SettingsIcon size={20} />
             <span>Настройки</span>
           </div>
-          <nav className="mt-2 space-y-1">
+          <nav className="mt-1 flex gap-1 overflow-x-auto pb-1 md:mt-2 md:flex-col md:space-y-1 md:overflow-visible md:pb-0">
             {TABS.map((t) => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
-                className={`w-full rounded-xl px-3 py-2 text-left text-sm transition-colors ${
+                className={`shrink-0 rounded-xl px-3 py-2 text-left text-sm transition-colors md:w-full ${
                   tab === t.id
                     ? "bg-[var(--bg-hover)] text-[var(--fg-primary)]"
                     : "text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
@@ -191,7 +191,7 @@ export default function SettingsModal({ open, onClose }: Props) {
 
         {/* Правая колонка — контент */}
         <section className="flex flex-1 flex-col">
-          <header className="flex items-center justify-between px-6 py-4">
+          <header className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
             <h2 className="text-lg font-semibold text-[var(--fg-primary)]">
               {TABS.find((t) => t.id === tab)?.label}
             </h2>
@@ -204,7 +204,7 @@ export default function SettingsModal({ open, onClose }: Props) {
             </button>
           </header>
 
-          <div className="flex-1 overflow-y-auto px-6 pb-6">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 sm:px-6">
             {error && (
               <div className="mb-4 rounded-xl border border-red-700/40 bg-red-900/20 px-3 py-2 text-sm text-red-300">
                 {error}
@@ -379,13 +379,13 @@ export default function SettingsModal({ open, onClose }: Props) {
             {tab === "session" && (
               <div className="space-y-6">
                 <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-sidebar)] p-4 text-sm">
-                  <div className="flex items-center justify-between py-1.5">
+                  <div className="flex flex-col gap-1 py-1.5 sm:flex-row sm:items-center sm:justify-between">
                     <span className="text-[var(--fg-muted)]">Telegram ID</span>
                     <span className="font-mono text-[var(--fg-primary)]">
                       {user?.id ?? "?"}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between py-1.5">
+                  <div className="flex flex-col gap-1 py-1.5 sm:flex-row sm:items-center sm:justify-between">
                     <span className="text-[var(--fg-muted)]">
                       Имя пользователя
                     </span>

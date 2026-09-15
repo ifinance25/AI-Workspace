@@ -12,7 +12,7 @@ import { TextEvent } from "@/components/events/TextEvent";
 import { ToolUseEvent } from "@/components/events/ToolUseEvent";
 import { UsageEvent } from "@/components/events/UsageEvent";
 import { UserMessageEvent } from "@/components/events/UserMessageEvent";
-import { BookIcon, CloseIcon, FilesIcon, FolderIcon, LightbulbIcon, NotesIcon, PackageIcon, UsersIcon } from "@/components/icons";
+import { BookIcon, CloseIcon, FilesIcon, FolderIcon, LightbulbIcon, NotesIcon, PackageIcon, PanelLeftIcon, UsersIcon } from "@/components/icons";
 import DocsPanel from "@/components/DocsPanel";
 import FilesPanel from "@/components/files/FilesPanel";
 import ArtifactsPanel from "@/components/artifacts/ArtifactsPanel";
@@ -44,6 +44,7 @@ interface Bubble {
 interface Props {
   session: Session;
   onNewChat?: () => void;
+  onOpenSidebar?: () => void;
 }
 
 let bubbleCounter = 0;
@@ -156,7 +157,7 @@ function historyToBubbles(
 
 const NOTES_DEBOUNCE_MS = 500;
 
-export default function Chat({ session, onNewChat }: Props) {
+export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
   const { user } = useAuth();
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [wsConnected, setWsConnected] = useState(false);
@@ -881,22 +882,32 @@ export default function Chat({ session, onNewChat }: Props) {
   };
 
   return (
-    <div className="flex min-w-0 flex-1">
+    <div className="flex min-w-0 flex-1 overflow-hidden">
       <main className="flex min-w-0 flex-1 flex-col bg-[var(--bg-canvas)]">
       {/* Хедер на всю ширину main-колонки (не max-w-4xl) — так подписи кнопок
           помещаются. Ряд действий переносится на 2-ю строку на узком окне
           (flex-wrap), НИКОГДА не обрезается. */}
       <header className="border-b border-[var(--border-subtle)]">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5">
-          {/* Бредкрамб проекта → чат. Имя проекта НЕ сжимается (shrink-0):
-              обрезается только заголовок чата. Разделитель «/» вложен в
-              обрезаемую часть, чтобы не болтался пустой слэш при усечении. */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-2 py-2 sm:gap-x-4 sm:px-4 sm:py-2.5">
+          {onOpenSidebar && (
+            <button
+              type="button"
+              onClick={onOpenSidebar}
+              className="icon-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)] lg:hidden"
+              aria-label="Открыть список чатов"
+              title="Чаты"
+            >
+              <PanelLeftIcon size={20} />
+            </button>
+          )}
+          {/* Бредкрамб проекта → чат. На узком экране обе части могут
+              усекаться; на широком имя проекта держит ширину. */}
           <div className="flex min-w-0 flex-1 items-center gap-2 text-[var(--fg-secondary)]">
-            <FolderIcon size={18} />
-            <span className="shrink-0 text-base font-semibold text-[var(--fg-primary)]">
+            <FolderIcon size={18} className="hidden shrink-0 sm:block" />
+            <span className="max-w-[45%] truncate text-base font-semibold text-[var(--fg-primary)] lg:max-w-none lg:shrink-0">
               {session.project_name || "Сессия"}
             </span>
-            <span className="truncate text-sm text-[var(--fg-secondary)]">
+            <span className="min-w-0 truncate text-sm text-[var(--fg-secondary)]">
               <span className="text-[var(--fg-muted)]">/ </span>
               {sessionTitle({ notes: displayNotes, created_at: session.created_at })}
             </span>
@@ -922,7 +933,7 @@ export default function Chat({ session, onNewChat }: Props) {
                   return next;
                 })
               }
-              className={`icon-btn relative flex h-9 shrink-0 items-center gap-2 rounded-xl px-2.5 text-sm transition-colors ${
+              className={`icon-btn relative flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-xl text-sm transition-colors lg:h-9 lg:w-auto lg:px-2.5 ${
                 notesOpen
                   ? "bg-[var(--bg-hover)] text-[var(--fg-primary)]"
                   : "text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
@@ -940,7 +951,7 @@ export default function Chat({ session, onNewChat }: Props) {
               aria-pressed={notesOpen}
             >
               <NotesIcon size={18} />
-              <span>Заметки</span>
+              <span className="sr-only lg:not-sr-only">Заметки</span>
               {/* Статус автосохранения — точка в углу, чтобы не двигать ряд
                   (прежде «· сохранено» меняло ширину кнопки и всё дёргалось). */}
               {notesStatus === "saving" && (
@@ -961,7 +972,7 @@ export default function Chat({ session, onNewChat }: Props) {
                   return next;
                 })
               }
-              className={`icon-btn flex h-9 shrink-0 items-center gap-2 rounded-xl px-2.5 text-sm transition-colors ${
+              className={`icon-btn flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-xl text-sm transition-colors lg:h-9 lg:w-auto lg:px-2.5 ${
                 docsOpen
                   ? "bg-[var(--bg-hover)] text-[var(--fg-primary)]"
                   : "text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
@@ -971,7 +982,7 @@ export default function Chat({ session, onNewChat }: Props) {
               aria-pressed={docsOpen}
             >
               <BookIcon size={18} />
-              <span>Документация</span>
+              <span className="sr-only lg:not-sr-only">Документация</span>
             </button>
             {session.project_path && (
               <button
@@ -982,7 +993,7 @@ export default function Chat({ session, onNewChat }: Props) {
                     return next;
                   })
                 }
-                className={`icon-btn flex h-9 shrink-0 items-center gap-2 rounded-xl px-2.5 text-sm transition-colors ${
+                className={`icon-btn flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-xl text-sm transition-colors lg:h-9 lg:w-auto lg:px-2.5 ${
                   filesOpen
                     ? "bg-[var(--bg-hover)] text-[var(--fg-primary)]"
                     : "text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
@@ -992,7 +1003,7 @@ export default function Chat({ session, onNewChat }: Props) {
                 aria-pressed={filesOpen}
               >
                 <FilesIcon size={18} />
-                <span>Файлы</span>
+                <span className="sr-only lg:not-sr-only">Файлы</span>
               </button>
             )}
             {session.project_path && (
@@ -1004,7 +1015,7 @@ export default function Chat({ session, onNewChat }: Props) {
                     return next;
                   })
                 }
-                className={`icon-btn flex h-9 shrink-0 items-center gap-2 rounded-xl px-2.5 text-sm transition-colors ${
+                className={`icon-btn flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-xl text-sm transition-colors lg:h-9 lg:w-auto lg:px-2.5 ${
                   artifactsOpen
                     ? "bg-[var(--bg-hover)] text-[var(--fg-primary)]"
                     : "text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
@@ -1014,7 +1025,7 @@ export default function Chat({ session, onNewChat }: Props) {
                 aria-pressed={artifactsOpen}
               >
                 <PackageIcon size={18} />
-                <span>Артефакты</span>
+                <span className="sr-only lg:not-sr-only">Артефакты</span>
               </button>
             )}
             {/* «Участники» — самообслуживание шаринга проекта. Видна ТОЛЬКО
@@ -1027,12 +1038,12 @@ export default function Chat({ session, onNewChat }: Props) {
             {session.project_id != null && session.can_manage_members && (
               <button
                 onClick={() => setMembersOpen(true)}
-                className="icon-btn flex h-9 shrink-0 items-center gap-2 rounded-xl px-2.5 text-sm text-[var(--fg-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
+                className="icon-btn flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-xl text-sm text-[var(--fg-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)] lg:h-9 lg:w-auto lg:px-2.5"
                 title="Участники проекта"
                 aria-label="Участники"
               >
                 <UsersIcon size={18} />
-                <span>Участники</span>
+                <span className="sr-only lg:not-sr-only">Участники</span>
               </button>
             )}
             <button
@@ -1043,7 +1054,7 @@ export default function Chat({ session, onNewChat }: Props) {
                 // сбрасывался к серверному значению (находка аудита #20).
                 void api.patchSettings(next as 0 | 1 | 2 | 3).catch(() => {});
               }}
-              className={`icon-btn flex h-9 shrink-0 items-center gap-2 rounded-xl px-2.5 text-sm transition-colors ${
+              className={`icon-btn flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-xl text-sm transition-colors lg:h-9 lg:w-auto lg:px-2.5 ${
                 verbose >= 2
                   ? "bg-[var(--bg-hover)] text-[var(--fg-primary)]"
                   : "text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
@@ -1057,7 +1068,7 @@ export default function Chat({ session, onNewChat }: Props) {
               aria-pressed={verbose >= 2}
             >
               <LightbulbIcon size={18} />
-              <span>Размышления</span>
+              <span className="sr-only lg:not-sr-only">Размышления</span>
             </button>
             <ContinueInTelegram
               botUsername={user?.telegram_bot_username}
@@ -1084,7 +1095,7 @@ export default function Chat({ session, onNewChat }: Props) {
             className="overflow-hidden"
           >
             {notesOpen ? (
-              <div className="mx-auto w-full max-w-4xl px-6 pt-4">
+              <div className="mx-auto w-full max-w-4xl px-3 pt-3 sm:px-6 sm:pt-4">
                 <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-sidebar)] p-4">
                   <div className="mb-2 flex items-center justify-between text-[12px] font-semibold uppercase tracking-wider text-[var(--fg-muted)]">
                     <span>Заметки</span>
@@ -1112,7 +1123,7 @@ export default function Chat({ session, onNewChat }: Props) {
       </AnimatePresence>
 
       {error && (
-        <div className="mx-auto mt-3 w-full max-w-4xl animate-slideUpIn px-6">
+        <div className="mx-auto mt-3 w-full max-w-4xl animate-slideUpIn px-3 sm:px-6">
           <div className="rounded-xl bg-red-900/30 px-4 py-2.5 text-sm text-red-300">
             {error}
           </div>
@@ -1125,7 +1136,7 @@ export default function Chat({ session, onNewChat }: Props) {
         onScroll={onScroll}
         className={
           centeredComposer
-            ? "flex flex-1 flex-col items-center justify-end overflow-y-auto px-6"
+            ? "flex flex-1 flex-col items-center justify-end overflow-y-auto px-3 sm:px-6"
             : "flex-1 overflow-y-auto"
         }
       >
@@ -1143,7 +1154,7 @@ export default function Chat({ session, onNewChat }: Props) {
           <>
             <div
               ref={setBubblesContentRef}
-              className="mx-auto max-w-3xl space-y-2 px-6 py-8"
+              className="mx-auto max-w-3xl space-y-2 px-3 py-6 sm:px-6 sm:py-8"
             >
               {bubbles.map((b) => {
                 const el = renderBubble(b);
@@ -1198,7 +1209,7 @@ export default function Chat({ session, onNewChat }: Props) {
       <AnimatePresence>
         {membersOpen && session.project_id != null && (
           <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
             onClick={() => setMembersOpen(false)}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1206,7 +1217,7 @@ export default function Chat({ session, onNewChat }: Props) {
             transition={{ duration: 0.2 }}
           >
             <motion.div
-              className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl bg-[var(--bg-elevated)] shadow-2xl ring-1 ring-[var(--border-subtle)]"
+              className="flex max-h-[min(92dvh,90vh)] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-[var(--bg-elevated)] shadow-2xl ring-1 ring-[var(--border-subtle)] sm:rounded-3xl"
               onClick={(e) => e.stopPropagation()}
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}

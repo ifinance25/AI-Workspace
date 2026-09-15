@@ -70,7 +70,7 @@ export default function FilesPanel({
 
   return (
     <aside
-      className="fixed inset-0 z-30 flex w-full animate-fadeInUp flex-col border-l border-[var(--border-subtle)] bg-[var(--bg-sidebar)] md:relative md:z-auto md:w-[var(--panel-w)] md:shrink-0"
+      className="fixed inset-0 z-30 flex w-full animate-fadeInUp flex-col border-l border-[var(--border-subtle)] bg-[var(--bg-sidebar)] lg:relative lg:z-auto lg:w-[var(--panel-w)] lg:shrink-0"
       style={{ "--panel-w": `${width}px` } as CSSProperties}
     >
       <ResizeHandle onPointerDown={startResize} />
@@ -85,7 +85,7 @@ export default function FilesPanel({
           <button onClick={() => setReloadToken((t) => t + 1)} className="icon-btn rounded p-1 hover:text-[var(--fg-primary)]" title="Обновить" aria-label="Обновить">
             <RefreshIcon size={16} />
           </button>
-          <button onClick={toggleMax} className="icon-btn hidden rounded p-1 hover:text-[var(--fg-primary)] md:inline-flex" title="Развернуть / свернуть панель" aria-label="Развернуть панель">
+          <button onClick={toggleMax} className="icon-btn hidden rounded p-1 hover:text-[var(--fg-primary)] lg:inline-flex" title="Развернуть / свернуть панель" aria-label="Развернуть панель">
             <MaximizeIcon size={16} />
           </button>
           <button onClick={onClose} className="icon-btn rounded p-1 hover:text-[var(--fg-primary)]" title="Закрыть" aria-label="Закрыть">

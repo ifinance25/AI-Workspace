@@ -11,7 +11,7 @@ export function UserMessageEvent({ content, source }: Props) {
     null;
   return (
     <div className="my-4 flex justify-end">
-      <div className="max-w-[80%] rounded-3xl rounded-br-md bg-[var(--bg-hover)] px-5 py-3 text-[15px] text-[var(--fg-primary)]">
+      <div className="max-w-[min(92%,28rem)] rounded-3xl rounded-br-md bg-[var(--bg-hover)] px-4 py-3 text-[15px] text-[var(--fg-primary)] sm:max-w-[80%] sm:px-5">
         {tag && (
           <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--fg-muted)]">
             {tag}

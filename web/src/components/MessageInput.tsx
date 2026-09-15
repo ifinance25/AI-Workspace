@@ -192,7 +192,7 @@ export default function MessageInput({
     (text.trim().length > 0 || attachments.length > 0) && !disabled && !uploading;
 
   return (
-    <div className="px-6 pb-8 pt-3">
+    <div className="px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-2 sm:px-6 sm:pb-8 sm:pt-3">
       <div className="relative mx-auto w-full max-w-3xl">
         {/* Поповер команд/скиллов, открытый кнопкой. Прячем, когда юзер
             набирает "/" — тогда показывается типизированный поповер ниже,
@@ -267,7 +267,7 @@ export default function MessageInput({
           )}
         </AnimatePresence>
 
-        <div className="flex flex-col gap-3 rounded-[28px] bg-[var(--bg-elevated)] px-5 py-4 shadow-[var(--shadow-composer)] ring-1 ring-[var(--border-subtle)] focus-within:ring-[var(--fg-muted)]">
+        <div className="flex flex-col gap-3 rounded-2xl bg-[var(--bg-elevated)] px-3 py-3 shadow-[var(--shadow-composer)] ring-1 ring-[var(--border-subtle)] focus-within:ring-[var(--fg-muted)] sm:rounded-[28px] sm:px-5 sm:py-4">
           {/* Превью прикреплённых файлов */}
           {(attachments.length > 0 || uploading || uploadError) && (
             <div className="flex flex-wrap gap-2">
@@ -363,7 +363,7 @@ export default function MessageInput({
           />
 
           {/* Нижний бар */}
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               {leftSlot}
               <InputModelButton />
@@ -428,7 +428,7 @@ export default function MessageInput({
             )}
           </div>
         </div>
-        <div className="mt-3 text-center text-xs text-[var(--fg-muted)]">
+        <div className="mt-2 hidden text-center text-xs text-[var(--fg-muted)] sm:mt-3 sm:block">
           {sendKeyHint(sendKey)}
         </div>
       </div>

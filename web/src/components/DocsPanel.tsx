@@ -23,7 +23,7 @@ export default function DocsPanel({ onClose }: { onClose: () => void }) {
   }, []);
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-6 pt-4">
+    <div className="mx-auto w-full max-w-4xl px-3 pt-3 sm:px-6 sm:pt-4">
       <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-sidebar)] p-4">
         <div className="mb-2 flex items-center justify-between text-[12px] font-semibold uppercase tracking-wider text-[var(--fg-muted)]">
           <span>Документация</span>
@@ -35,7 +35,7 @@ export default function DocsPanel({ onClose }: { onClose: () => void }) {
         {/* Фиксированная высота — чтобы при асинхронной подгрузке гайда
             высота панели НЕ прыгала после анимации открытия (иначе контент
             «резко появляется»). Контент скроллится внутри. */}
-        <div className="h-[60vh] overflow-y-auto pr-2">
+        <div className="h-[min(50vh,24rem)] overflow-y-auto pr-2 sm:h-[60vh]">
           {content ? (
             <Markdown>{content}</Markdown>
           ) : (

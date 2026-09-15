@@ -78,9 +78,9 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--bg-canvas)]">
-      <div className="mx-auto flex h-screen max-w-3xl flex-col">
-        <header className="flex items-center justify-between px-8 py-6">
+    <div className="min-h-dvh bg-[var(--bg-canvas)]">
+      <div className="mx-auto flex h-dvh max-w-3xl flex-col">
+        <header className="flex items-center justify-between px-4 py-4 sm:px-8 sm:py-6">
           <h1 className="text-xl font-semibold text-[var(--fg-primary)]">
             Настройки
           </h1>
@@ -92,16 +92,16 @@ export default function SettingsPage() {
           </Link>
         </header>
 
-        <div className="flex-1 space-y-10 overflow-y-auto px-8 pb-12">
+        <div className="flex-1 space-y-10 overflow-y-auto px-4 pb-12 sm:px-8">
           <Section title="Профиль">
             <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-sidebar)] p-5 text-[15px]">
-              <div className="flex items-center justify-between py-2">
+              <div className="flex flex-col gap-1 py-2 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-[var(--fg-muted)]">Telegram ID</span>
                 <span className="font-mono text-[var(--fg-primary)]">
                   {user?.id ?? "?"}
                 </span>
               </div>
-              <div className="flex items-center justify-between py-2">
+              <div className="flex flex-col gap-1 py-2 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-[var(--fg-muted)]">Имя пользователя</span>
                 <span className="text-[var(--fg-primary)]">
                   {user?.username || "—"}
