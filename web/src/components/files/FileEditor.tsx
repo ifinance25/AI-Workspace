@@ -10,7 +10,7 @@ export default function FileEditor({
 }: {
   projectPath: string;
   file: FileContent;
-  onSaved: (mtimeNs: number, content: string) => void;
+  onSaved: (mtimeNs: string, content: string) => void;
   onReload: () => void;
 }) {
   const [text, setText] = useState(file.content);
@@ -31,7 +31,7 @@ export default function FileEditor({
     return (e as Error).message || "ошибка";
   }
 
-  async function save(expected: number) {
+  async function save(expected: string) {
     setStatus("saving");
     setConflict(false);
     try {
@@ -73,6 +73,12 @@ export default function FileEditor({
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+            e.preventDefault();
+            if (dirty && status !== "saving") void save(mtime);
+          }
+        }}
         spellCheck={false}
         className="min-h-0 flex-1 resize-none bg-transparent p-3 font-mono text-sm text-[var(--fg-primary)] focus:outline-none"
       />

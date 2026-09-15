@@ -116,7 +116,9 @@ def read_text_file(root: Path, rel: str) -> dict:
         "rel": candidate.relative_to(root_resolved).as_posix(),
         "content": "",
         "size_bytes": st.st_size,
-        "mtime_ns": st.st_mtime_ns,
+        # Строка: JSON-число не влезает в JS Number (53 бита), браузер
+        # округляет ns и PUT с expected_mtime_ns всегда ловит 409.
+        "mtime_ns": str(st.st_mtime_ns),
         "binary": False,
         "too_large": False,
     }
@@ -131,20 +133,27 @@ def read_text_file(root: Path, rel: str) -> dict:
     return out
 
 
-def write_text_file(root: Path, rel: str, content: str, expected_mtime_ns: int) -> dict:
+def write_text_file(
+    root: Path, rel: str, content: str, expected_mtime_ns: int | str
+) -> dict:
     """Перезаписать существующий текстовый файл с проверкой mtime.
 
-    Если ``st_mtime_ns`` на диске отличается от ``expected_mtime_ns`` — Conflict
+    Если ``st_mtime_ns`` на диске отличается от ``expected_mtime_ns``: Conflict
     (кто-то, например Claude, изменил файл после того как клиент его прочитал).
+    ``mtime_ns`` в ответе: строка, чтобы JSON не округлял значение в браузере.
     """
     root_resolved = Path(root).resolve()
     candidate = _safe_candidate(root_resolved, rel)
     if not candidate.is_file():
         raise NotFound("file not found")
-    if candidate.stat().st_mtime_ns != expected_mtime_ns:
+    try:
+        expected = int(expected_mtime_ns)
+    except (TypeError, ValueError) as exc:
+        raise PathError("invalid expected_mtime_ns") from exc
+    if candidate.stat().st_mtime_ns != expected:
         raise Conflict("file changed on disk")
     candidate.write_text(content, encoding="utf-8")
-    return {"mtime_ns": candidate.stat().st_mtime_ns}
+    return {"mtime_ns": str(candidate.stat().st_mtime_ns)}
 
 
 def create_entry(root: Path, rel: str, kind: str) -> dict:
@@ -381,6 +390,8 @@ def _normalize_artifact_rel(root: Path, rel: str) -> str:
 
 class WriteIn(BaseModel):
     content: str
+    # Строка или int: браузер шлёт точное ns-значение строкой (JSON-число
+    # теряет младшие биты). Pydantic приведёт цифровую строку к int.
     expected_mtime_ns: int
 
 

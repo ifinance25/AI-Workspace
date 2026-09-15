@@ -177,7 +177,8 @@ export interface FileContent {
   rel: string;
   content: string;
   size_bytes: number;
-  mtime_ns: number;
+  /** Nanoseconds as a decimal string: JSON numbers lose precision in JS. */
+  mtime_ns: string;
   binary: boolean;
   too_large: boolean;
 }

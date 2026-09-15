@@ -275,8 +275,8 @@ export const api = {
       `/api/files/content?project_path=${encodeURIComponent(projectPath)}&rel=${encodeURIComponent(rel)}`,
     );
   },
-  saveFile(projectPath: string, rel: string, content: string, expectedMtimeNs: number) {
-    return req<{ mtime_ns: number }>(
+  saveFile(projectPath: string, rel: string, content: string, expectedMtimeNs: string) {
+    return req<{ mtime_ns: string }>(
       "PUT",
       `/api/files/content?project_path=${encodeURIComponent(projectPath)}&rel=${encodeURIComponent(rel)}`,
       { content, expected_mtime_ns: expectedMtimeNs },
