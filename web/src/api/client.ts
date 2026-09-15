@@ -11,6 +11,7 @@ import type {
   FileContent,
   FileEntry,
   FileTreeResponse,
+  FileUploadResponse,
   HistoryMessage,
   ModelInfo,
   Project,
@@ -288,6 +289,30 @@ export const api = {
       `/api/files/entry?project_path=${encodeURIComponent(projectPath)}`,
       { rel, kind },
     );
+  },
+  async uploadProjectFiles(
+    projectPath: string,
+    dir: string,
+    files: File[],
+  ): Promise<FileUploadResponse> {
+    const form = new FormData();
+    for (const file of files) {
+      form.append("files", file);
+    }
+    const path =
+      `/api/files/upload?project_path=${encodeURIComponent(projectPath)}` +
+      `&dir=${encodeURIComponent(dir)}`;
+    const resp = await fetch(apiUrl(path), {
+      method: "POST",
+      credentials: "include",
+      body: form,
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      notifyIfUnauthorized(resp.status, path);
+      throw new ApiError(resp.status, `${resp.status} ${resp.statusText}: ${text}`);
+    }
+    return (await resp.json()) as FileUploadResponse;
   },
   deleteEntry(projectPath: string, rel: string) {
     return req<{ success: boolean }>(
