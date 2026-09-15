@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Callable
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 
 from src.utils.url_safety import is_path_within_root
@@ -25,6 +25,8 @@ MAX_VIEW_BYTES = 1 * 1024 * 1024  # файлы крупнее не отдаём 
 MAX_DIR_ENTRIES = 1000  # потолок записей на один каталог
 MAX_SEARCH_HITS = 200
 MAX_SEARCH_FILES = 2000
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # один файл из локального диска
+MAX_UPLOAD_FILES = 50
 # M-6: суммарный бюджет прочитанных байт на ОДИН content-поиск. Без него
 # 2000 файлов × 1 MiB = ~2 ГБ чтения на запрос → CPU/IO DoS. 64 MiB режут
 # худший случай, не мешая нормальному поиску.
@@ -179,6 +181,53 @@ def create_entry(root: Path, rel: str, kind: str) -> dict:
         "rel": candidate.relative_to(root_resolved).as_posix(),
         "type": kind,
         "size_bytes": None if kind == "dir" else 0,
+    }
+
+
+def safe_upload_filename(raw: str) -> str:
+    """Имя файла без каталогов: ``Path.name`` после замены ``\\`` на ``/``.
+
+    PathError, если имя пустое, ``.`` / ``..`` или содержит NUL. Кириллица
+    и пробелы сохраняются: это файловый менеджер, не вложение в чат.
+    """
+    base = Path(str(raw).replace("\\", "/")).name
+    if not base or base in (".", "..") or "\x00" in base:
+        raise PathError("invalid filename")
+    return base[:255]
+
+
+def require_existing_dir(root: Path, dir_rel: str) -> Path:
+    """Каталог ``root/dir_rel`` внутри корня. PathError / NotFound как у list_dir."""
+    dest_dir = _safe_candidate(root, dir_rel)
+    if not dest_dir.is_dir():
+        raise NotFound("directory not found")
+    return dest_dir
+
+
+def save_uploaded_file(root: Path, dir_rel: str, filename: str, data: bytes) -> dict:
+    """Записать байты в ``root/dir_rel/<safe-name>``. Не перезаписывает.
+
+    PathError: traversal, невалидное имя, файл больше MAX_UPLOAD_BYTES.
+    NotFound: целевой каталог отсутствует. Conflict: путь уже занят.
+    """
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise PathError(f"file > {MAX_UPLOAD_BYTES // (1024 * 1024)} MiB")
+    root_resolved = Path(root).resolve()
+    dest_dir = require_existing_dir(root_resolved, dir_rel)
+    safe = safe_upload_filename(filename)
+    dest = dest_dir / safe
+    # resolve() для ещё не существующего файла идёт через родителя.
+    dest_resolved = dest.resolve()
+    if not is_path_within_root(root_resolved, dest_resolved):
+        raise PathError("path escapes project root")
+    if dest.exists() or dest_resolved.exists():
+        raise Conflict("entry already exists")
+    dest.write_bytes(data)
+    return {
+        "name": dest.name,
+        "rel": dest.relative_to(root_resolved).as_posix(),
+        "type": "file",
+        "size_bytes": dest.stat().st_size,
     }
 
 
@@ -498,6 +547,67 @@ def make_files_router(
     ) -> dict:
         access = await _access(project_path, user, need_full=True)
         return await _call(create_entry, access.root, payload.rel, payload.kind)
+
+    @router.post("/upload")
+    async def post_upload(
+        project_path: str = Query(...),
+        dir: str = Query("", alias="dir"),
+        files: list[UploadFile] = File(...),
+        user: dict = Depends(get_current_user),
+    ) -> dict:
+        """Несколько файлов в текущую папку дерева. Частичный успех: 200 + errors."""
+        access = await _access(project_path, user, need_full=True)
+        await _call(require_existing_dir, access.root, dir)
+        if not files:
+            raise HTTPException(status_code=400, detail="no files")
+        if len(files) > MAX_UPLOAD_FILES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"too many files (max {MAX_UPLOAD_FILES})",
+            )
+
+        uploaded: list[dict] = []
+        errors: list[dict] = []
+        for item in files:
+            name = item.filename or "upload"
+            try:
+                chunks: list[bytes] = []
+                total = 0
+                too_large = False
+                while True:
+                    chunk = await item.read(64 * 1024)
+                    if not chunk:
+                        break
+                    total += len(chunk)
+                    if total > MAX_UPLOAD_BYTES:
+                        too_large = True
+                        break
+                    chunks.append(chunk)
+                if too_large:
+                    errors.append(
+                        {
+                            "name": name,
+                            "error": f"file > {MAX_UPLOAD_BYTES // (1024 * 1024)} MiB",
+                        }
+                    )
+                    continue
+                data = b"".join(chunks)
+                entry = await asyncio.to_thread(
+                    save_uploaded_file, access.root, dir, name, data
+                )
+                uploaded.append(entry)
+            except PathError as exc:
+                errors.append({"name": name, "error": str(exc)})
+            except NotFound as exc:
+                errors.append({"name": name, "error": str(exc)})
+            except Conflict as exc:
+                errors.append({"name": name, "error": str(exc)})
+            except OSError as exc:
+                logger.warning("files_upload_fs_error", error=str(exc), name=name)
+                errors.append({"name": name, "error": "filesystem error"})
+            finally:
+                await item.close()
+        return {"uploaded": uploaded, "errors": errors}
 
     @router.delete("/entry")
     async def delete_entry_route(

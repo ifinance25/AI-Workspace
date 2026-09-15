@@ -173,6 +173,16 @@ export interface FileTreeResponse {
   entries: FileEntry[];
 }
 
+export interface FileUploadError {
+  name: string;
+  error: string;
+}
+
+export interface FileUploadResponse {
+  uploaded: FileEntry[];
+  errors: FileUploadError[];
+}
+
 export interface FileContent {
   rel: string;
   content: string;

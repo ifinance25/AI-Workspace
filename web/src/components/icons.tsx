@@ -244,6 +244,13 @@ export const DownloadIcon = svgMulti([
   "M12 15V3",
 ]);
 
+// Загрузить с диска — стрелка из лотка вверх.
+export const UploadIcon = svgMulti([
+  "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4",
+  "M17 8l-5-5-5 5",
+  "M12 3v12",
+]);
+
 // Развернуть/свернуть панель (две стрелки в стороны / внутрь).
 export const MaximizeIcon = svgMulti([
   "M8 3H5a2 2 0 0 0-2 2v3",

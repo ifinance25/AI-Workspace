@@ -1,8 +1,8 @@
 // web/src/components/files/FileTree.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/api/client";
 import type { FileEntry } from "@/lib/types";
-import { CheckIcon, ChevronRightIcon, CloseIcon, DownloadIcon, EditIcon, FolderPlusIcon, PlusIcon, TrashIcon } from "@/components/icons";
+import { CheckIcon, ChevronRightIcon, CloseIcon, DownloadIcon, EditIcon, FolderPlusIcon, PlusIcon, TrashIcon, UploadIcon } from "@/components/icons";
 
 type Inline = "new-file" | "new-dir" | "rename" | null;
 
@@ -141,6 +141,8 @@ function Dir(props: DirProps) {
   const [inline, setInline] = useState<Inline>(null);
   const [inlineVal, setInlineVal] = useState("");
   const [localReload, setLocalReload] = useState(0);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open && !isRoot) return;
@@ -200,10 +202,67 @@ function Dir(props: DirProps) {
     }
   }
 
+  async function uploadSelected(list: FileList | File[]) {
+    const files = Array.from(list);
+    if (!files.length) return;
+    setError(null);
+    setUploading(true);
+    try {
+      const result = await api.uploadProjectFiles(projectPath, rel, files);
+      if (result.errors.length) {
+        const failed = result.errors.map((e) => `${e.name}: ${e.error}`).join("; ");
+        setError(
+          result.uploaded.length
+            ? `загружено ${result.uploaded.length}, ошибки: ${failed}`
+            : failed,
+        );
+      }
+      setLocalReload((t) => t + 1);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  const pickLabel = rel ? `Загрузить файлы в ${name}` : "Загрузить файлы";
+
   const pad = { paddingLeft: `${depth * 12 + 8}px` };
 
   return (
-    <div>
+    <div
+      onDragOver={
+        canEdit
+          ? (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          : undefined
+      }
+      onDrop={
+        canEdit
+          ? (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (e.dataTransfer.files.length) void uploadSelected(e.dataTransfer.files);
+            }
+          : undefined
+      }
+    >
+      {canEdit && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          data-upload-dir={rel}
+          aria-label={pickLabel}
+          onChange={(e) => {
+            if (e.target.files?.length) void uploadSelected(e.target.files);
+          }}
+        />
+      )}
       {!isRoot && (
         <div className="group flex items-center gap-1 pr-2 text-sm hover:bg-[var(--bg-hover)]" style={pad}>
           <button
@@ -221,6 +280,7 @@ function Dir(props: DirProps) {
           </button>
           {canEdit && (
             <span className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100">
+              <button title="Загрузить файлы" aria-label={`Загрузить в ${name}`} className="icon-btn text-[var(--fg-muted)] hover:text-[var(--fg-primary)]" disabled={uploading} onClick={() => { setOpen(true); fileInputRef.current?.click(); }}><UploadIcon size={15} /></button>
               <button title="Новый файл" aria-label="Новый файл" className="icon-btn text-[var(--fg-muted)] hover:text-[var(--fg-primary)]" onClick={() => { setOpen(true); setInline("new-file"); }}><PlusIcon size={15} /></button>
               <button title="Новая папка" aria-label="Новая папка" className="icon-btn text-[var(--fg-muted)] hover:text-[var(--fg-primary)]" onClick={() => { setOpen(true); setInline("new-dir"); }}><FolderPlusIcon size={15} /></button>
               <button title="Переименовать" aria-label="Переименовать" className="icon-btn text-[var(--fg-muted)] hover:text-[var(--fg-primary)]" onClick={() => { setInline("rename"); setInlineVal(name); }}><EditIcon size={15} /></button>
@@ -231,9 +291,10 @@ function Dir(props: DirProps) {
       )}
 
       {isRoot && canEdit && (
-        <div className="flex gap-3 px-2 py-1 text-xs text-[var(--fg-muted)]">
+        <div className="flex flex-wrap items-center gap-3 px-2 py-1 text-xs text-[var(--fg-muted)]">
           <button title="Новый файл" className="inline-flex items-center gap-1 hover:text-[var(--fg-primary)]" onClick={() => setInline("new-file")}><PlusIcon size={13} /> файл</button>
           <button title="Новая папка" className="inline-flex items-center gap-1 hover:text-[var(--fg-primary)]" onClick={() => setInline("new-dir")}><FolderPlusIcon size={13} /> папка</button>
+          <button type="button" title="Загрузить файлы с диска" className="inline-flex items-center gap-1 hover:text-[var(--fg-primary)] disabled:opacity-50" disabled={uploading} onClick={() => fileInputRef.current?.click()}><UploadIcon size={13} /> {uploading ? "загрузка…" : "загрузить"}</button>
         </div>
       )}
 
@@ -271,6 +332,9 @@ function Dir(props: DirProps) {
             </div>
           )}
           {error && <div style={pad} className="py-1 text-xs text-red-400">{error}</div>}
+          {uploading && !isRoot && (
+            <div style={pad} className="py-1 text-xs text-[var(--fg-muted)]">загрузка…</div>
+          )}
           {loading && <div style={pad} className="py-1 text-xs text-[var(--fg-muted)]">…</div>}
           {entries?.map((e) =>
             e.type === "dir" ? (
