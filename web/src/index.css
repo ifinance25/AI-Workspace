@@ -217,3 +217,11 @@ html:not(.dark) .hljs-regexp, html:not(.dark) .hljs-deletion { color: #7f2c28; }
 body.is-resizing-panel iframe {
   pointer-events: none;
 }
+
+.ssh-term .xterm,
+.ssh-term .xterm-viewport {
+  height: 100%;
+}
+.ssh-term .xterm-screen {
+  height: 100%;
+}

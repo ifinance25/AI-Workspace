@@ -24,6 +24,9 @@ web/src/__tests__/** export-ignore
 
 # Дев-файлы в корне.
 CLAUDE.md export-ignore
+# Инструкция к локальным дампам: в GitHub ок, в публичный tar.gz не нужна.
+# Бинарные .db и так в .gitignore; export-ignore страхует, если README tracked.
+data/** export-ignore
 
 # Shell-скрипты ВСЕГДА с LF: CRLF из Windows-чекаута ломает bash на сервере
 # (особенно shebang и `set` в первой строке). Касается и релиз-архива.

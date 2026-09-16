@@ -23,6 +23,7 @@ import type {
   SearchResponse,
   Session,
   SlashCommand,
+  SshProfileInfo,
 } from "@/lib/types";
 import { apiUrl } from "@/api/base";
 
@@ -366,6 +367,23 @@ export const api = {
   },
   disconnectService(service_id: string) {
     return req<{ ok: boolean }>("DELETE", `/api/connections/${service_id}`);
+  },
+
+  // ── SSH terminal ──────────────────────────────────────────
+  getSsh() {
+    return req<SshProfileInfo>("GET", "/api/ssh");
+  },
+  saveSsh(body: {
+    host: string;
+    port: number;
+    username: string;
+    private_key?: string;
+    passphrase?: string;
+  }) {
+    return req<SshProfileInfo>("PUT", "/api/ssh", body);
+  },
+  deleteSsh() {
+    return req<{ ok: boolean }>("DELETE", "/api/ssh");
   },
 
   // ── Per-user Anthropic API key (SP2) ──────────────────────

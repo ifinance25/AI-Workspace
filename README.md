@@ -26,7 +26,7 @@ Claude Code на вашем сервере, доступный через бра
 ## Установка одной командой
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/ifinance25/claude-UI/main/scripts/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/ifinance25/AI-Workspace/develop/scripts/install.sh | sudo bash
 ```
 
 Установщик задаст три вопроса — домен, ключ Claude, токен Telegram-бота — и
@@ -36,7 +36,7 @@ curl -sSL https://raw.githubusercontent.com/ifinance25/claude-UI/main/scripts/in
 Без вопросов, только веб:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/ifinance25/claude-UI/main/scripts/install.sh | sudo \
+curl -sSL https://raw.githubusercontent.com/ifinance25/AI-Workspace/develop/scripts/install.sh | sudo \
   ANTHROPIC_API_KEY=sk-ant-ВАШ_КЛЮЧ \
   bash
 ```
@@ -44,7 +44,7 @@ curl -sSL https://raw.githubusercontent.com/ifinance25/claude-UI/main/scripts/in
 Со своим доменом и HTTPS (A-запись домена должна указывать на IP сервера):
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/ifinance25/claude-UI/main/scripts/install.sh | sudo \
+curl -sSL https://raw.githubusercontent.com/ifinance25/AI-Workspace/develop/scripts/install.sh | sudo \
   DOMAIN=claude.ваш-домен.ru \
   ANTHROPIC_API_KEY=sk-ant-ВАШ_КЛЮЧ \
   bash
@@ -77,6 +77,7 @@ curl -sSL https://raw.githubusercontent.com/ifinance25/claude-UI/main/scripts/in
 - **Список чатов** слева с поиском, папками и новым чатом.
 - **Админка** — пользователи, проекты, доступы.
 - **Файлы и артефакты**, участники проекта.
+- **Терминал SSH** слева: ключ задаётся в Настройках.
 - **Выбор модели** рядом с полем ввода.
 - **Вложения**, документация, счётчики токенов и контекста.
 
@@ -109,7 +110,7 @@ curl -sSL https://raw.githubusercontent.com/ifinance25/claude-UI/main/scripts/in
 
 ```bash
 # обновление — та же команда установки, данные не трогаются
-curl -sSL https://raw.githubusercontent.com/ifinance25/claude-UI/main/scripts/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/ifinance25/AI-Workspace/develop/scripts/install.sh | sudo bash
 
 # удаление (папка проектов и авторизация Claude сохраняются)
 sudo bash /opt/vels-claude/scripts/uninstall.sh
@@ -151,9 +152,11 @@ python -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt   # Windows: .venv/Scripts/python
 cd web && npm install && npm run build && cd ..
 cp .env.example .env        # заполнить PROJECTS_DIR, WEB_JWT_SECRET, ADMIN_LOGIN, ADMIN_PASSWORD
-python scripts/run_web.py            # только веб, без Telegram
-python scripts/run_web.py --port 8600   # если порт из конфига занят
+bash scripts/run_stand.sh            # restore БД из data/dumps/, веб на 127.0.0.1:8600
+python scripts/run_web.py --port 8600   # только веб, без restore из дампа
 ```
+
+Локальный стенд поднимается из дампа SQLite в `data/dumps/` (в git не входит). Нет файла: скрипт скажет, как снять дамп **по явной просьбе**. Подробности: `data/dumps/README.md`.
 
 `python -m src.main` поднимает бота вместе с вебом и требует токен Telegram.
 

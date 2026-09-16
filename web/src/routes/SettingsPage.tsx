@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
 import { LogOutIcon, RefreshIcon } from "@/components/icons";
+import SshSettingsPanel from "@/components/SshSettingsPanel";
 import {
   applyTheme,
   getStoredTheme,
@@ -205,6 +206,10 @@ export default function SettingsPage() {
                 ))}
               </div>
             )}
+          </Section>
+
+          <Section title="SSH">
+            <SshSettingsPanel />
           </Section>
 
           <Section title="Сессия">

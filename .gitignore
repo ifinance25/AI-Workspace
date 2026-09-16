@@ -68,8 +68,12 @@ Thumbs.db
 .coverage
 htmlcov/
 
-# Data (SQLite databases, uploads)
-data/
+# Data (SQLite databases, uploads). Ignore contents so we can track
+# data/dumps/README.md; binary dumps stay out of git.
+data/*
+!data/dumps/
+data/dumps/*
+!data/dumps/README.md
 
 # Telegram uploads
 .telegram-uploads/

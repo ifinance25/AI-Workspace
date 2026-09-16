@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Публичный бутстрап AI-Panel — раздаётся как
-# https://raw.githubusercontent.com/ifinance25/claude-UI/main/scripts/install.sh
+# https://raw.githubusercontent.com/ifinance25/AI-Workspace/develop/scripts/install.sh
 #
 # Имена архивов задаются EXPECTED_SHA256 / RELEASE_URL.
 #
 # Назначение: пользователь ставит Claude Code с веб-интерфейсом себе на сервер
 # ОДНОЙ командой. Telegram-бот опционален (токен можно не вводить).
 #
-#   curl -sSL https://raw.githubusercontent.com/ifinance25/claude-UI/main/scripts/install.sh | sudo bash
+#   curl -sSL https://raw.githubusercontent.com/ifinance25/AI-Workspace/develop/scripts/install.sh | sudo bash
 #
 # ─────────────────────────────────────────────────────────────────────────────
 # БЕЗ СЕКРЕТОВ. В этом файле НЕТ и НЕ ДОЛЖНО БЫТЬ GitHub-токена.
@@ -29,7 +29,7 @@ set -euo pipefail
 
 # Публичный URL релиз-архива (раздаётся nginx с того же хоста). Можно
 # переопределить через окружение для тестовых стендов.
-RELEASE_URL="${RELEASE_URL:-https://github.com/ifinance25/claude-UI/archive/refs/heads/main.tar.gz}"
+RELEASE_URL="${RELEASE_URL:-https://github.com/ifinance25/AI-Workspace/archive/refs/heads/develop.tar.gz}"
 
 # SHA-256 ожидаемого архива. Мейнтейнер вписывает вывод make-release.sh. Если
 # оставить плейсхолдер — установка прервётся (fail-closed: не запускаем непроверенное).
@@ -39,7 +39,7 @@ err() { echo "[ERROR] $*" >&2; }
 
 if [[ $EUID -ne 0 ]]; then
     err "Требуются root-права. Запустите через sudo:"
-    err "  curl -sSL https://raw.githubusercontent.com/ifinance25/claude-UI/main/scripts/install.sh | sudo bash"
+    err "  curl -sSL https://raw.githubusercontent.com/ifinance25/AI-Workspace/develop/scripts/install.sh | sudo bash"
     exit 1
 fi
 

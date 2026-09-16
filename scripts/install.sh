@@ -18,13 +18,13 @@ export DEBIAN_FRONTEND=noninteractive
 INSTALL_DIR="${INSTALL_DIR:-/opt/vels-claude}"
 GH_TOKEN="${GH_TOKEN:-}"
 REPO_OWNER="${REPO_OWNER:-ifinance25}"
-REPO_NAME="${REPO_NAME:-claude-UI}"
+REPO_NAME="${REPO_NAME:-AI-Workspace}"
 if [[ -n "$GH_TOKEN" ]]; then
     REPO_URL="${REPO_URL:-https://oauth2:${GH_TOKEN}@github.com/${REPO_OWNER}/${REPO_NAME}.git}"
 else
     REPO_URL="${REPO_URL:-https://github.com/${REPO_OWNER}/${REPO_NAME}.git}"
 fi
-REPO_BRANCH="${REPO_BRANCH:-main}"
+REPO_BRANCH="${REPO_BRANCH:-develop}"
 SERVICE_NAME="${SERVICE_NAME:-vels-claude}"
 UNIT_PATH="${UNIT_PATH:-/etc/systemd/system/${SERVICE_NAME}.service}"
 VELS_BOT_USER="${VELS_BOT_USER:-vels-bot}"
@@ -286,7 +286,7 @@ resolve_service_user() {
         return 0
     fi
 
-    die "Root privileges are required. Run: curl -sSL https://raw.githubusercontent.com/ifinance25/claude-UI/main/scripts/install.sh | sudo bash"
+    die "Root privileges are required. Run: curl -sSL https://raw.githubusercontent.com/ifinance25/AI-Workspace/develop/scripts/install.sh | sudo bash"
 }
 
 migrate_invoker_claude_session() {
@@ -517,7 +517,7 @@ check_os() {
 }
 
 ensure_root() {
-    [[ $EUID -eq 0 ]] || die "Run through sudo: curl -sSL https://raw.githubusercontent.com/ifinance25/claude-UI/main/scripts/install.sh | sudo bash"
+    [[ $EUID -eq 0 ]] || die "Run through sudo: curl -sSL https://raw.githubusercontent.com/ifinance25/AI-Workspace/develop/scripts/install.sh | sudo bash"
     SUDO=""
 }
 

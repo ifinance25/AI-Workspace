@@ -44,7 +44,7 @@ usage() {
 AI-Panel uninstaller
 
 Usage:
-  curl -sSL https://raw.githubusercontent.com/ifinance25/claude-UI/main/scripts/uninstall.sh | sudo bash
+  curl -sSL https://raw.githubusercontent.com/ifinance25/AI-Workspace/develop/scripts/uninstall.sh | sudo bash
   sudo bash scripts/uninstall.sh [--yes] [--keep-user]
 
 Options:
@@ -82,7 +82,7 @@ parse_args() {
 }
 
 ensure_root() {
-    [[ $EUID -eq 0 ]] || die "Run through sudo: curl -sSL https://raw.githubusercontent.com/ifinance25/claude-UI/main/scripts/uninstall.sh | sudo bash"
+    [[ $EUID -eq 0 ]] || die "Run through sudo: curl -sSL https://raw.githubusercontent.com/ifinance25/AI-Workspace/develop/scripts/uninstall.sh | sudo bash"
 }
 
 # Авто-поиск директории установки в стандартных локациях.

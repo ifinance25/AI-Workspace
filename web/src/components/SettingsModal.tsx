@@ -21,13 +21,15 @@ import {
 } from "@/lib/sendKey";
 import ConnectionsPanel from "@/components/ConnectionsPanel";
 import ProvidersPanel from "@/components/ProvidersPanel";
+import SshSettingsPanel from "@/components/SshSettingsPanel";
+
+type Tab = "general" | "model" | "verbose" | "connections" | "ssh" | "session";
 
 interface Props {
   open: boolean;
   onClose: () => void;
+  initialTab?: Tab;
 }
-
-type Tab = "general" | "model" | "verbose" | "connections" | "session";
 
 const VERBOSE_LEVELS: { level: 0 | 1 | 2 | 3; label: string; hint: string }[] = [
   { level: 0, label: "Тихий", hint: "Только финальный ответ Claude" },
@@ -41,10 +43,11 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "model", label: "Модель" },
   { id: "verbose", label: "Логи" },
   { id: "connections", label: "Подключения" },
+  { id: "ssh", label: "SSH" },
   { id: "session", label: "Аккаунт" },
 ];
 
-export default function SettingsModal({ open, onClose }: Props) {
+export default function SettingsModal({ open, onClose, initialTab }: Props) {
   const { user, logout } = useAuth();
   const [tab, setTab] = useState<Tab>("general");
   const [theme, setTheme] = useState<Theme>(getStoredTheme());
@@ -56,6 +59,10 @@ export default function SettingsModal({ open, onClose }: Props) {
   // verbose грузится отдельно. Cleanup-флаг ловит закрытие модала до
   // завершения промиса, чтобы setState не прилетал на размонтированный
   // компонент. Модели и ключи грузит ProvidersPanel на вкладке «Модель».
+  useEffect(() => {
+    if (open && initialTab) setTab(initialTab);
+  }, [open, initialTab]);
+
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -289,6 +296,8 @@ export default function SettingsModal({ open, onClose }: Props) {
             )}
 
             {tab === "connections" && <ConnectionsPanel />}
+
+            {tab === "ssh" && <SshSettingsPanel />}
 
             {tab === "session" && (
               <div className="space-y-6">

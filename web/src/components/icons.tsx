@@ -271,3 +271,9 @@ export const HelpCircleIcon = svgMulti([
   "M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3",
   "M12 17h.01",
 ]);
+
+export const TerminalIcon = svgMulti([
+  "M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z",
+  "m8 9 3 3-3 3",
+  "M13 15h3",
+]);

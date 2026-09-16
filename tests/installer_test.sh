@@ -312,9 +312,10 @@ echo "== installer constants =="
 assert_eq "$SERVICE_NAME" "vels-claude" "default service name"
 assert_eq "$INSTALL_DIR" "/opt/vels-claude" "default install dir"
 # Репозиторий этой панели: git-путь установщика должен вести
-# на ifinance25/claude-UI.
-assert_eq "$REPO_NAME" "claude-UI" "default repo name matches this repository"
-assert_contains "$REPO_URL" "github.com/ifinance25/claude-UI.git" "repo url points at this repository"
+# на ifinance25/AI-Workspace (ветка develop).
+assert_eq "$REPO_NAME" "AI-Workspace" "default repo name matches this repository"
+assert_contains "$REPO_URL" "github.com/ifinance25/AI-Workspace.git" "repo url points at this repository"
+assert_eq "$REPO_BRANCH" "develop" "default branch is develop"
 
 echo "== claude auth command =="
 SERVICE_USER="alice"

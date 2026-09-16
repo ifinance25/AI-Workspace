@@ -241,6 +241,16 @@ export interface ConnectionsInfo {
   services: ConnectionService[];
 }
 
+export interface SshProfileInfo {
+  enabled: boolean;
+  configured: boolean;
+  host: string;
+  port: number;
+  username: string;
+  has_key: boolean;
+  fingerprint: string | null;
+}
+
 export interface LlmProviderModel {
   id: string;
   label: string;

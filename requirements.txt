@@ -16,6 +16,7 @@ uvicorn[standard]>=0.30.0
 PyJWT[crypto]>=2.8.0
 # Fernet symmetric encryption for per-user connection secrets (src/connections)
 cryptography>=42.0.0
+asyncssh>=2.14.0
 python-multipart>=0.0.9
 # Pinned explicitly because uvicorn[standard] extras are not always
 # resolved by pip on Windows — without these the WS handshake falls back

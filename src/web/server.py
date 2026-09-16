@@ -32,6 +32,7 @@ from src.web.routes_model import make_model_router
 from src.web.routes_projects import make_projects_router
 from src.web.routes_sessions import make_sessions_router
 from src.web.routes_settings import make_settings_router
+from src.web.routes_ssh import make_ssh_router
 from src.web.routes_uploads import make_uploads_router
 from src.web.routes_ws import make_ws_router
 from src.web.running_sessions import RunningSessionsTracker
@@ -94,6 +95,7 @@ class WebServer:
         scratch_dir: str | Path | None = None,
         connections_store: Any = None,
         api_key_store: Any = None,
+        ssh_store: Any = None,
         projects_dir: str | Path | None = None,
     ) -> None:
         self.settings = settings
@@ -120,6 +122,9 @@ class WebServer:
         # Хранилище per-user Anthropic API-ключей (SP2). None → фича выключена
         # (CONNECTIONS_SECRET_KEY не задан) — /api/apikey тогда отвечает 501.
         self.api_key_store = api_key_store
+        # Per-user SSH-профили (ключ + хост) для веб-терминала. None → фича
+        # выключена (тот же CONNECTIONS_SECRET_KEY, что и у подключений).
+        self.ssh_store = ssh_store
         self.projects_dir = Path(
             projects_dir or "/var/lib/vels-bot/projects"
         )
@@ -330,6 +335,16 @@ class WebServer:
                 session_manager=self.session_manager,
                 connections_store=self.connections_store,
                 allowed_user_ids=self.allowed_user_ids,
+            )
+        )
+        self.app.include_router(
+            make_ssh_router(
+                jwt_secret=self.jwt_secret,
+                session_manager=self.session_manager,
+                ssh_store=self.ssh_store,
+                allowed_user_ids=self.allowed_user_ids,
+                allowed_origins=allowed_origins,
+                allow_loopback_origin=allow_loopback_origin,
             )
         )
         # Per-user Anthropic API-ключи (SP2) — регистрируем всегда: роутер сам

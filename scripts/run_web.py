@@ -57,6 +57,7 @@ async def _serve(host: str | None, port: int | None) -> int:
     from src.claude.session import SessionManager
     from src.connections.service import build_connections_store
     from src.event_bus import ClaudeEventRelay, EventBus
+    from src.ssh.service import build_ssh_store
     from src.web.message_store import MessageHistoryPersister
     from src.web.server import WebServer
 
@@ -83,6 +84,7 @@ async def _serve(host: str | None, port: int | None) -> int:
     bus = EventBus()
     connections_store = build_connections_store(settings)
     api_key_store = build_api_key_store(settings)
+    ssh_store = build_ssh_store(settings)
 
     bridge = ClaudeBridge(
         transport=settings.claude.transport,
@@ -120,6 +122,7 @@ async def _serve(host: str | None, port: int | None) -> int:
         scratch_dir=settings.get_scratch_dir(),
         connections_store=connections_store,
         api_key_store=api_key_store,
+        ssh_store=ssh_store,
         projects_dir=settings.get_projects_directory(),
     )
 

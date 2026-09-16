@@ -3,6 +3,7 @@ import Chat from "@/components/Chat";
 import { PanelLeftIcon } from "@/components/icons";
 import SettingsModal from "@/components/SettingsModal";
 import Sidebar from "@/components/Sidebar";
+import TerminalPanel from "@/components/TerminalPanel";
 import { startNewSession } from "@/lib/newSession";
 import type { Session } from "@/lib/types";
 import { NARROW_VIEWPORT, useMediaQuery } from "@/lib/useMediaQuery";
@@ -24,6 +25,8 @@ export default function ChatPage() {
   });
   const [navOpen, setNavOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<"ssh" | undefined>();
+  const [view, setView] = useState<"chat" | "terminal">("chat");
 
   useEffect(() => {
     try {
@@ -53,6 +56,13 @@ export default function ChatPage() {
 
   const selectSession = (s: Session | null) => {
     setActive(s);
+    setView("chat");
+    if (isNarrow) setNavOpen(false);
+  };
+
+  const openSettings = (tab?: "ssh") => {
+    setSettingsTab(tab);
+    setSettingsOpen(true);
     if (isNarrow) setNavOpen(false);
   };
 
@@ -66,10 +76,12 @@ export default function ChatPage() {
         if (isNarrow) setNavOpen(false);
         else setCollapsed((v) => !v);
       }}
-      onOpenSettings={() => {
-        setSettingsOpen(true);
+      onOpenSettings={() => openSettings()}
+      onOpenTerminal={() => {
+        setView("terminal");
         if (isNarrow) setNavOpen(false);
       }}
+      terminalActive={view === "terminal"}
     />
   );
 
@@ -96,7 +108,12 @@ export default function ChatPage() {
       ) : (
         sidebar
       )}
-      {active ? (
+      {view === "terminal" ? (
+        <TerminalPanel
+          onOpenSidebar={() => setNavOpen(true)}
+          onOpenSettings={() => openSettings("ssh")}
+        />
+      ) : active ? (
         <Chat
           session={active}
           key={active.session_uuid}
@@ -137,7 +154,11 @@ export default function ChatPage() {
 
       <SettingsModal
         open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
+        initialTab={settingsTab}
+        onClose={() => {
+          setSettingsOpen(false);
+          setSettingsTab(undefined);
+        }}
       />
     </div>
   );

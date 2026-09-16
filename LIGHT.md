@@ -23,7 +23,7 @@ Telegram-бот: `python -m src.main` поднимает его вместе с 
 ## Установка на сервер
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ifinance25/claude-UI/main/scripts/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/ifinance25/AI-Workspace/develop/scripts/install.sh | sudo bash
 ```
 
 Установщик спрашивает домен (Enter: доступ по IP через sslip.io, Caddy сам

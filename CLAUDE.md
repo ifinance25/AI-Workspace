@@ -8,7 +8,7 @@
 
 Панель рассчитана на личную работу и небольшую команду: несколько проектов,
 админка, файлы, участники и доступы. Источник кода:
-[ifinance25/claude-UI](https://github.com/ifinance25/claude-UI).
+[ifinance25/AI-Workspace](https://github.com/ifinance25/AI-Workspace).
 
 **Стек:** Python 3.11+, FastAPI + uvicorn, React 19 + Vite + Tailwind,
 aiogram 3.26 (Telegram), Claude Agent SDK / Claude Code CLI, SQLAlchemy +
@@ -29,6 +29,7 @@ SQLite, structlog.
 | Заметки к чату и тоггл «Размышления» | панель и кнопка в `Chat.tsx` |
 | Документация | `routes_docs.py`, `docs/USER-GUIDE.md` |
 | Настройки, ключи API, подключения MCP | `SettingsPage.tsx`, `routes_settings.py`, `routes_connections.py` |
+| Терминал SSH (ключ в настройках) | `src/web/routes_ssh.py`, `TerminalPanel.tsx`, `SshSettingsPanel.tsx` |
 
 Заголовок чата берётся из первого сообщения (`deriveTitle` → `patchSessionNotes`).
 Скачивание файлов из ленты: `/api/sessions/{uuid}/file`.
@@ -63,8 +64,22 @@ python -m venv .venv
 .venv/Scripts/python -m pip install -r requirements.txt   # Linux/macOS: .venv/bin/python
 cd web && npm install && npm run build && cd ..
 cp .env.example .env    # PROJECTS_DIR, WEB_JWT_SECRET, ADMIN_LOGIN, ADMIN_PASSWORD
-.venv/Scripts/python scripts/run_web.py --port 8600
+bash scripts/run_stand.sh   # restore SQLite из data/dumps/, затем веб на :8600
 ```
+
+### Локальный стенд и дампы БД
+
+При сборке и подъёме локального стенда **всегда** восстанавливать SQLite из дампа в git-клоне: `data/dumps/` (указатель `sessions.latest.db` или `sessions-YYYY-MM-DD.db`). Команда: `bash scripts/run_stand.sh` (только БД: `bash scripts/restore_stand_db.sh`). Подмена файла на живом процессе опасна: restore сначала останавливает слушателя на порту 8600.
+
+Дампы в git **не** коммитить (сессии, пользователи, ключи). Канон одной папки: `AI-Workspace/data/dumps/`, не vault `artifacts/`.
+
+Свежий дамп с прода **только по явной просьбе** пользователя. Скрипты restore/run_stand на сервер не ходят. Когда попросили обновить:
+
+```bash
+STAND_DUMP_FETCH=1 STAND_DUMP_SSH=user@host bash scripts/fetch_stand_dump.sh
+```
+
+Если дампа нет: ясная ошибка и инструкция, без scp/ssh. Unit-тесты используют временную SQLite, не этот дамп.
 
 Claude Code CLI ставится отдельно (`npm install -g @anthropic-ai/claude-code`)
 и должен быть авторизован — ключом `ANTHROPIC_API_KEY` или входом по подписке.

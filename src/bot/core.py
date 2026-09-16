@@ -123,6 +123,9 @@ class TelegramClaudeBot:
         from src.apikeys.service import build_api_key_store
 
         self.api_key_store = build_api_key_store(self.settings)
+        from src.ssh.service import build_ssh_store
+
+        self.ssh_store = build_ssh_store(self.settings)
         self.claude_event_relay = ClaudeEventRelay(
             bus=self.event_bus,
             claude_bridge=self.claude_bridge,
@@ -180,6 +183,7 @@ class TelegramClaudeBot:
             scratch_dir=settings.get_scratch_dir(),
             connections_store=self.connections_store,
             api_key_store=self.api_key_store,
+            ssh_store=self.ssh_store,
             projects_dir=settings.get_projects_directory(),
         )
 

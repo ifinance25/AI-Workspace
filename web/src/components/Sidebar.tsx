@@ -11,6 +11,7 @@ import {
   PanelLeftIcon,
   SearchIcon,
   SettingsIcon,
+  TerminalIcon,
   TrashIcon,
 } from "@/components/icons";
 import Logo from "@/components/Logo";
@@ -24,6 +25,8 @@ interface Props {
   collapsed: boolean;
   onToggleCollapsed: () => void;
   onOpenSettings: () => void;
+  onOpenTerminal?: () => void;
+  terminalActive?: boolean;
   /** Выезжающая панель на телефоне/планшете: всегда полная ширина, без мини-режима. */
   overlay?: boolean;
 }
@@ -138,6 +141,8 @@ export default function Sidebar({
   collapsed,
   onToggleCollapsed,
   onOpenSettings,
+  onOpenTerminal,
+  terminalActive = false,
   overlay = false,
 }: Props) {
   const { user } = useAuth();
@@ -292,6 +297,19 @@ export default function Sidebar({
       >
         <NewChatIcon size={22} />
       </button>
+      {onOpenTerminal && (
+        <button
+          onClick={onOpenTerminal}
+          className={`mt-2 rounded-xl p-2.5 hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)] ${
+            terminalActive
+              ? "bg-[var(--bg-hover)] text-[var(--fg-primary)]"
+              : "text-[var(--fg-secondary)]"
+          }`}
+          title="Терминал SSH"
+        >
+          <TerminalIcon size={22} />
+        </button>
+      )}
     </div>
   );
 
@@ -519,6 +537,24 @@ export default function Sidebar({
           ))}
         </div>
       </div>
+
+      {/* Терминал SSH */}
+      {onOpenTerminal && (
+        <div className="px-3 pt-2">
+          <button
+            type="button"
+            onClick={onOpenTerminal}
+            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] ${
+              terminalActive
+                ? "bg-[var(--bg-hover)] text-[var(--fg-primary)]"
+                : "text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
+            }`}
+          >
+            <TerminalIcon size={18} />
+            <span>Терминал</span>
+          </button>
+        </div>
+      )}
 
       {/* Админ-панель — только для администраторов */}
       {user?.is_admin && (
