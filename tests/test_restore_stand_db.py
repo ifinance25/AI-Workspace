@@ -62,6 +62,78 @@ class RestoreStandDbTests(unittest.TestCase):
                 row = conn.execute("SELECT id FROM ping").fetchone()
             self.assertEqual(row[0], 7)
 
+    def test_restore_remaps_prod_paths_and_mkdirs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            dumps = root / "data" / "dumps"
+            dumps.mkdir(parents=True)
+            src = dumps / "sessions.latest.db"
+            prod_a = "/var/lib/vels-bot/projects/AI_Sales_Assistant"
+            prod_b = "/var/lib/vels-bot/projects/Общий"
+            with sqlite3.connect(src) as conn:
+                conn.execute(
+                    """
+                    CREATE TABLE projects (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL,
+                        abspath TEXT NOT NULL UNIQUE
+                    )
+                    """
+                )
+                conn.execute(
+                    "CREATE TABLE user_project_access ("
+                    "id INTEGER PRIMARY KEY, user_id INTEGER, project_id INTEGER, "
+                    "project_path TEXT NOT NULL, access_level TEXT)"
+                )
+                conn.execute(
+                    "INSERT INTO projects (id, name, abspath) VALUES (7, ?, ?)",
+                    ("AI_Sales_Assistant", prod_a),
+                )
+                conn.execute(
+                    "INSERT INTO projects (id, name, abspath) VALUES (9, ?, ?)",
+                    ("Общий", prod_b),
+                )
+                conn.execute(
+                    "INSERT INTO user_project_access "
+                    "(user_id, project_id, project_path, access_level) "
+                    "VALUES (1, 7, ?, 'full')",
+                    (prod_a,),
+                )
+                conn.commit()
+            local_root = root / "local-projects"
+            target = root / "data" / "sessions.db"
+            env = {
+                "STAND_ROOT": str(root),
+                "STAND_DUMP_DIR": str(dumps),
+                "STAND_DB_PATH": str(target),
+                "STAND_PROJECTS_DIR": str(local_root),
+            }
+            proc = _run(env)
+            self.assertEqual(proc.returncode, 0, proc.stderr + proc.stdout)
+            self.assertIn("Remap: 2 project path(s)", proc.stdout)
+            with sqlite3.connect(src) as conn:
+                dumped = {
+                    r[0] for r in conn.execute("SELECT abspath FROM projects")
+                }
+            self.assertEqual(dumped, {prod_a, prod_b})
+            with sqlite3.connect(target) as conn:
+                rows = list(conn.execute("SELECT id, name, abspath FROM projects ORDER BY id"))
+                grant = conn.execute(
+                    "SELECT project_path FROM user_project_access"
+                ).fetchone()[0]
+            self.assertEqual(rows[0][2], str(local_root / "AI_Sales_Assistant"))
+            self.assertEqual(rows[1][2], str(local_root / "Общий"))
+            self.assertEqual(grant, str(local_root / "AI_Sales_Assistant"))
+            self.assertTrue((local_root / "AI_Sales_Assistant").is_dir())
+            self.assertTrue((local_root / "Общий").is_dir())
+            proc2 = _run(env)
+            self.assertEqual(proc2.returncode, 0, proc2.stderr + proc2.stdout)
+            with sqlite3.connect(target) as conn:
+                again = conn.execute(
+                    "SELECT abspath FROM projects WHERE id = 7"
+                ).fetchone()[0]
+            self.assertEqual(again, str(local_root / "AI_Sales_Assistant"))
+
     def test_fetch_refuses_without_explicit_flag(self) -> None:
         fetch = REPO_ROOT / "scripts" / "fetch_stand_dump.sh"
         proc = subprocess.run(

@@ -46,4 +46,6 @@ scp user@host:/tmp/sessions-YYYY-MM-DD.db data/dumps/sessions-YYYY-MM-DD.db
 cd data/dumps && ln -sfn sessions-YYYY-MM-DD.db sessions.latest.db
 ```
 
-Затем `bash scripts/run_stand.sh`.
+Затем `bash scripts/run_stand.sh`. Restore после копирования переписывает
+`projects.abspath` (и связанные пути) на локальный `PROJECTS_DIR` и создаёт
+пустые каталоги проектов. Файл дампа в `data/dumps/` не меняется.

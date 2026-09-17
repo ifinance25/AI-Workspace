@@ -182,7 +182,139 @@ copy_dump() {
     fi
 }
 
+# Пути проектов в дампе прода (часто /var/lib/vels-bot/projects/...)
+# переписываем на локальный PROJECTS_DIR; имя папки сохраняем.
+# Идемпотентно: уже локальные пути не трогаем. Дамп-источник не меняем.
+remap_project_paths() {
+    local db="$1"
+    local dest="$2"
+    if [[ -z "$dest" ]]; then
+        echo "PROJECTS_DIR не задан: пути проектов в БД не переписываю."
+        return 0
+    fi
+    if ! command -v python3 >/dev/null 2>&1; then
+        die "python3 нужен, чтобы переписать пути проектов на $dest"
+    fi
+    python3 - "$db" "$dest" <<'PY'
+import sqlite3
+import sys
+from pathlib import Path
+
+db = Path(sys.argv[1])
+dest = Path(sys.argv[2]).expanduser()
+if not dest.is_absolute():
+    dest = dest.resolve()
+else:
+    dest = dest.expanduser()
+dest.mkdir(parents=True, exist_ok=True)
+dest_s = str(dest)
+
+conn = sqlite3.connect(str(db))
+conn.row_factory = sqlite3.Row
+tables = {
+    r[0]
+    for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+}
+if "projects" not in tables:
+    conn.close()
+    print(f"Remap: нет таблицы projects, пропуск -> {dest_s}")
+    raise SystemExit(0)
+
+
+def segment(abspath, fallback=""):
+    name = Path(abspath or "").name or (fallback or "").strip()
+    if not name or name in {".", ".."} or "/" in name or "\\" in name:
+        return None
+    return name
+
+
+updated = 0
+with conn:
+    for row in conn.execute("SELECT id, name, abspath FROM projects"):
+        old = row["abspath"] or ""
+        name = segment(old, row["name"] or "")
+        if name is None:
+            continue
+        new = str(dest / name)
+        (dest / name).mkdir(parents=True, exist_ok=True)
+        if old == new:
+            continue
+        conn.execute(
+            "UPDATE projects SET abspath = ?, name = ? WHERE id = ?",
+            (new, name, row["id"]),
+        )
+        if "user_project_access" in tables:
+            conn.execute(
+                "UPDATE user_project_access SET project_path = ? "
+                "WHERE project_id = ? OR project_path = ?",
+                (new, row["id"], old),
+            )
+        if "artifact_dismissals" in tables:
+            conn.execute(
+                "UPDATE artifact_dismissals SET project_path = ? "
+                "WHERE project_path = ?",
+                (new, old),
+            )
+        updated += 1
+conn.close()
+print(f"Remap: {updated} project path(s) -> {dest_s}")
+PY
+}
+
+# Дамп прода уже содержит ADMIN_LOGIN: bootstrap при старте пароль не трогает.
+# Для локального стенда ставим пароль из .env в рабочую БД (файл дампа не меняем).
+align_stand_admin() {
+    local db="$1"
+    local envf="$ROOT/.env"
+    [[ -f "$envf" ]] || return 0
+    PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}" python3 - "$db" "$envf" "$ROOT" <<'PY'
+import sqlite3
+import sys
+from pathlib import Path
+
+db, envf, root = sys.argv[1], sys.argv[2], sys.argv[3]
+env = {}
+for line in Path(envf).read_text(encoding="utf-8").splitlines():
+    line = line.strip()
+    if not line or line.startswith("#") or "=" not in line:
+        continue
+    key, val = line.split("=", 1)
+    env[key.strip()] = val.strip().strip('"').strip("'")
+login = env.get("ADMIN_LOGIN") or ""
+password = env.get("ADMIN_PASSWORD") or ""
+if not login or not password:
+    raise SystemExit(0)
+sys.path.insert(0, root)
+from src.web.passwords import hash_password
+
+conn = sqlite3.connect(db)
+tables = {
+    r[0]
+    for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+}
+if "users" not in tables:
+    conn.close()
+    raise SystemExit(0)
+row = conn.execute(
+    "SELECT user_id FROM users WHERE username = ?", (login,)
+).fetchone()
+if row is None:
+    conn.close()
+    raise SystemExit(0)
+digest = hash_password(password)
+conn.execute(
+    "UPDATE users SET password_hash = ?, is_admin = 1, is_active = 1, "
+    "token_version = COALESCE(token_version, 0) + 1 WHERE username = ?",
+    (digest, login),
+)
+conn.commit()
+conn.close()
+print("Stand admin password aligned from .env")
+PY
+}
+
 read_session_db_path
+read_projects_dir
 if ! resolve_dump || [[ ! -e "$DUMP" ]]; then
     print_missing_dump
     exit 1
@@ -194,3 +326,5 @@ fi
 stop_stand
 copy_dump "$DUMP" "$TARGET"
 echo "Восстановлено: $DUMP -> $TARGET"
+remap_project_paths "$TARGET" "$PROJECTS_DIR"
+align_stand_admin "$TARGET"

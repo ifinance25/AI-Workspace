@@ -69,7 +69,7 @@ bash scripts/run_stand.sh   # restore SQLite из data/dumps/, затем веб
 
 ### Локальный стенд и дампы БД
 
-При сборке и подъёме локального стенда **всегда** восстанавливать SQLite из дампа в git-клоне: `data/dumps/` (указатель `sessions.latest.db` или `sessions-YYYY-MM-DD.db`). Команда: `bash scripts/run_stand.sh` (только БД: `bash scripts/restore_stand_db.sh`). Подмена файла на живом процессе опасна: restore сначала останавливает слушателя на порту 8600.
+При сборке и подъёме локального стенда **всегда** восстанавливать SQLite из дампа в git-клоне: `data/dumps/` (указатель `sessions.latest.db` или `sessions-YYYY-MM-DD.db`). Команда: `bash scripts/run_stand.sh` (только БД: `bash scripts/restore_stand_db.sh`). Restore переписывает пути проектов на локальный `PROJECTS_DIR` (файл дампа не меняется). Подмена файла на живом процессе опасна: restore сначала останавливает слушателя на порту 8600.
 
 Дампы в git **не** коммитить (сессии, пользователи, ключи). Канон одной папки: `AI-Workspace/data/dumps/`, не vault `artifacts/`.
 
