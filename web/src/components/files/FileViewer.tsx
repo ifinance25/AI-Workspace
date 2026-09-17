@@ -1,5 +1,5 @@
 import { Markdown } from "@/lib/Markdown";
-import { CsvView, DocxView, XlsxView } from "@/components/files/RichViewers";
+import { CsvView, DocHtmlView, DocxView, XlsxView } from "@/components/files/RichViewers";
 import type { FileContent } from "@/lib/types";
 
 const EXT_LANG: Record<string, string> = {
@@ -25,6 +25,7 @@ export const MAX_RICH_BYTES = 12 * 1024 * 1024;
 export type FileViewerKind =
   | "image"
   | "pdf"
+  | "doc"
   | "docx"
   | "xlsx"
   | "csv"
@@ -33,8 +34,11 @@ export type FileViewerKind =
   | "text"
   | "download";
 
+const EXT_ALIASES: Record<string, string> = { док: "doc" };
+
 export function fileExt(rel: string): string {
-  return rel.split(".").pop()?.toLowerCase() ?? "";
+  const raw = rel.split(".").pop()?.toLowerCase() ?? "";
+  return EXT_ALIASES[raw] ?? raw;
 }
 
 /** Какой viewer открыть по расширению и размеру. Тестируется отдельно от React. */
@@ -46,6 +50,7 @@ export function fileViewerKind(
   const tooBig = (opts.sizeBytes ?? 0) > MAX_RICH_BYTES;
   if (IMAGE_EXTS.has(e)) return "image";
   if (e === "pdf") return "pdf";
+  if (e === "doc") return tooBig ? "download" : "doc";
   if (e === "docx") return tooBig ? "download" : "docx";
   if (e === "xlsx" || e === "xls" || e === "xlsm") return tooBig ? "download" : "xlsx";
   if (opts.binary || opts.tooLarge) return "download";
@@ -94,6 +99,7 @@ export default function FileViewer({
   file,
   inlineUrl,
   downloadUrl,
+  htmlPreviewUrl,
   onDownload,
 }: {
   file: FileContent;
@@ -101,6 +107,8 @@ export default function FileViewer({
   inlineUrl: string;
   /** URL для скачивания/чтения байтов (docx/xlsx). */
   downloadUrl: string;
+  /** HTML-превью старого .doc с бэкенда. */
+  htmlPreviewUrl?: string;
   onDownload: () => void;
 }) {
   const kind = fileViewerKind(file.rel, {
@@ -146,6 +154,14 @@ export default function FileViewer({
     );
   }
 
+  if (kind === "doc") {
+    return (
+      <DocHtmlView
+        url={htmlPreviewUrl ?? ""}
+        onDownload={onDownload}
+      />
+    );
+  }
   if (kind === "docx") {
     return <DocxView url={downloadUrl} />;
   }
@@ -155,7 +171,7 @@ export default function FileViewer({
 
   if (kind === "download") {
     const label =
-      e === "docx"
+      e === "docx" || e === "doc"
         ? "Документ слишком большой для просмотра"
         : e === "xlsx" || e === "xls" || e === "xlsm"
           ? "Таблица слишком большая для просмотра"

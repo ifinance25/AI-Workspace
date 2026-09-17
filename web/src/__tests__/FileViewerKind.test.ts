@@ -9,6 +9,9 @@ describe("fileViewerKind", () => {
     expect(fileViewerKind("docs/a.pdf")).toBe("pdf");
     expect(fileViewerKind("docs/a.PDF")).toBe("pdf");
     expect(fileViewerKind("note.docx")).toBe("docx");
+    expect(fileViewerKind("note.doc")).toBe("doc");
+    expect(fileViewerKind("note.DOC")).toBe("doc");
+    expect(fileViewerKind("документ.Док")).toBe("doc");
     expect(fileViewerKind("t.xlsx")).toBe("xlsx");
     expect(fileViewerKind("t.xls")).toBe("xlsx");
     expect(fileViewerKind("t.xlsm")).toBe("xlsx");
@@ -21,8 +24,10 @@ describe("fileViewerKind", () => {
   it("docx/xlsx крупнее лимита — только скачивание", () => {
     const huge = MAX_RICH_BYTES + 1;
     expect(fileViewerKind("big.docx", { sizeBytes: huge })).toBe("download");
+    expect(fileViewerKind("big.doc", { sizeBytes: huge })).toBe("download");
     expect(fileViewerKind("big.xlsx", { sizeBytes: huge })).toBe("download");
     expect(fileViewerKind("ok.docx", { sizeBytes: 1024, binary: true })).toBe("docx");
+    expect(fileViewerKind("ok.doc", { sizeBytes: 1024, binary: true })).toBe("doc");
   });
 
   it("pdf открывается даже если бэкенд пометил файл бинарным/крупным", () => {

@@ -279,6 +279,11 @@ export const api = {
       `/api/files/content?project_path=${encodeURIComponent(projectPath)}&rel=${encodeURIComponent(rel)}`,
     );
   },
+  docPreviewUrl(projectPath: string, rel: string) {
+    return apiUrl(
+      `/api/files/doc-preview?project_path=${encodeURIComponent(projectPath)}&rel=${encodeURIComponent(rel)}`,
+    );
+  },
   saveFile(projectPath: string, rel: string, content: string, expectedMtimeNs: string) {
     return req<{ mtime_ns: string }>(
       "PUT",

@@ -73,7 +73,7 @@ export default function FilesPanel({
         tooLarge: open.too_large,
       })
     : null;
-  // PDF/DOCX/XLSX: только просмотр. ZIP без NUL мог бы пройти как «текст»
+  // PDF/DOC/DOCX/XLSX: только просмотр. ZIP без NUL мог бы пройти как «текст»
   // и кнопка «Править» перезаписала бы бинарь.
   const canToggleEdit =
     canEdit &&
@@ -81,6 +81,7 @@ export default function FilesPanel({
     !open.binary &&
     !open.too_large &&
     openKind !== "pdf" &&
+    openKind !== "doc" &&
     openKind !== "docx" &&
     openKind !== "xlsx";
   const { width, startResize, toggleMax } = usePanelWidth();
@@ -156,6 +157,7 @@ export default function FilesPanel({
                 file={open}
                 inlineUrl={api.sessionFileInlineUrl(sessionUuid, open.rel)}
                 downloadUrl={api.sessionFileUrl(sessionUuid, open.rel)}
+                htmlPreviewUrl={api.docPreviewUrl(projectPath, open.rel)}
                 onDownload={() => download(open.rel)}
               />
             )}

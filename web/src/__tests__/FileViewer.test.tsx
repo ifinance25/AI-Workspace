@@ -55,4 +55,31 @@ describe("FileViewer", () => {
     );
     expect(screen.getByText("Таблица слишком большая для просмотра")).toBeTruthy();
   });
+
+  it("огромный DOC: кнопка скачать", () => {
+    render(
+      <FileViewer
+        file={file("big.doc", { size_bytes: MAX_RICH_BYTES + 10 })}
+        inlineUrl="/i"
+        downloadUrl="/d"
+        onDownload={() => {}}
+      />,
+    );
+    expect(screen.getByText("Документ слишком большой для просмотра")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Скачать" })).toBeTruthy();
+  });
+
+  it("DOC: открывает превью, не «бинарный файл»", () => {
+    render(
+      <FileViewer
+        file={file("note.doc")}
+        inlineUrl="/i"
+        downloadUrl="/d"
+        htmlPreviewUrl="/api/files/doc-preview?rel=note.doc"
+        onDownload={() => {}}
+      />,
+    );
+    expect(screen.getByText("Открываем документ…")).toBeTruthy();
+    expect(screen.queryByText("Бинарный файл")).toBeNull();
+  });
 });

@@ -17,6 +17,11 @@ from pydantic import BaseModel
 
 from src.utils.url_safety import is_path_within_root
 from src.web.dependencies import get_current_user_factory
+from src.web.doc_preview import (
+    DocPreviewError,
+    convert_doc_file,
+    is_legacy_doc_name,
+)
 from src.web.project_access import resolve_project_access
 
 logger = structlog.get_logger()
@@ -133,6 +138,17 @@ def read_text_file(root: Path, rel: str) -> dict:
         return out
     out["content"] = raw.decode("utf-8", errors="replace")
     return out
+
+
+def preview_doc_file(root: Path, rel: str) -> dict:
+    """HTML-превью старого .doc (RTF или Word 97-2003)."""
+    if not is_legacy_doc_name(rel):
+        raise PathError("not a Word .doc file")
+    root_resolved = Path(root).resolve()
+    candidate = _safe_candidate(root_resolved, rel)
+    if not candidate.is_file():
+        raise NotFound("file not found")
+    return {"html": convert_doc_file(candidate)}
 
 
 def write_text_file(
@@ -502,6 +518,8 @@ def make_files_router(
             raise HTTPException(status_code=404, detail=str(exc))
         except Conflict as exc:
             raise HTTPException(status_code=409, detail=str(exc))
+        except DocPreviewError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.message)
         except OSError as exc:
             # Реальная ошибка ФС (нет прав, файл исчез между stat и read, и т.п.) —
             # чистый 500 без утечки трейсбека вместо необработанного исключения.
@@ -526,6 +544,16 @@ def make_files_router(
     ) -> dict:
         access = await _access(project_path, user, need_full=False)
         return await _call(read_text_file, access.root, rel)
+
+    @router.get("/doc-preview")
+    async def get_doc_preview(
+        project_path: str = Query(...),
+        rel: str = Query(...),
+        user: dict = Depends(get_current_user),
+    ) -> dict:
+        """Старый Word (.doc) → HTML для sandbox-iframe. Только чтение."""
+        access = await _access(project_path, user, need_full=False)
+        return await _call(preview_doc_file, access.root, rel)
 
     @router.put("/content")
     async def put_content(

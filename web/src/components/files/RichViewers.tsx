@@ -182,3 +182,84 @@ export function DocxView({ url }: { url: string }) {
     />
   );
 }
+
+async function fetchDocHtml(url: string): Promise<string> {
+  const resp = await fetch(url, { credentials: "include" });
+  let data: { html?: string; detail?: unknown } | null = null;
+  try {
+    data = (await resp.json()) as { html?: string; detail?: unknown };
+  } catch {
+    data = null;
+  }
+  if (!resp.ok) {
+    const detail = data?.detail;
+    const msg =
+      typeof detail === "string"
+        ? detail
+        : "не удалось открыть документ Word";
+    throw new Error(msg);
+  }
+  if (!data?.html) throw new Error("пустой ответ сервера");
+  return data.html;
+}
+
+/** Старый .doc: HTML с сервера в sandbox-iframe (как DOCX/mammoth). */
+export function DocHtmlView({
+  url,
+  onDownload,
+}: {
+  url: string;
+  onDownload: () => void;
+}) {
+  const [html, setHtml] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!url) {
+      setErr("нет адреса превью");
+      return;
+    }
+    (async () => {
+      try {
+        const body = await fetchDocHtml(url);
+        if (!cancelled) setHtml(body);
+      } catch (e) {
+        if (!cancelled) setErr((e as Error).message);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  if (err) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+        <p className="text-sm text-[var(--fg-muted)]">
+          Не удалось открыть документ: {err}
+        </p>
+        <button
+          onClick={onDownload}
+          className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--bg-canvas)] transition-opacity hover:opacity-90"
+        >
+          Скачать
+        </button>
+      </div>
+    );
+  }
+  if (html == null) return <Centered>Открываем документ…</Centered>;
+  const doc = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body{font-family:system-ui,'Segoe UI',Roboto,sans-serif;color:#1a1a1a;background:#fff;padding:28px;line-height:1.65;max-width:820px;margin:0 auto}
+    img{max-width:100%}h1,h2,h3{line-height:1.3}
+    table{border-collapse:collapse;margin:8px 0}td,th{border:1px solid #ccc;padding:4px 8px}
+  </style></head><body>${html}</body></html>`;
+  return (
+    <iframe
+      sandbox=""
+      title="Документ"
+      className="min-h-0 w-full flex-1 bg-white"
+      srcDoc={doc}
+    />
+  );
+}
