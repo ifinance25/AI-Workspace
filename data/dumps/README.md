@@ -38,10 +38,10 @@ STAND_DUMP_FETCH=1 STAND_DUMP_SSH=user@host bash scripts/fetch_stand_dump.sh
 
 `STAND_DUMP_SSH`: `user@host` или `Host` из `~/.ssh/config`. IP в репозиторий не зашивать.
 
-На сервере (если скрипт недоступен): не обязательно стопать `vels-claude`.
+На сервере (если скрипт недоступен): не обязательно стопать `ai-workspace`.
 
 ```bash
-sudo -u vels-bot sqlite3 /opt/vels-claude/data/sessions.db ".backup '/tmp/sessions-YYYY-MM-DD.db'"
+sudo -u ai-workspace sqlite3 /opt/ai-workspace/data/sessions.db ".backup '/tmp/sessions-YYYY-MM-DD.db'"
 scp user@host:/tmp/sessions-YYYY-MM-DD.db data/dumps/sessions-YYYY-MM-DD.db
 cd data/dumps && ln -sfn sessions-YYYY-MM-DD.db sessions.latest.db
 ```

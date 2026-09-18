@@ -1439,7 +1439,7 @@ class ClaudeBridge:
         if not mcp_servers:
             return None
         import tempfile
-        fd, path = tempfile.mkstemp(prefix="vels-mcp-", suffix=".json")
+        fd, path = tempfile.mkstemp(prefix="ai-workspace-mcp-", suffix=".json")
         try:
             # POSIX only: on Windows os.fchmod exists but is a no-op on the
             # group/other bits (mode stays 0o666), so gate on os.name to avoid
@@ -1528,9 +1528,9 @@ class ClaudeBridge:
             )
         )
 
-    # Путь к wrapper-скрипту bwrap-джейла (репо/scripts/vels-claude-jail.sh).
+    # Путь к wrapper-скрипту bwrap-джейла (репо/scripts/ai-workspace-jail.sh).
     _JAIL_WRAPPER = str(
-        (Path(__file__).resolve().parents[2] / "scripts" / "vels-claude-jail.sh")
+        (Path(__file__).resolve().parents[2] / "scripts" / "ai-workspace-jail.sh")
     )
 
     @staticmethod
@@ -1538,7 +1538,7 @@ class ClaudeBridge:
         """Путь к настоящему бинарю claude (внутрь которого джейл будет exec'ать)."""
         import shutil
         return (
-            os.environ.get("VELS_REAL_CLAUDE")
+            os.environ.get("AI_WORKSPACE_REAL_CLAUDE")
             or shutil.which("claude")
             or "/usr/local/bin/claude"
         )
@@ -2658,7 +2658,7 @@ class ClaudeBridge:
         for key in ClaudeBridge._JAIL_SETTINGS_STRIP_KEYS:
             data.pop(key, None)
         try:
-            out_dir = Path.home() / ".cache" / "vels-claude"
+            out_dir = Path.home() / ".cache" / "ai-workspace"
             out_dir.mkdir(parents=True, exist_ok=True)
             if os.name == "posix":
                 os.chmod(out_dir, 0o700)
@@ -2683,34 +2683,34 @@ class ClaudeBridge:
         мышление (MAX_THINKING_TOKENS), если включено. Размышления Claude
         отображаются на verbose ≥ 2, но генерируются здесь.
         ``confined`` → дополнительно вырезаем ANTHROPIC_* (если есть ~/.claude).
-        ``confine_root`` → добавляем env для bwrap-джейла (см. vels-claude-jail.sh).
+        ``confine_root`` → добавляем env для bwrap-джейла (см. ai-workspace-jail.sh).
         ``anthropic_api_key`` → ключ пользователя для инъекции (режим USER_KEY):
         подставляется ПОСЛЕ _clean_env, чтобы пережить strip, и сигналит джейлу
-        не бинд-маунтить owner-креды (VELS_JAIL_NO_OWNER_CREDS=1)."""
+        не бинд-маунтить owner-креды (AI_WORKSPACE_JAIL_NO_OWNER_CREDS=1)."""
         env = self._clean_env(confined=confined)
 
         # Инъекция пользовательского ключа (режим USER_KEY). Делается ПОСЛЕ
         # _clean_env — иначе confined-strip вычистил бы ANTHROPIC_API_KEY.
-        # VELS_JAIL_NO_OWNER_CREDS=1 → сигнал vels-claude-jail.sh не монтировать
+        # AI_WORKSPACE_JAIL_NO_OWNER_CREDS=1 → сигнал ai-workspace-jail.sh не монтировать
         # owner-креды (~/.claude/.credentials.json): у сессии есть свой ключ.
         if anthropic_api_key:
             env["ANTHROPIC_API_KEY"] = anthropic_api_key
-            env["VELS_JAIL_NO_OWNER_CREDS"] = "1"
+            env["AI_WORKSPACE_JAIL_NO_OWNER_CREDS"] = "1"
 
         env["PYTHONIOENCODING"] = "utf-8"
         env["PYTHONUTF8"] = "1"
         if self.extended_thinking:
             env.setdefault("MAX_THINKING_TOKENS", "8000")
         if confine_root:
-            env["VELS_PROJECT_ROOT"] = str(confine_root)
-            env["VELS_REAL_CLAUDE"] = self._real_claude_path()
+            env["AI_WORKSPACE_PROJECT_ROOT"] = str(confine_root)
+            env["AI_WORKSPACE_REAL_CLAUDE"] = self._real_claude_path()
             env.setdefault("HOME", str(Path.home()))
             creds_dir = Path(env["HOME"]) / ".claude"
-            env["VELS_CLAUDE_CREDS_DIR"] = str(creds_dir)
+            env["AI_WORKSPACE_CLAUDE_CREDS_DIR"] = str(creds_dir)
             # M-7: в джейл монтируем НЕ сырой settings.json, а санитизированную
             # копию (без MCP-approval-ключей). jail.sh биндит её по этому пути;
             # если None — settings.json в джейле не монтируется вовсе.
             jail_settings = self._jail_settings_file(creds_dir)
             if jail_settings:
-                env["VELS_JAIL_SETTINGS_FILE"] = jail_settings
+                env["AI_WORKSPACE_JAIL_SETTINGS_FILE"] = jail_settings
         return env

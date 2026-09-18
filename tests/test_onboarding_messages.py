@@ -18,12 +18,12 @@ class OnboardingMessageTests(unittest.TestCase):
         self.assertIn("/settings", text)
 
     def test_auth_message_matches_vps_service_user_model(self) -> None:
-        text = onboarding.auth_message(service_name="vels-claude")
+        text = onboarding.auth_message(service_name="ai-workspace")
 
         self.assertIn("production installer", text)
         self.assertIn("claude", text)
-        self.assertIn("journalctl -u vels-claude", text)
-        self.assertIn("systemctl status vels-claude", text)
+        self.assertIn("journalctl -u ai-workspace", text)
+        self.assertIn("systemctl status ai-workspace", text)
 
     def test_no_projects_message_mentions_projects_dir_not_config_yaml_first(self) -> None:
         text = onboarding.no_projects_message(Path("/home/alice/projects"))

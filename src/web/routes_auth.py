@@ -21,7 +21,7 @@ logger = structlog.get_logger()
 # когда пользователя нет, всё равно прогоняем verify_password против него, чтобы
 # по времени нельзя было отличить «нет такого логина» от «неверный пароль»
 # (L-12, тайминг-оракул перечисления логинов). Считается один раз при импорте.
-_TIMING_DUMMY_HASH = hash_password("vels-timing-equalizer")
+_TIMING_DUMMY_HASH = hash_password("ai-workspace-timing-equalizer")
 
 
 def _hmac_compare(a: str, b: str) -> bool:
@@ -98,7 +98,7 @@ def make_auth_router(
 
     def _set_session_cookie(response: Response, token: str) -> None:
         response.set_cookie(
-            key="vels_session",
+            key="ai_workspace_session",
             value=token,
             max_age=jwt_ttl_days * 86400,
             httponly=True,
@@ -212,7 +212,7 @@ def make_auth_router(
     @router.post("/auth/logout")
     async def logout(response: Response) -> dict[str, Any]:
         response.set_cookie(
-            key="vels_session",
+            key="ai_workspace_session",
             value="",
             max_age=0,
             httponly=True,

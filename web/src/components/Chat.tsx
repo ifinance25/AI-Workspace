@@ -226,7 +226,7 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
   // Открыта ли панель мыслей. Липко в localStorage, по умолчанию закрыта.
   const [panelOpen, setPanelOpen] = useState<boolean>(() => {
     try {
-      return localStorage.getItem("vels.thinkingPanelOpen") === "1";
+      return localStorage.getItem("ai-workspace.thinkingPanelOpen") === "1";
     } catch {
       return false;
     }
@@ -235,7 +235,7 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
     setPanelOpen((v) => {
       const next = !v;
       try {
-        localStorage.setItem("vels.thinkingPanelOpen", next ? "1" : "0");
+        localStorage.setItem("ai-workspace.thinkingPanelOpen", next ? "1" : "0");
       } catch {
         // приватный режим — не критично
       }

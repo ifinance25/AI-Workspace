@@ -37,7 +37,7 @@ class OnboardingHandlerTests(unittest.IsolatedAsyncioTestCase):
 
         text = message.answer.await_args.args[0]
         self.assertIn("production installer", text)
-        self.assertIn("journalctl -u vels-claude", text)
+        self.assertIn("journalctl -u ai-workspace", text)
         self.assertEqual(message.answer.await_args.kwargs["parse_mode"], "HTML")
 
     async def test_no_session_prompts_with_product_copy(self) -> None:
@@ -85,7 +85,7 @@ class OnboardingErrorStateTests(unittest.IsolatedAsyncioTestCase):
     async def test_missing_project_path_is_reported_before_claude_call(self) -> None:
         session = SimpleNamespace(
             project_name="missing",
-            project_path="/tmp/vels-claude-definitely-missing",
+            project_path="/tmp/ai-workspace-definitely-missing",
             session_id=None,
             verbose_level=1,
             enable_subagent_tracking=False,

@@ -1,7 +1,7 @@
 import subprocess, shutil
 from pathlib import Path
 
-WRAPPER = Path(__file__).resolve().parents[1] / "scripts" / "vels-claude-jail.sh"
+WRAPPER = Path(__file__).resolve().parents[1] / "scripts" / "ai-workspace-jail.sh"
 
 
 def test_wrapper_exists():
@@ -19,7 +19,7 @@ def test_wrapper_shell_syntax_ok():
 def test_wrapper_binds_project_not_host_secrets():
     text = WRAPPER.read_text(encoding="utf-8")
     assert "bwrap" in text
-    assert "$VELS_PROJECT_ROOT" in text and "$VELS_REAL_CLAUDE" in text
+    assert "$AI_WORKSPACE_PROJECT_ROOT" in text and "$AI_WORKSPACE_REAL_CLAUDE" in text
     # must NOT blanket-bind host secret roots
     assert "--bind /home " not in text and "--bind /opt " not in text
     assert "--ro-bind /home " not in text and "--ro-bind /opt " not in text

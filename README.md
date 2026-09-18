@@ -61,8 +61,8 @@ curl -sSL https://raw.githubusercontent.com/ifinance25/AI-Workspace/develop/scri
 3. Положите проект на сервер отдельной подпапкой:
 
    ```bash
-   sudo -u vels-bot git clone https://github.com/вы/ваш-проект.git \
-     /var/lib/vels-bot/projects/ваш-проект
+   sudo -u ai-workspace git clone https://github.com/вы/ваш-проект.git \
+     /var/lib/ai-workspace/projects/ваш-проект
    ```
 
    Перезапуск не нужен: проект появится в списке. Новые проекты также создаются
@@ -113,18 +113,21 @@ curl -sSL https://raw.githubusercontent.com/ifinance25/AI-Workspace/develop/scri
 curl -sSL https://raw.githubusercontent.com/ifinance25/AI-Workspace/develop/scripts/install.sh | sudo bash
 
 # удаление (папка проектов и авторизация Claude сохраняются)
-sudo bash /opt/vels-claude/scripts/uninstall.sh
+sudo bash /opt/ai-workspace/scripts/uninstall.sh
 ```
+
+Переезд со старого каталога на сервере (копирование `.env`, БД и проектов без удаления
+старой папки): [docs/MIGRATION.md](docs/MIGRATION.md).
 
 ---
 
 ## Конфигурация
 
-`.env` в `/opt/vels-claude`:
+`.env` в `/opt/ai-workspace`:
 
 | Переменная | Описание | По умолчанию |
 |---|---|---|
-| `PROJECTS_DIR` | Папка, внутри которой лежит проект | `/var/lib/vels-bot/projects` |
+| `PROJECTS_DIR` | Папка, внутри которой лежит проект | `/var/lib/ai-workspace/projects` |
 | `ADMIN_LOGIN` / `ADMIN_PASSWORD` | Вход в веб | `admin` / генерируется |
 | `WEB_JWT_SECRET` | Подпись сессионных cookie | генерируется |
 | `ANTHROPIC_API_KEY` | Ключ Claude (или `CLAUDE_CODE_OAUTH_TOKEN`) | — |
@@ -133,14 +136,14 @@ sudo bash /opt/vels-claude/scripts/uninstall.sh
 | `ALLOWED_USER_IDS` | Telegram ID через запятую | — |
 
 Остальное — `config/config.yaml` (модель, таймауты, режим разрешений, порт
-веба). После правки: `systemctl restart vels-claude`.
+веба). После правки: `systemctl restart ai-workspace`.
 
 ## Управление сервисом
 
 ```bash
-systemctl status vels-claude
-journalctl -u vels-claude -f
-systemctl restart vels-claude
+systemctl status ai-workspace
+journalctl -u ai-workspace -f
+systemctl restart ai-workspace
 ```
 
 ---
@@ -174,9 +177,9 @@ cd web && npx vitest run
 | Симптом | Что делать |
 |---|---|
 | Адрес не открывается снаружи | Откройте порт 80 (и 443 для домена) в security group провайдера |
-| Чат не отвечает, Claude не авторизован | `echo 'ANTHROPIC_API_KEY=sk-ant-...' \| sudo tee -a /opt/vels-claude/.env` и `systemctl restart vels-claude` |
+| Чат не отвечает, Claude не авторизован | `echo 'ANTHROPIC_API_KEY=sk-ant-...' \| sudo tee -a /opt/ai-workspace/.env` и `systemctl restart ai-workspace` |
 | Claude Code CLI не найден | `npm install -g @anthropic-ai/claude-code`, проверить `claude --version`, повторить установку |
 | Проект не виден | Проверьте `PROJECTS_DIR` в `.env`; проект должен лежать **подпапкой** внутри неё |
 | Виден не тот проект | Выберите нужный в сайдбаре или в админке; проверьте `PROJECTS_DIR` |
 | Бот не отвечает, веб работает | Ваш ID в `ALLOWED_USER_IDS`, бот — админ форум-группы с правом «Управление темами» |
-| Сервис не стартует | `systemctl status vels-claude` и `journalctl -u vels-claude -n 50 --no-pager` |
+| Сервис не стартует | `systemctl status ai-workspace` и `journalctl -u ai-workspace -n 50 --no-pager` |

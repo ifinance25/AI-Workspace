@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Обёртка CLI в развёрнутой установке.
-# Узнать адрес: ./scripts/vels url   (или `ai-panel url` после pip install -e .)
+# Узнать адрес: ./scripts/ai-workspace url   (или `ai-panel url` после pip install -e .)
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Обязательно из корня репозитория: `python -m src.cli` импортирует пакет `src`

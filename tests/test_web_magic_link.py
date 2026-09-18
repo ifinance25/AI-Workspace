@@ -112,7 +112,7 @@ async def test_magic_link_valid_token_sets_cookie(server):
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post("/api/auth/magic-link", json={"token": token})
     assert resp.status_code == 200
-    assert "vels_session" in resp.cookies
+    assert "ai_workspace_session" in resp.cookies
     assert resp.json()["user"]["id"] == 100
 
 
@@ -177,11 +177,11 @@ async def test_magic_link_user_not_in_whitelist_rejected(server):
 
 
 def test_issue_login_url_with_public_origin(server):
-    object.__setattr__(server.settings, "public_origin", "https://vels.example.com/")
+    object.__setattr__(server.settings, "public_origin", "https://ai-panel.example.com/")
     url = server.issue_magic_login_url(user_id=100)
-    assert url.startswith("https://vels.example.com/login?magic=")
+    assert url.startswith("https://ai-panel.example.com/login?magic=")
     # No trailing slash duplication
-    assert "vels.example.com//" not in url
+    assert "ai-panel.example.com//" not in url
 
 
 def test_issue_login_url_without_public_origin_warns(server, monkeypatch):

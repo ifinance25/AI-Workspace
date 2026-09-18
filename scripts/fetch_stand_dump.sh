@@ -7,14 +7,14 @@
 #   STAND_DUMP_FETCH=1 STAND_DUMP_SSH=user@host bash scripts/fetch_stand_dump.sh
 #
 # STAND_DUMP_SSH: user@host или Host из ~/.ssh/config. В скрипт IP не зашит.
-# Удалённая БД по умолчанию: /opt/vels-claude/data/sessions.db
+# Удалённая БД по умолчанию: /opt/ai-workspace/data/sessions.db
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="${STAND_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 DUMP_DIR="${STAND_DUMP_DIR:-$ROOT/data/dumps}"
-REMOTE_DB="${STAND_DUMP_REMOTE_DB:-/opt/vels-claude/data/sessions.db}"
-REMOTE_USER="${STAND_DUMP_REMOTE_USER:-vels-bot}"
+REMOTE_DB="${STAND_DUMP_REMOTE_DB:-/opt/ai-workspace/data/sessions.db}"
+REMOTE_USER="${STAND_DUMP_REMOTE_USER:-ai-workspace}"
 
 if [[ "${STAND_DUMP_FETCH:-}" != "1" ]]; then
     cat >&2 <<EOF

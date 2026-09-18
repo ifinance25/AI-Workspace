@@ -64,7 +64,7 @@ assert_eq "$(parse_user_ids "$(sanitize_input $'  123, 456 \r')")" "123,456" "pa
 echo "== getme_check (mock success contract) =="
 # Живой цикл ввода токена полагается на контракт: при успехе getme_check печатает
 # username в stdout и возвращает 0 (тогда цикл сохраняет токен и выходит).
-assert_eq "$(VELS_GETME_MOCK=mybot getme_check '1234567890:AAFabc')" "mybot" "getme_check returns bot username on success"
+assert_eq "$(AI_WORKSPACE_GETME_MOCK=mybot getme_check '1234567890:AAFabc')" "mybot" "getme_check returns bot username on success"
 
 echo "== parse_user_ids =="
 assert_eq "$(parse_user_ids '123')" "123" "single user id"
@@ -79,69 +79,69 @@ assert_fail "internal whitespace in list rejected" parse_user_ids "123, 45 6"
 assert_fail "newline-separated ids rejected" parse_user_ids $'123\n456'
 
 echo "== expand_absolute_path =="
-assert_eq "$(HOME=/home/vels expand_absolute_path '~/projects')" "/home/vels/projects" "tilde expands"
+assert_eq "$(HOME=/home/ai-workspace expand_absolute_path '~/projects')" "/home/ai-workspace/projects" "tilde expands"
 assert_eq "$(SERVICE_HOME=/home/alice HOME=/root expand_absolute_path '~/projects')" "/home/alice/projects" "tilde uses service home when set"
 assert_eq "$(HOME=/root expand_absolute_path '~/projects' /home/bob)" "/home/bob/projects" "tilde uses explicit home when provided"
-assert_eq "$(expand_absolute_path '/srv/vels-claude/')" "/srv/vels-claude" "trailing slash stripped"
+assert_eq "$(expand_absolute_path '/srv/ai-workspace/')" "/srv/ai-workspace" "trailing slash stripped"
 assert_eq "$(expand_absolute_path '/')" "/" "root slash preserved"
 assert_fail "relative path rejected" expand_absolute_path "projects"
 
 echo "== resolve_service_user =="
-# M-2: дефолт для euid=0 теперь — выделенный vels-bot, ДАЖЕ если задан
+# M-2: дефолт для euid=0 теперь — выделенный ai-workspace, ДАЖЕ если задан
 # SUDO_USER (личный логин-аккаунт на облачных VPS обычно имеет NOPASSWD sudo —
 # отдавать его боту с bypassPermissions расширяет поверхность атаки).
-VELS_EUID_OVERRIDE=0 SUDO_USER=vels-missing-sudo-user VELS_PASSWD_ENTRY_OVERRIDE= VELS_GROUP_ENTRY_OVERRIDE= VELS_UNIT_CONTENT_OVERRIDE= resolve_service_user
-assert_eq "$SERVICE_USER" "vels-bot" "sudo path now defaults to dedicated vels-bot (not login user)"
-assert_eq "$SERVICE_HOME" "/var/lib/vels-bot" "sudo path uses vels-bot home by default"
-assert_eq "$SERVICE_GROUP" "vels-bot" "sudo path uses vels-bot group by default"
-assert_eq "$SERVICE_NEEDS_CREATE" "1" "sudo path creates vels-bot when missing"
+AI_WORKSPACE_EUID_OVERRIDE=0 SUDO_USER=aiws-missing-sudo-user AI_WORKSPACE_PASSWD_ENTRY_OVERRIDE= AI_WORKSPACE_GROUP_ENTRY_OVERRIDE= AI_WORKSPACE_UNIT_CONTENT_OVERRIDE= resolve_service_user
+assert_eq "$SERVICE_USER" "ai-workspace" "sudo path now defaults to dedicated ai-workspace (not login user)"
+assert_eq "$SERVICE_HOME" "/var/lib/ai-workspace" "sudo path uses ai-workspace home by default"
+assert_eq "$SERVICE_GROUP" "ai-workspace" "sudo path uses ai-workspace group by default"
+assert_eq "$SERVICE_NEEDS_CREATE" "1" "sudo path creates ai-workspace when missing"
 
-# Opt-in: VELS_USE_LOGIN_USER=1 явно возвращает старое поведение (SUDO_USER).
-VELS_EUID_OVERRIDE=0 SUDO_USER=vels-missing-sudo-user VELS_USE_LOGIN_USER=1 VELS_PASSWD_ENTRY_OVERRIDE= VELS_GROUP_ENTRY_OVERRIDE= VELS_UNIT_CONTENT_OVERRIDE= resolve_service_user
-assert_eq "$SERVICE_USER" "vels-missing-sudo-user" "VELS_USE_LOGIN_USER=1 opts back into SUDO_USER"
-assert_eq "$SERVICE_HOME" "/home/vels-missing-sudo-user" "opt-in sudo path home fallback"
-assert_eq "$SERVICE_GROUP" "vels-missing-sudo-user" "opt-in sudo path group fallback"
+# Opt-in: AI_WORKSPACE_USE_LOGIN_USER=1 явно возвращает старое поведение (SUDO_USER).
+AI_WORKSPACE_EUID_OVERRIDE=0 SUDO_USER=aiws-missing-sudo-user AI_WORKSPACE_USE_LOGIN_USER=1 AI_WORKSPACE_PASSWD_ENTRY_OVERRIDE= AI_WORKSPACE_GROUP_ENTRY_OVERRIDE= AI_WORKSPACE_UNIT_CONTENT_OVERRIDE= resolve_service_user
+assert_eq "$SERVICE_USER" "aiws-missing-sudo-user" "AI_WORKSPACE_USE_LOGIN_USER=1 opts back into SUDO_USER"
+assert_eq "$SERVICE_HOME" "/home/aiws-missing-sudo-user" "opt-in sudo path home fallback"
+assert_eq "$SERVICE_GROUP" "aiws-missing-sudo-user" "opt-in sudo path group fallback"
 assert_eq "$SERVICE_NEEDS_CREATE" "0" "opt-in sudo path does not create user"
-unset VELS_USE_LOGIN_USER
+unset AI_WORKSPACE_USE_LOGIN_USER
 
 # Уже установленный юнит (User=<логин-юзер> с самого первого install до M-2) —
 # повторный запуск НЕ переключает сервис-юзера, иначе сломает владение data/.venv.
-VELS_EUID_OVERRIDE=0 SUDO_USER=alice VELS_UNIT_CONTENT_OVERRIDE=$'[Service]\nUser=alice\n' VELS_PASSWD_ENTRY_OVERRIDE="alice:x:1000:1000::/home/alice:/bin/bash" VELS_GROUP_ENTRY_OVERRIDE="alice:x:1000:" resolve_service_user
+AI_WORKSPACE_EUID_OVERRIDE=0 SUDO_USER=alice AI_WORKSPACE_UNIT_CONTENT_OVERRIDE=$'[Service]\nUser=alice\n' AI_WORKSPACE_PASSWD_ENTRY_OVERRIDE="alice:x:1000:1000::/home/alice:/bin/bash" AI_WORKSPACE_GROUP_ENTRY_OVERRIDE="alice:x:1000:" resolve_service_user
 assert_eq "$SERVICE_USER" "alice" "existing unit User= is preserved across re-run"
 assert_eq "$SERVICE_HOME" "/home/alice" "existing unit user home resolved"
 assert_eq "$SERVICE_NEEDS_CREATE" "0" "existing unit user does not need creation"
-unset VELS_UNIT_CONTENT_OVERRIDE
+unset AI_WORKSPACE_UNIT_CONTENT_OVERRIDE
 
 unset SUDO_USER
-VELS_EUID_OVERRIDE=0 VELS_PASSWD_ENTRY_OVERRIDE="vels-bot:x:999:998::/srv/existing-vels:/usr/sbin/nologin" VELS_GROUP_ENTRY_OVERRIDE="vels-existing:x:998:" VELS_UNIT_CONTENT_OVERRIDE= resolve_service_user
-assert_eq "$SERVICE_USER" "vels-bot" "direct root uses existing managed user"
-assert_eq "$SERVICE_HOME" "/srv/existing-vels" "existing managed user home"
-assert_eq "$SERVICE_GROUP" "vels-existing" "existing managed user group"
+AI_WORKSPACE_EUID_OVERRIDE=0 AI_WORKSPACE_PASSWD_ENTRY_OVERRIDE="ai-workspace:x:999:998::/srv/existing-aiws:/usr/sbin/nologin" AI_WORKSPACE_GROUP_ENTRY_OVERRIDE="aiws-existing:x:998:" AI_WORKSPACE_UNIT_CONTENT_OVERRIDE= resolve_service_user
+assert_eq "$SERVICE_USER" "ai-workspace" "direct root uses existing managed user"
+assert_eq "$SERVICE_HOME" "/srv/existing-aiws" "existing managed user home"
+assert_eq "$SERVICE_GROUP" "aiws-existing" "existing managed user group"
 assert_eq "$SERVICE_NEEDS_CREATE" "0" "existing managed user does not need creation"
 
-VELS_EUID_OVERRIDE=0 VELS_PASSWD_ENTRY_OVERRIDE= VELS_GROUP_ENTRY_OVERRIDE= VELS_UNIT_CONTENT_OVERRIDE= resolve_service_user
-assert_eq "$SERVICE_USER" "vels-bot" "direct root uses managed user fallback"
-assert_eq "$SERVICE_HOME" "/var/lib/vels-bot" "missing managed user home fallback"
-assert_eq "$SERVICE_GROUP" "vels-bot" "missing managed user group fallback"
+AI_WORKSPACE_EUID_OVERRIDE=0 AI_WORKSPACE_PASSWD_ENTRY_OVERRIDE= AI_WORKSPACE_GROUP_ENTRY_OVERRIDE= AI_WORKSPACE_UNIT_CONTENT_OVERRIDE= resolve_service_user
+assert_eq "$SERVICE_USER" "ai-workspace" "direct root uses managed user fallback"
+assert_eq "$SERVICE_HOME" "/var/lib/ai-workspace" "missing managed user home fallback"
+assert_eq "$SERVICE_GROUP" "ai-workspace" "missing managed user group fallback"
 assert_eq "$SERVICE_NEEDS_CREATE" "1" "missing managed user needs creation"
 
-assert_fail "plain non-root rejected" env -i HOME="$HOME" VELS_EUID_OVERRIDE=1000 bash -c "source '$ROOT_DIR/scripts/install.sh'; resolve_service_user"
-assert_fail "non-root sudo user rejected" env -i HOME="$HOME" SUDO_USER=alice VELS_EUID_OVERRIDE=1000 bash -c "source '$ROOT_DIR/scripts/install.sh'; resolve_service_user"
+assert_fail "plain non-root rejected" env -i HOME="$HOME" AI_WORKSPACE_EUID_OVERRIDE=1000 bash -c "source '$ROOT_DIR/scripts/install.sh'; resolve_service_user"
+assert_fail "non-root sudo user rejected" env -i HOME="$HOME" SUDO_USER=alice AI_WORKSPACE_EUID_OVERRIDE=1000 bash -c "source '$ROOT_DIR/scripts/install.sh'; resolve_service_user"
 
 echo "== reconcile_projects_dir =="
-SERVICE_USER="vels-bot"
-SERVICE_HOME="/var/lib/vels-bot"
+SERVICE_USER="ai-workspace"
+SERVICE_HOME="/var/lib/ai-workspace"
 SERVICE_NEEDS_CREATE=1
 CFG_PROJECTS_DIR="/root/projects"
 reconcile_projects_dir_with_user
-assert_eq "$CFG_PROJECTS_DIR" "/var/lib/vels-bot/projects" "managed user projects dir is moved from root"
+assert_eq "$CFG_PROJECTS_DIR" "/var/lib/ai-workspace/projects" "managed user projects dir is moved from root"
 
-SERVICE_USER="vels-bot"
-SERVICE_HOME="/srv/existing-vels"
+SERVICE_USER="ai-workspace"
+SERVICE_HOME="/srv/existing-aiws"
 SERVICE_NEEDS_CREATE=0
 CFG_PROJECTS_DIR="/root/projects"
 reconcile_projects_dir_with_user
-assert_eq "$CFG_PROJECTS_DIR" "/srv/existing-vels/projects" "existing managed user projects dir is moved from root"
+assert_eq "$CFG_PROJECTS_DIR" "/srv/existing-aiws/projects" "existing managed user projects dir is moved from root"
 
 SERVICE_USER="alice"
 SERVICE_HOME="/home/alice"
@@ -215,28 +215,28 @@ assert_contains "$ip_cfg" 'port: 8765' "web config explicit port"
 assert_contains "$web_cfg" 'port: 8765' "web config default internal port 8765"
 
 echo "== render_systemd_unit =="
-unit="$(SERVICE_USER=alice SERVICE_GROUP=alice SERVICE_HOME=/home/alice INSTALL_DIR=/opt/vels-claude SERVICE_NAME=vels-claude render_systemd_unit)"
+unit="$(SERVICE_USER=alice SERVICE_GROUP=alice SERVICE_HOME=/home/alice INSTALL_DIR=/opt/ai-workspace SERVICE_NAME=ai-workspace render_systemd_unit)"
 assert_contains "$unit" "Description=AI-Panel (Web)" "unit description (web-only без токена)"
 assert_contains "$unit" "User=alice" "unit user"
 assert_contains "$unit" "Group=alice" "unit group"
-assert_contains "$unit" "WorkingDirectory=/opt/vels-claude" "unit working dir"
-assert_contains "$unit" "EnvironmentFile=/opt/vels-claude/.env" "unit env file"
-assert_contains "$unit" "ExecStart=/opt/vels-claude/.venv/bin/python /opt/vels-claude/scripts/run_web.py" "unit exec (web-only без токена)"
-bot_unit="$(SERVICE_USER=alice SERVICE_GROUP=alice SERVICE_HOME=/home/alice INSTALL_DIR=/opt/vels-claude SERVICE_NAME=vels-claude CFG_TOKEN=123456:AAFabc render_systemd_unit)"
+assert_contains "$unit" "WorkingDirectory=/opt/ai-workspace" "unit working dir"
+assert_contains "$unit" "EnvironmentFile=/opt/ai-workspace/.env" "unit env file"
+assert_contains "$unit" "ExecStart=/opt/ai-workspace/.venv/bin/python /opt/ai-workspace/scripts/run_web.py" "unit exec (web-only без токена)"
+bot_unit="$(SERVICE_USER=alice SERVICE_GROUP=alice SERVICE_HOME=/home/alice INSTALL_DIR=/opt/ai-workspace SERVICE_NAME=ai-workspace CFG_TOKEN=123456:AAFabc render_systemd_unit)"
 assert_contains "$bot_unit" "Description=AI-Panel (Telegram + Web)" "unit description (с токеном)"
-assert_contains "$bot_unit" "ExecStart=/opt/vels-claude/.venv/bin/python -m src.main" "unit exec (с токеном)"
+assert_contains "$bot_unit" "ExecStart=/opt/ai-workspace/.venv/bin/python -m src.main" "unit exec (с токеном)"
 assert_contains "$unit" "Environment=HOME=/home/alice" "unit home"
 assert_fail "unit has no privileged-port capability (Caddy fronts :80)" grep -q "AmbientCapabilities" <<<"$unit"
-assert_contains "$unit" "ReadWritePaths=/opt/vels-claude/data /home/alice /home/alice/projects" "unit write paths"
+assert_contains "$unit" "ReadWritePaths=/opt/ai-workspace/data /home/alice /home/alice/projects" "unit write paths"
 assert_contains "$unit" "NoNewPrivileges=true" "unit has NoNewPrivileges hardening"
 assert_contains "$unit" "ProtectSystem=strict" "unit has ProtectSystem hardening"
 assert_contains "$unit" "PrivateTmp=true" "unit has PrivateTmp hardening"
 assert_eq "$(SERVICE_USER=alice SERVICE_HOME=/home/alice claude_probe_command)" "sudo -u alice -H env HOME=/home/alice claude -p ping --output-format stream-json --verbose" "claude probe validates auth as service user"
 
-custom_unit="$(SERVICE_USER=alice SERVICE_GROUP=alice SERVICE_HOME=/home/alice INSTALL_DIR=/srv/vels-claude SERVICE_NAME=vels-claude CFG_PROJECTS_DIR=/srv/projects render_systemd_unit)"
-assert_contains "$custom_unit" "WorkingDirectory=/srv/vels-claude" "custom install dir in unit"
-assert_contains "$custom_unit" "EnvironmentFile=/srv/vels-claude/.env" "custom env path in unit"
-assert_contains "$custom_unit" "ReadWritePaths=/srv/vels-claude/data /home/alice /srv/projects" "custom project dir in write paths"
+custom_unit="$(SERVICE_USER=alice SERVICE_GROUP=alice SERVICE_HOME=/home/alice INSTALL_DIR=/srv/ai-workspace SERVICE_NAME=ai-workspace CFG_PROJECTS_DIR=/srv/projects render_systemd_unit)"
+assert_contains "$custom_unit" "WorkingDirectory=/srv/ai-workspace" "custom install dir in unit"
+assert_contains "$custom_unit" "EnvironmentFile=/srv/ai-workspace/.env" "custom env path in unit"
+assert_contains "$custom_unit" "ReadWritePaths=/srv/ai-workspace/data /home/alice /srv/projects" "custom project dir in write paths"
 
 echo "== validate_domain_format =="
 assert_eq "$(validate_domain_format 'claude.example.com')" "ok" "valid domain"
@@ -309,8 +309,8 @@ WEB_MODE="" DOMAIN="" PUBLIC_ORIGIN="https://1.2.3.4" resolve_web_mode "9.9.9.9"
 assert_eq "$CFG_WEB_MODE" "ip" "https bare-ip is not domain mode"
 
 echo "== installer constants =="
-assert_eq "$SERVICE_NAME" "vels-claude" "default service name"
-assert_eq "$INSTALL_DIR" "/opt/vels-claude" "default install dir"
+assert_eq "$SERVICE_NAME" "ai-workspace" "default service name"
+assert_eq "$INSTALL_DIR" "/opt/ai-workspace" "default install dir"
 # Репозиторий этой панели: git-путь установщика должен вести
 # на ifinance25/AI-Workspace (ветка develop).
 assert_eq "$REPO_NAME" "AI-Workspace" "default repo name matches this repository"
@@ -406,7 +406,7 @@ assert_contains "$(grep -c 'id_attempts' "$ROOT_DIR/scripts/install.sh")" "4" \
 
 echo "== uninstall: home с проектами внутри не сносится =="
 # Прогон на живом сервере: uninstall.sh печатал «НЕ будет удалено: папка
-# проектов /var/lib/vels-bot/projects» и удалял её. Дефолтный PROJECTS_DIR лежит
+# проектов /var/lib/ai-workspace/projects» и удалял её. Дефолтный PROJECTS_DIR лежит
 # внутри home сервис-юзера, а `userdel -r` сносит home целиком. Защита в скрипте
 # была, но проверяла другой случай — «проекты внутри INSTALL_DIR».
 #
@@ -431,12 +431,12 @@ echo "== uninstall: home с проектами внутри не сноситс�
         fi
     }
 
-    _case inside  "/var/lib/vels-bot/projects" "/var/lib/vels-bot" \
+    _case inside  "/var/lib/ai-workspace/projects" "/var/lib/ai-workspace" \
         "дефолтный PROJECTS_DIR внутри home => home сохраняем"
-    _case outside "/srv/projects" "/var/lib/vels-bot" \
+    _case outside "/srv/projects" "/var/lib/ai-workspace" \
         "проекты вне home => home можно удалять"
-    # Ловушка на префиксе: /var/lib/vels-bot-other НЕ внутри /var/lib/vels-bot.
-    _case outside "/var/lib/vels-bot-other/projects" "/var/lib/vels-bot" \
+    # Ловушка на префиксе: /var/lib/ai-workspace-other НЕ внутри /var/lib/ai-workspace.
+    _case outside "/var/lib/ai-workspace-other/projects" "/var/lib/ai-workspace" \
         "похожее имя каталога не считается вложенностью"
     # home=/ у сломанного passwd не должен объявлять «внутри» весь диск.
     _case outside "/anything" "/" \

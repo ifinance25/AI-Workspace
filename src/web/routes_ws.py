@@ -168,7 +168,7 @@ def make_ws_router(
             return
 
         # Auth via cookie BEFORE accepting the upgrade.
-        cookie = websocket.cookies.get("vels_session")
+        cookie = websocket.cookies.get("ai_workspace_session")
         if not cookie:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return

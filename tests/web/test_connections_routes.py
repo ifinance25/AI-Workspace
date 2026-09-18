@@ -2,7 +2,7 @@
 
 Harness (login + authed TestClient) скопирован из tests/web/test_stop_generation.py:
 Telegram-логин через /api/auth/telegram (HMAC-подпись по bot_token) ставит cookie
-vels_session, дальше TestClient шлёт её автоматически.
+ai_workspace_session, дальше TestClient шлёт её автоматически.
 
 КРИТИЧНО: GET никогда не возвращает секреты — только `connected` booleans.
 """

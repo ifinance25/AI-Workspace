@@ -16,7 +16,7 @@
 #     • INSTALL_DIR=/path sudo -E bash ... — переопределить каталог установки.
 #
 # Почему root + запуск python ОТ СЕРВИСНОГО пользователя: БД принадлежит
-# сервис-юзеру (напр. `vels`), не root. Если запустить python под root, он
+# сервис-юзеру (напр. `ai-workspace`), не root. Если запустить python под root, он
 # создаст root-owned WAL/SHM рядом с sessions.db и сломает владение → сервис
 # перестанет писать в БД. Поэтому оператор зовёт скрипт через sudo (root),
 # а python исполняется под владельцем .venv (`runuser`/`sudo -u`).
@@ -29,8 +29,8 @@ if [[ -z "${INSTALL_DIR:-}" ]]; then
     INSTALL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 fi
 # Запасной вариант: скрипт запущен из необычного места, а рядом нет src/.
-if [[ ! -d "$INSTALL_DIR/src" && -d /opt/vels-claude/src ]]; then
-    INSTALL_DIR="/opt/vels-claude"
+if [[ ! -d "$INSTALL_DIR/src" && -d /opt/ai-workspace/src ]]; then
+    INSTALL_DIR="/opt/ai-workspace"
 fi
 
 # ── 2. Требуем root ──────────────────────────────────────────────────
@@ -43,7 +43,7 @@ fi
 # ── 3. Проверки окружения ────────────────────────────────────────────
 if [[ ! -d "$INSTALL_DIR/src" ]]; then
     echo "ОШИБКА: не похоже на каталог установки AI-Panel: $INSTALL_DIR" >&2
-    echo "  Укажите его явно: INSTALL_DIR=/opt/vels-claude sudo -E bash $0" >&2
+    echo "  Укажите его явно: INSTALL_DIR=/opt/ai-workspace sudo -E bash $0" >&2
     exit 1
 fi
 

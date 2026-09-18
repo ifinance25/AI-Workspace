@@ -8,7 +8,7 @@ import { startNewSession } from "@/lib/newSession";
 import type { Session } from "@/lib/types";
 import { NARROW_VIEWPORT, useMediaQuery } from "@/lib/useMediaQuery";
 
-const COLLAPSED_KEY = "vels.sidebarCollapsed";
+const COLLAPSED_KEY = "ai-workspace.sidebarCollapsed";
 
 export default function ChatPage() {
   const isNarrow = useMediaQuery(NARROW_VIEWPORT);

@@ -1,6 +1,7 @@
-# Пример unit для отдельного бота (не используется установщиком AI-Panel).
+# scripts/ai-workspace.service → /etc/systemd/system/ai-workspace.service
+# Сервисный пользователь должен иметь авторизованный Claude CLI (~/.claude).
 [Unit]
-Description=Telegram Claude Code Bot
+Description=AI-Panel (Telegram bot + Web UI)
 After=network-online.target
 Wants=network-online.target
 
@@ -8,19 +9,18 @@ Wants=network-online.target
 Type=simple
 User=ai-workspace
 Group=ai-workspace
-WorkingDirectory=/var/lib/ai-workspace/projects/telegram-claude-code
-EnvironmentFile=/var/lib/ai-workspace/projects/telegram-claude-code/.env
-ExecStart=/var/lib/ai-workspace/projects/telegram-claude-code/.venv/bin/python -m src.main
-
+WorkingDirectory=/opt/ai-workspace
+EnvironmentFile=/opt/ai-workspace/.env
+ExecStart=/opt/ai-workspace/.venv/bin/python -m src.main
 Restart=always
 RestartSec=5
 StartLimitIntervalSec=60
 StartLimitBurst=10
 ExecStartPre=/bin/sleep 3
-
 Environment=PYTHONUNBUFFERED=1
-
-ReadWritePaths=/var/lib/ai-workspace/projects/telegram-claude-code /var/lib/ai-workspace
+Environment=HOME=/var/lib/ai-workspace
+ReadWritePaths=/opt/ai-workspace/data /var/lib/ai-workspace
+ReadOnlyPaths=/opt/ai-workspace
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
@@ -31,10 +31,9 @@ ProtectControlGroups=true
 RestrictSUIDSGID=true
 LockPersonality=true
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
-
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=telegram-claude-code
+SyslogIdentifier=ai-workspace
 
 [Install]
 WantedBy=multi-user.target

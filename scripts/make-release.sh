@@ -21,7 +21,7 @@ set -euo pipefail
 
 REF="${1:-HEAD}"
 OUT_DIR="${OUT_DIR:-dist}"
-PREFIX="vels-claude/"
+PREFIX="ai-workspace/"
 
 command -v git >/dev/null 2>&1 || { echo "[ERROR] git не найден" >&2; exit 1; }
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
@@ -61,7 +61,7 @@ if [[ "${ALLOW_DIRTY:-0}" != "1" ]]; then
     fi
 fi
 
-tarball="$OUT_DIR/vels-claude-${short_sha}.tar.gz"
+tarball="$OUT_DIR/ai-workspace-${short_sha}.tar.gz"
 
 # --worktree-attributes: учитывать .gitattributes (export-ignore внутренних
 # доков) ещё и из рабочего дерева — иначе при сборке до коммита .gitattributes
@@ -72,8 +72,8 @@ git archive --worktree-attributes --format=tar.gz --prefix="$PREFIX" -o "$tarbal
 # Атомарная публикация «latest»: пишем во временный файл в ТОМ ЖЕ каталоге и
 # переименовываем (rename в пределах ФС атомарен) — nginx никогда не отдаст
 # наполовину записанный архив во время раздачи.
-latest="$OUT_DIR/vels-claude-latest.tar.gz"
-tmp_latest="$(mktemp "$OUT_DIR/.vels-claude-latest.XXXXXX")"
+latest="$OUT_DIR/ai-workspace-latest.tar.gz"
+tmp_latest="$(mktemp "$OUT_DIR/.ai-workspace-latest.XXXXXX")"
 cp -f "$tarball" "$tmp_latest"
 mv -f "$tmp_latest" "$latest"
 
@@ -86,7 +86,7 @@ chmod 644 "$tarball" "$latest"
 # неявную связку «версионный == latest». Сайдкар + готовая строка для вставки в
 # platform-install.sh (EXPECTED_SHA256).
 sha="$($SHA_TOOL "$latest" | awk '{print $1}')"
-echo "$sha  vels-claude-latest.tar.gz" > "$latest.sha256"
+echo "$sha  ai-workspace-latest.tar.gz" > "$latest.sha256"
 
 echo "TARBALL=$tarball"
 echo "REF=$full_sha"

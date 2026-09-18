@@ -59,10 +59,10 @@ async def _get_config(server: WebServer) -> dict:
 
 async def test_config_reports_bot_when_configured(workdir):
     tmp, sm = workdir
-    server = _make_server(tmp, sm, token="12345:abc", username="velsbot")
+    server = _make_server(tmp, sm, token="12345:abc", username="paneltestbot")
     body = await _get_config(server)
     assert body["telegram_enabled"] is True
-    assert body["telegram_bot_username"] == "velsbot"
+    assert body["telegram_bot_username"] == "paneltestbot"
 
 
 async def test_config_reports_no_bot_in_web_only_install(workdir):
@@ -80,7 +80,7 @@ async def test_config_hides_stale_username_without_token(workdir):
     обрабатывать некому — страница входа не должна на него ссылаться.
     """
     tmp, sm = workdir
-    server = _make_server(tmp, sm, token="", username="velsbot")
+    server = _make_server(tmp, sm, token="", username="paneltestbot")
     body = await _get_config(server)
     assert body["telegram_enabled"] is False
     assert body["telegram_bot_username"] == ""

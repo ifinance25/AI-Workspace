@@ -1,7 +1,7 @@
 """REST /api/apikey: per-user Anthropic API key metadata + set/delete.
 
 Harness (Telegram login + authed TestClient) mirrors
-tests/web/test_connections_routes.py: /api/auth/telegram sets the vels_session
+tests/web/test_connections_routes.py: /api/auth/telegram sets the ai_workspace_session
 cookie, then TestClient replays it on every request.
 
 CRITICAL invariants under test:

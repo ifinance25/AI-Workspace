@@ -21,10 +21,10 @@ def setup():
     sm = SessionManager(storage_path=tmp / "sessions.db")
     settings = WebSettings(
         enabled=True, host="127.0.0.1", port=0, jwt_secret="x" * 32,
-        telegram_bot_username="velsbot",
+        telegram_bot_username="paneltestbot",
     )
     server = WebServer(
-        settings=settings, allowed_user_ids=[100], bot_username="velsbot",
+        settings=settings, allowed_user_ids=[100], bot_username="paneltestbot",
         session_manager=sm, event_bus=EventBus(), bot_token="12345:abc",
         jwt_secret="x" * 32, project_paths=[tmp],
     )
@@ -44,7 +44,7 @@ async def test_me_returns_bot_username(setup):
         await c.post("/api/auth/login", json={"username": "u", "password": "pw123456"})
         me = await c.get("/api/me")
         assert me.status_code == 200
-        assert me.json()["telegram_bot_username"] == "velsbot"
+        assert me.json()["telegram_bot_username"] == "paneltestbot"
         # BD4: локальный (логин/пароль) юзер не может продолжить в Telegram —
         # кнопка должна быть скрыта (owner-check у deeplink не совпадёт).
         assert me.json()["can_continue_in_telegram"] is False

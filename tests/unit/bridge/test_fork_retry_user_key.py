@@ -112,4 +112,4 @@ async def test_fork_retry_rebuild_carries_user_key(monkeypatch) -> None:
     # ...and it actually lands in the spawned env of the retry attempt's options.
     retry_options = stream_options[1]
     assert retry_options.kwargs["env"]["ANTHROPIC_API_KEY"] == USER_KEY
-    assert retry_options.kwargs["env"]["VELS_JAIL_NO_OWNER_CREDS"] == "1"
+    assert retry_options.kwargs["env"]["AI_WORKSPACE_JAIL_NO_OWNER_CREDS"] == "1"

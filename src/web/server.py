@@ -126,7 +126,7 @@ class WebServer:
         # выключена (тот же CONNECTIONS_SECRET_KEY, что и у подключений).
         self.ssh_store = ssh_store
         self.projects_dir = Path(
-            projects_dir or "/var/lib/vels-bot/projects"
+            projects_dir or "/var/lib/ai-workspace/projects"
         )
 
         self._uvicorn_server: uvicorn.Server | None = None

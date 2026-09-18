@@ -13,10 +13,10 @@ def test_confined_options_use_jail_cli_path(monkeypatch):
         session_id=None, confine_root="/proj/root",
     )
     assert getattr(opts, "cli_path", None) is not None
-    assert str(opts.cli_path).endswith("vels-claude-jail.sh")
+    assert str(opts.cli_path).endswith("ai-workspace-jail.sh")
     env = getattr(opts, "env", {}) or {}
-    assert env.get("VELS_PROJECT_ROOT") == "/proj/root"
-    assert env.get("VELS_REAL_CLAUDE")
+    assert env.get("AI_WORKSPACE_PROJECT_ROOT") == "/proj/root"
+    assert env.get("AI_WORKSPACE_REAL_CLAUDE")
 
 
 def test_privileged_options_have_no_jail(monkeypatch):
@@ -29,7 +29,7 @@ def test_privileged_options_have_no_jail(monkeypatch):
     )
     assert getattr(opts, "cli_path", None) is None
     env = getattr(opts, "env", {}) or {}
-    assert "VELS_PROJECT_ROOT" not in env
+    assert "AI_WORKSPACE_PROJECT_ROOT" not in env
 
 
 def test_confined_refuses_when_jail_required_but_unavailable(monkeypatch):

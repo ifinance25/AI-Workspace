@@ -267,7 +267,7 @@ class WebSettings(BaseModel):
     )
     public_origin: str = Field(
         default="",
-        description="Public origin (e.g. https://vels.example.com) used to build magic-link URLs.",
+        description="Public origin (e.g. https://ai-panel.example.com) used to build magic-link URLs.",
     )
     cookie_secure: bool | None = Field(
         default=None,

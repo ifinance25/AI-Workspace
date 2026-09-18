@@ -5,7 +5,7 @@ from html import escape
 from pathlib import Path
 
 
-SERVICE_NAME = "vels-claude"
+SERVICE_NAME = "ai-workspace"
 
 
 def start_message() -> str:

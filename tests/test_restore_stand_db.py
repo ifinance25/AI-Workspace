@@ -68,8 +68,8 @@ class RestoreStandDbTests(unittest.TestCase):
             dumps = root / "data" / "dumps"
             dumps.mkdir(parents=True)
             src = dumps / "sessions.latest.db"
-            prod_a = "/var/lib/vels-bot/projects/AI_Sales_Assistant"
-            prod_b = "/var/lib/vels-bot/projects/Общий"
+            prod_a = "/var/lib/ai-workspace/projects/AI_Sales_Assistant"
+            prod_b = "/var/lib/ai-workspace/projects/Общий"
             with sqlite3.connect(src) as conn:
                 conn.execute(
                     """

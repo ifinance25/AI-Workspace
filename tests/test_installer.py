@@ -26,9 +26,9 @@ def _render(func_call: str) -> str:
     """
     script = (
         f"source '{INSTALL_SH.as_posix()}'\n"
-        "SERVICE_USER=vels-bot; SERVICE_GROUP=vels-bot; SERVICE_HOME=/var/lib/vels-bot\n"
-        "INSTALL_DIR=/opt/vels-claude; CFG_PROJECTS_DIR=/var/lib/vels-bot/projects\n"
-        "SERVICE_NAME=vels-claude\n"
+        "SERVICE_USER=ai-workspace; SERVICE_GROUP=ai-workspace; SERVICE_HOME=/var/lib/ai-workspace\n"
+        "INSTALL_DIR=/opt/ai-workspace; CFG_PROJECTS_DIR=/var/lib/ai-workspace/projects\n"
+        "SERVICE_NAME=ai-workspace\n"
         f"{func_call}\n"
     )
     proc = subprocess.run(
@@ -55,18 +55,18 @@ class ShellInstallerHardeningTests(unittest.TestCase):
         rw_line = next(l for l in unit.splitlines() if l.startswith("ReadWritePaths="))
         ro_line = next(l for l in unit.splitlines() if l.startswith("ReadOnlyPaths="))
         # Запись разрешена только в data/, HOME и projects — но НЕ в корне кода.
-        self.assertIn("/opt/vels-claude/data", rw_line)
-        self.assertIn("/var/lib/vels-bot", rw_line)
-        self.assertIn("/var/lib/vels-bot/projects", rw_line)
+        self.assertIn("/opt/ai-workspace/data", rw_line)
+        self.assertIn("/var/lib/ai-workspace", rw_line)
+        self.assertIn("/var/lib/ai-workspace/projects", rw_line)
         rw_paths = rw_line.split("=", 1)[1].split()
-        self.assertNotIn("/opt/vels-claude", rw_paths)  # сам код — не writable
+        self.assertNotIn("/opt/ai-workspace", rw_paths)  # сам код — не writable
         # Код помечен read-only явно.
-        self.assertEqual(ro_line, "ReadOnlyPaths=/opt/vels-claude")
+        self.assertEqual(ro_line, "ReadOnlyPaths=/opt/ai-workspace")
 
     def test_systemd_unit_runs_bot_when_token_is_set(self) -> None:
         unit = _render("CFG_TOKEN='123456:AAFabc'; render_systemd_unit")
         exec_line = next(l for l in unit.splitlines() if l.startswith("ExecStart="))
-        self.assertEqual(exec_line, "ExecStart=/opt/vels-claude/.venv/bin/python -m src.main")
+        self.assertEqual(exec_line, "ExecStart=/opt/ai-workspace/.venv/bin/python -m src.main")
 
     def test_systemd_unit_runs_web_only_without_token(self) -> None:
         # Telegram теперь необязателен. `python -m src.main` без токена выходит с
@@ -76,7 +76,7 @@ class ShellInstallerHardeningTests(unittest.TestCase):
         exec_line = next(l for l in unit.splitlines() if l.startswith("ExecStart="))
         self.assertEqual(
             exec_line,
-            "ExecStart=/opt/vels-claude/.venv/bin/python /opt/vels-claude/scripts/run_web.py",
+            "ExecStart=/opt/ai-workspace/.venv/bin/python /opt/ai-workspace/scripts/run_web.py",
         )
         self.assertIn("Description=AI-Panel (Web)", unit)
 
@@ -224,10 +224,10 @@ class PlatformBootstrapReleaseTests(unittest.TestCase):
 
     def test_bootstrap_hardens_root_extraction(self) -> None:
         # Ревью [6]/[14]: tar от root распаковывает с --no-same-owner и отвергает
-        # члены вне префикса vels-claude/ (defense-in-depth поверх sha-пина).
+        # члены вне префикса ai-workspace/ (defense-in-depth поверх sha-пина).
         text = self._text()
         self.assertIn("--no-same-owner", text)
-        self.assertIn("vels-claude/", text)
+        self.assertIn("ai-workspace/", text)
 
     def test_bootstrap_pins_https_transport(self) -> None:
         # Ревью [12]: curl не должен молча даунгрейдиться на http по редиректу.
@@ -261,12 +261,12 @@ class ReleaseTarballTests(unittest.TestCase):
         proc, out = self._run()
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("SHA256=", proc.stdout)
-        self.assertTrue(list(Path(out).glob("vels-claude-*.tar.gz")), "tar.gz не создан")
+        self.assertTrue(list(Path(out).glob("ai-workspace-*.tar.gz")), "tar.gz не создан")
 
     def test_release_tarball_ships_code_but_no_secrets(self) -> None:
         proc, out = self._run()
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        tarball = next(Path(out).glob("vels-claude-*.tar.gz"))
+        tarball = next(Path(out).glob("ai-workspace-*.tar.gz"))
         # cd в каталог + basename: иначе на Windows Git Bash `tar` принимает
         # двоеточие в "C:/..." за remote-host и листинг выходит пустым.
         listing = subprocess.run(
@@ -277,26 +277,26 @@ class ReleaseTarballTests(unittest.TestCase):
         ).stdout
         lines = listing.splitlines()
         # Код раздаётся.
-        self.assertIn("vels-claude/src/main.py", lines)
-        self.assertIn("vels-claude/scripts/install.sh", lines)
+        self.assertIn("ai-workspace/src/main.py", lines)
+        self.assertIn("ai-workspace/scripts/install.sh", lines)
         # USER-GUIDE.md — рантайм-зависимость, а не документ для чтения: панель
         # «Документация» читает его с диска, и без него кнопка отдаёт 404
         # «guide not found». Остальной docs/** остаётся отсечённым.
-        self.assertIn("vels-claude/docs/USER-GUIDE.md", lines)
+        self.assertIn("ai-workspace/docs/USER-GUIDE.md", lines)
         self.assertFalse(
             [
                 l
                 for l in lines
-                if l.startswith("vels-claude/docs/") and not l.endswith("USER-GUIDE.md")
+                if l.startswith("ai-workspace/docs/") and not l.endswith("USER-GUIDE.md")
                 and not l.endswith("/")
             ],
             "в архив попали внутренние доки помимо USER-GUIDE.md",
         )
         # Секреты/служебка — нет. `.env` точечно (а не `.env.example`).
-        self.assertNotIn("vels-claude/.env", lines)
-        self.assertFalse([l for l in lines if l.startswith("vels-claude/.git/")])
-        self.assertFalse([l for l in lines if l.startswith("vels-claude/.venv/")])
-        self.assertFalse([l for l in lines if l.startswith("vels-claude/data/")])
+        self.assertNotIn("ai-workspace/.env", lines)
+        self.assertFalse([l for l in lines if l.startswith("ai-workspace/.git/")])
+        self.assertFalse([l for l in lines if l.startswith("ai-workspace/.venv/")])
+        self.assertFalse([l for l in lines if l.startswith("ai-workspace/data/")])
 
     def test_release_tarball_has_no_internal_docs_or_prod_secrets(self) -> None:
         # CRITICAL-регресс (ревью): git archive игнорирует .gitignore и без
@@ -307,7 +307,7 @@ class ReleaseTarballTests(unittest.TestCase):
 
         proc, out = self._run()
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        tarball = next(Path(out).glob("vels-claude-*.tar.gz"))
+        tarball = next(Path(out).glob("ai-workspace-*.tar.gz"))
         ex = Path(tempfile.mkdtemp())
         with tarfile.open(tarball) as tf:
             names = tf.getnames()
@@ -342,7 +342,7 @@ class InstallReleaseModeTests(unittest.TestCase):
     """install.sh: RELEASE_SRC копирует распакованный код БЕЗ git и токена."""
 
     def test_release_src_copies_code(self) -> None:
-        src = Path(tempfile.mkdtemp()) / "vels-claude"
+        src = Path(tempfile.mkdtemp()) / "ai-workspace"
         (src / "src").mkdir(parents=True)
         (src / "src" / "main.py").write_text("x", encoding="utf-8")
         (src / "scripts").mkdir()
@@ -384,7 +384,7 @@ class InstallReleaseModeTests(unittest.TestCase):
     def test_release_src_preserves_existing_env(self) -> None:
         # Повторная установка (обновление) НЕ затирает .env/data пользователя:
         # их нет в архиве, а prune их явно исключает.
-        src = Path(tempfile.mkdtemp()) / "vels-claude"
+        src = Path(tempfile.mkdtemp()) / "ai-workspace"
         (src / "src").mkdir(parents=True)
         (src / "src" / "main.py").write_text("new", encoding="utf-8")
         dst = Path(tempfile.mkdtemp()) / "target"
@@ -404,7 +404,7 @@ class InstallReleaseModeTests(unittest.TestCase):
         # и оставляет stale .git от старой git-установки (с протухшим токеном в
         # remote → update.sh уходит в неверную ветку). prune должен их убрать,
         # сохранив .env/data.
-        src = Path(tempfile.mkdtemp()) / "vels-claude"
+        src = Path(tempfile.mkdtemp()) / "ai-workspace"
         (src / "src").mkdir(parents=True)
         (src / "src" / "main.py").write_text("new", encoding="utf-8")
         dst = Path(tempfile.mkdtemp()) / "target"
@@ -427,7 +427,7 @@ class InstallReleaseModeTests(unittest.TestCase):
         # Адверсариал-находка: prune не должен сносить посторонние файлы рядом
         # (backups/, заметки админа), которых нет в релиз-архиве — иначе молчаливая
         # потеря данных при каждом обновлении. Трогаем только релиз-управляемые пути.
-        src = Path(tempfile.mkdtemp()) / "vels-claude"
+        src = Path(tempfile.mkdtemp()) / "ai-workspace"
         (src / "src").mkdir(parents=True)
         (src / "src" / "main.py").write_text("new", encoding="utf-8")
         dst = Path(tempfile.mkdtemp()) / "target"
@@ -448,7 +448,7 @@ class InstallReleaseModeTests(unittest.TestCase):
     def test_release_src_refuses_foreign_dir(self) -> None:
         # Ревью [7]: release-режим не должен затирать ЧУЖОЙ непустой каталог
         # (нет src/main.py = не наша установка) — как и git-путь (die).
-        src = Path(tempfile.mkdtemp()) / "vels-claude"
+        src = Path(tempfile.mkdtemp()) / "ai-workspace"
         (src / "src").mkdir(parents=True)
         (src / "src" / "main.py").write_text("new", encoding="utf-8")
         dst = Path(tempfile.mkdtemp()) / "target"
@@ -480,10 +480,10 @@ class UpdateReleaseInstallTests(unittest.TestCase):
 
     def test_update_autodetects_release_install_via_home_candidate(self) -> None:
         # Ревью [5]/[10]: авто-детект кандидатов требовал `.git`, поэтому
-        # release-установка (без .git) в $HOME/vels-claude не находилась и
+        # release-установка (без .git) в $HOME/ai-workspace не находилась и
         # дружелюбное сообщение было недостижимо для дефолтного `curl|sudo bash`.
         home = Path(tempfile.mkdtemp())
-        inst = home / "vels-claude"
+        inst = home / "ai-workspace"
         (inst / "src").mkdir(parents=True)
         (inst / "src" / "main.py").write_text("x", encoding="utf-8")
         (inst / "requirements.txt").write_text("", encoding="utf-8")

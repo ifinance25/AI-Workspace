@@ -44,7 +44,7 @@ describe("LoginPage: токен не утекает в Referer", () => {
     // секрете в URL его всё равно не грузят.
     mockApi.authConfig.mockResolvedValue({
       telegram_enabled: true,
-      telegram_bot_username: "velsbot",
+      telegram_bot_username: "paneltestbot",
     });
   });
 

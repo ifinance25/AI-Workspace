@@ -85,10 +85,10 @@ if [[ "$actual_sha" != "$EXPECTED_SHA256" ]]; then
 fi
 
 # Defense-in-depth перед распаковкой от root: отвергаем любой член вне префикса
-# vels-claude/ и пути с '..' (traversal/symlink-атаки на чужие каталоги).
+# ai-workspace/ и пути с '..' (traversal/symlink-атаки на чужие каталоги).
 while IFS= read -r member; do
     case "$member" in
-        vels-claude/*) ;;
+        ai-workspace/*) ;;
         *) err "Архив содержит неожиданный путь: $member — релиз отклонён."; exit 1 ;;
     esac
     case "$member" in
@@ -99,7 +99,7 @@ done < <(tar -tzf "$work/release.tar.gz")
 # --no-same-owner/--no-same-permissions: член архива не навяжет чужого
 # владельца/прав при распаковке от root.
 tar --no-same-owner --no-same-permissions -xzf "$work/release.tar.gz" -C "$work"
-src="$work/vels-claude"
+src="$work/ai-workspace"
 if [[ -L "$src/scripts/install.sh" || ! -f "$src/scripts/install.sh" ]]; then
     err "scripts/install.sh отсутствует или не обычный файл — повреждён релиз."
     exit 1

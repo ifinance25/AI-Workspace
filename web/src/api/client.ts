@@ -1,4 +1,4 @@
-// REST client. credentials: 'include' so vels_session cookie is sent.
+// REST client. credentials: 'include' so ai_workspace_session cookie is sent.
 
 import type {
   Access,

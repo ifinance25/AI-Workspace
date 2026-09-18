@@ -32,7 +32,7 @@ _MODELS_URL = "https://api.anthropic.com/v1/models"
 _ANTHROPIC_VERSION = "2023-06-01"
 
 #: Identifies our probe traffic in Anthropic's logs.
-_USER_AGENT = "vels-claude-bot/1.0"
+_USER_AGENT = "ai-workspace-panel/1.0"
 
 
 class ProbeResult(enum.Enum):

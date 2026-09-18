@@ -4,11 +4,11 @@ import { ContinueInTelegram } from "@/components/ContinueInTelegram";
 
 describe("ContinueInTelegram", () => {
   it("рендерит ссылку deeplink когда имя бота задано", () => {
-    render(<ContinueInTelegram botUsername="velsbot" sessionUuid="abc" />);
+    render(<ContinueInTelegram botUsername="paneltestbot" sessionUuid="abc" />);
     const link = screen.getByRole("link", { name: /Telegram/i });
     expect(link).toHaveAttribute(
       "href",
-      "https://t.me/velsbot?start=continue_abc",
+      "https://t.me/paneltestbot?start=continue_abc",
     );
     expect(link).toHaveAttribute("target", "_blank");
   });
@@ -23,7 +23,7 @@ describe("ContinueInTelegram", () => {
   it("скрыта у локальных юзеров (canContinue=false) даже при наличии бота", () => {
     const { container } = render(
       <ContinueInTelegram
-        botUsername="velsbot"
+        botUsername="paneltestbot"
         sessionUuid="abc"
         canContinue={false}
       />,

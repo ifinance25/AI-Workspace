@@ -3,12 +3,19 @@
 
 export type Theme = "dark" | "light";
 
-const STORAGE_KEY = "ai-panel-theme";
-const LEGACY_KEY = "vels-theme";
+const STORAGE_KEY = "ai-workspace-theme";
+/** Старый ключ localStorage до переименования бренда. */
+const LEGACY_KEYS = ["ai-panel-theme", "vels-theme"];
 
 export function getStoredTheme(): Theme {
   if (typeof window === "undefined") return "light";
-  const raw = window.localStorage.getItem(STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_KEY);
+  let raw = window.localStorage.getItem(STORAGE_KEY);
+  if (!raw) {
+    for (const key of LEGACY_KEYS) {
+      raw = window.localStorage.getItem(key);
+      if (raw) break;
+    }
+  }
   return raw === "dark" ? "dark" : "light";
 }
 

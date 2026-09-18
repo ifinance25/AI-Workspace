@@ -49,7 +49,7 @@ async def test_login_success_sets_cookie(server):
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post("/api/auth/telegram", json=payload)
     assert resp.status_code == 200
-    assert "vels_session" in resp.cookies
+    assert "ai_workspace_session" in resp.cookies
 
 
 async def test_login_rejects_unknown_user(server):
@@ -74,7 +74,7 @@ async def test_logout_clears_cookie(server):
         resp = await client.post("/api/auth/logout")
     assert resp.status_code == 200
     set_cookie = resp.headers.get("set-cookie", "").lower()
-    assert "vels_session=" in set_cookie
+    assert "ai_workspace_session=" in set_cookie
     assert "max-age=0" in set_cookie or "expires=" in set_cookie
 
 
@@ -131,7 +131,7 @@ async def test_dev_login_success(server_with_bearer):
             "/api/auth/dev-login", json={"token": "dev-secret-token"}
         )
     assert resp.status_code == 200
-    assert "vels_session" in resp.cookies
+    assert "ai_workspace_session" in resp.cookies
 
 
 async def test_dev_login_wrong_token_rejected(server_with_bearer):

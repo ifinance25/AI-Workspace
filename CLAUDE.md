@@ -174,7 +174,7 @@ src/web/  (FastAPI)                      src/bot/
 |---|---|
 | `PROJECTS_DIR` | папка, **внутри** которой лежат проекты (сканируются подпапки) |
 | `ADMIN_LOGIN` / `ADMIN_PASSWORD` | первый админ; заводится при старте, если такого логина нет |
-| `WEB_JWT_SECRET` | подпись cookie сессии (`vels_session`) |
+| `WEB_JWT_SECRET` | подпись cookie сессии (`ai_workspace_session`) |
 | `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN` | авторизация Claude |
 | `SESSION_DATABASE_PATH` | SQLite с чатами (`data/sessions.db`) |
 | `CONNECTIONS_SECRET_KEY` | Fernet-ключ для секретов Connect Services; без него фича спит |
@@ -182,9 +182,9 @@ src/web/  (FastAPI)                      src/bot/
 
 `config/config.yaml` — модель, транспорт (`sdk`/`cli`/`tmux`), режим
 разрешений, таймауты, `web.enabled` (по умолчанию `true`), host/port.
-После правки: `systemctl restart vels-claude`.
+После правки: `systemctl restart ai-workspace`.
 
-Имена systemd-юнита, пользователя `vels-bot` и каталога `/opt/vels-claude`
+Имена systemd-юнита, пользователя `ai-workspace` и каталога `/opt/ai-workspace`
 оставлены как есть: так стоит прод. Менять их только вместе с установщиком и
 уже работающим сервером.
 

@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 # Имя systemd-сервиса (см. scripts/*.service). Переопределяется --service.
-DEFAULT_SERVICE = "vels-claude"
+DEFAULT_SERVICE = "ai-workspace"
 # Корень репозитория = родитель каталога src/.
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG = REPO_ROOT / "config" / "config.yaml"

@@ -66,7 +66,7 @@ describe("LoginPage: Telegram-блоки зависят от того, подк�
   it("с ботом показывает виджет и подсказку /weblogin", async () => {
     mockApi.authConfig.mockResolvedValue({
       telegram_enabled: true,
-      telegram_bot_username: "velsbot",
+      telegram_bot_username: "paneltestbot",
     });
 
     renderLogin();
@@ -79,7 +79,7 @@ describe("LoginPage: Telegram-блоки зависят от того, подк�
     await waitFor(() => {
       const script = telegramWidgetScript();
       expect(script).not.toBeNull();
-      expect(script?.getAttribute("data-telegram-login")).toBe("velsbot");
+      expect(script?.getAttribute("data-telegram-login")).toBe("paneltestbot");
     });
   });
 
@@ -115,7 +115,7 @@ describe("LoginPage: Telegram-блоки зависят от того, подк�
   it("с ботом та же ошибка подсказывает /weblogin", async () => {
     mockApi.authConfig.mockResolvedValue({
       telegram_enabled: true,
-      telegram_bot_username: "velsbot",
+      telegram_bot_username: "paneltestbot",
     });
     mockApi.magicLink.mockRejectedValue(new Error("401"));
 

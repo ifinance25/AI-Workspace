@@ -155,7 +155,7 @@ def make_ssh_router(
         ):
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
-        cookie = websocket.cookies.get("vels_session")
+        cookie = websocket.cookies.get("ai_workspace_session")
         if not cookie:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return

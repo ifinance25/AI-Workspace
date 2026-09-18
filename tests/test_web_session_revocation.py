@@ -132,7 +132,7 @@ async def test_telegram_user_removed_from_whitelist_is_revoked(setup):
     transport = ASGITransport(app=server.app)
     async with AsyncClient(
         transport=transport, base_url="http://test",
-        cookies={"vels_session": token},
+        cookies={"ai_workspace_session": token},
     ) as client:
         r = await client.get("/api/me")
     assert r.status_code == 401  # 777 не в whitelist
@@ -147,7 +147,7 @@ async def test_telegram_user_in_whitelist_still_authorized(setup):
     transport = ASGITransport(app=server.app)
     async with AsyncClient(
         transport=transport, base_url="http://test",
-        cookies={"vels_session": token},
+        cookies={"ai_workspace_session": token},
     ) as client:
         r = await client.get("/api/me")
     assert r.status_code == 200
@@ -164,10 +164,10 @@ async def test_high_telegram_id_in_whitelist_authorized(tmp_dir):
     sm = SessionManager(storage_path=tmp_dir / "big.db")
     settings = WebSettings(
         enabled=True, host="127.0.0.1", port=0, jwt_secret="x" * 32,
-        telegram_bot_username="velsbot",
+        telegram_bot_username="paneltestbot",
     )
     server = WebServer(
-        settings=settings, allowed_user_ids=[big], bot_username="velsbot",
+        settings=settings, allowed_user_ids=[big], bot_username="paneltestbot",
         session_manager=sm, event_bus=EventBus(), bot_token="12345:abc",
         jwt_secret="x" * 32, project_paths=[tmp_dir],
     )
@@ -179,7 +179,7 @@ async def test_high_telegram_id_in_whitelist_authorized(tmp_dir):
         transport = ASGITransport(app=server.app)
         async with AsyncClient(
             transport=transport, base_url="http://test",
-            cookies={"vels_session": token},
+            cookies={"ai_workspace_session": token},
         ) as c:
             r = await c.get("/api/me")
         assert r.status_code == 200, r.text

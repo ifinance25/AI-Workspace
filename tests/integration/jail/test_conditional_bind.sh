@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Integration test: conditional owner-credential bind in vels-claude-jail.sh.
+# Integration test: conditional owner-credential bind in ai-workspace-jail.sh.
 #
-# Verifies that VELS_JAIL_NO_OWNER_CREDS gates whether the owner's
+# Verifies that AI_WORKSPACE_JAIL_NO_OWNER_CREDS gates whether the owner's
 # ~/.claude/.credentials.json is mounted into the bubblewrap jail:
 #   - flag=1 (BYO-key)  -> creds ABSENT inside jail (empty tmpfs only)
 #   - unset/other       -> creds PRESENT inside jail (default behaviour)
@@ -13,7 +13,7 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-JAIL="$REPO_ROOT/scripts/vels-claude-jail.sh"
+JAIL="$REPO_ROOT/scripts/ai-workspace-jail.sh"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 skip() { echo "SKIP: $*"; exit 0; }
@@ -57,17 +57,17 @@ exit 0
 EOF
 chmod +x "$FAKE_CLAUDE"
 
-# Run the jail with a given VELS_JAIL_NO_OWNER_CREDS value ("" => leave unset).
+# Run the jail with a given AI_WORKSPACE_JAIL_NO_OWNER_CREDS value ("" => leave unset).
 run_jail() {
   flagval="$1"
   if [ -n "$flagval" ]; then
-    VELS_JAIL_NO_OWNER_CREDS="$flagval" \
-    VELS_PROJECT_ROOT="$PROJECT" VELS_REAL_CLAUDE="$FAKE_CLAUDE" \
-    VELS_CLAUDE_CREDS_DIR="$FAKE_HOME/.claude" HOME="$FAKE_HOME" \
+    AI_WORKSPACE_JAIL_NO_OWNER_CREDS="$flagval" \
+    AI_WORKSPACE_PROJECT_ROOT="$PROJECT" AI_WORKSPACE_REAL_CLAUDE="$FAKE_CLAUDE" \
+    AI_WORKSPACE_CLAUDE_CREDS_DIR="$FAKE_HOME/.claude" HOME="$FAKE_HOME" \
       sh "$JAIL"
   else
-    VELS_PROJECT_ROOT="$PROJECT" VELS_REAL_CLAUDE="$FAKE_CLAUDE" \
-    VELS_CLAUDE_CREDS_DIR="$FAKE_HOME/.claude" HOME="$FAKE_HOME" \
+    AI_WORKSPACE_PROJECT_ROOT="$PROJECT" AI_WORKSPACE_REAL_CLAUDE="$FAKE_CLAUDE" \
+    AI_WORKSPACE_CLAUDE_CREDS_DIR="$FAKE_HOME/.claude" HOME="$FAKE_HOME" \
       sh "$JAIL"
   fi
 }
@@ -76,7 +76,7 @@ run_jail() {
 out1="$(run_jail 1)"; rc1=$?
 [ "$rc1" -eq 0 ] || fail "Test1: jail exited $rc1 (expected clean 0). Output: $out1"
 printf '%s\n' "$out1" | grep -q "CREDS:ABSENT" \
-  || fail "Test1: expected owner creds ABSENT with VELS_JAIL_NO_OWNER_CREDS=1, got: $out1"
+  || fail "Test1: expected owner creds ABSENT with AI_WORKSPACE_JAIL_NO_OWNER_CREDS=1, got: $out1"
 echo "OK Test1: BYO-key mode — owner .credentials.json NOT accessible in jail"
 
 # --- Test 2: default mode -> owner creds mounted (existing behaviour) -------

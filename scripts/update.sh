@@ -121,7 +121,7 @@ backfill_connections_key() {
 # молчал бы до следующего несвязанного деплоя. No-op без systemctl (юнит-тесты).
 restart_bot_service() {
     command -v systemctl >/dev/null 2>&1 || return 0
-    local svc="${SERVICE_NAME:-vels-claude}"
+    local svc="${SERVICE_NAME:-ai-workspace}"
     if ! systemctl is-active --quiet "$svc" 2>/dev/null \
         && systemctl is-active --quiet "telegram-claude-code" 2>/dev/null; then
         svc="telegram-claude-code"
@@ -149,7 +149,7 @@ seed_claude_project_mcp_trust() {
         warn "python3 не найден — пропускаю MCP-сид (~/.claude/settings.json)."
         return 0
     }
-    local svc="${SERVICE_NAME:-vels-claude}"
+    local svc="${SERVICE_NAME:-ai-workspace}"
     local unit_user
     # set -euo pipefail активен в этом скрипте — `|| true` защищает от
     # неожиданного нуля properties на отсутствующем юните (аналогично
@@ -240,11 +240,11 @@ if [ -n "$INSTALL_DIR" ]; then
 else
     # Auto-detect: check common locations
     CANDIDATES=(
-        "/opt/vels-claude"
-        "/srv/vels-claude"
+        "/opt/ai-workspace"
+        "/srv/ai-workspace"
         "/opt/telegram-claude-code"
         "/srv/telegram-claude-code"
-        "$HOME/vels-claude"
+        "$HOME/ai-workspace"
         "$HOME/telegram-claude-code"
     )
 
@@ -555,7 +555,7 @@ fi
 # Step 5: Restart service
 # ---------------------------------------------------------------------------
 
-SERVICE_NAME="${SERVICE_NAME:-vels-claude}"
+SERVICE_NAME="${SERVICE_NAME:-ai-workspace}"
 
 ACTIVE_SERVICE="$SERVICE_NAME"
 if ! systemctl is-active --quiet "$ACTIVE_SERVICE" 2>/dev/null \

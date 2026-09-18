@@ -15,7 +15,7 @@ set -euo pipefail
 export NEEDRESTART_MODE=a
 export DEBIAN_FRONTEND=noninteractive
 
-INSTALL_DIR="${INSTALL_DIR:-/opt/vels-claude}"
+INSTALL_DIR="${INSTALL_DIR:-/opt/ai-workspace}"
 GH_TOKEN="${GH_TOKEN:-}"
 REPO_OWNER="${REPO_OWNER:-ifinance25}"
 REPO_NAME="${REPO_NAME:-AI-Workspace}"
@@ -25,10 +25,10 @@ else
     REPO_URL="${REPO_URL:-https://github.com/${REPO_OWNER}/${REPO_NAME}.git}"
 fi
 REPO_BRANCH="${REPO_BRANCH:-develop}"
-SERVICE_NAME="${SERVICE_NAME:-vels-claude}"
+SERVICE_NAME="${SERVICE_NAME:-ai-workspace}"
 UNIT_PATH="${UNIT_PATH:-/etc/systemd/system/${SERVICE_NAME}.service}"
-VELS_BOT_USER="${VELS_BOT_USER:-vels-bot}"
-VELS_BOT_HOME="${VELS_BOT_HOME:-/var/lib/${VELS_BOT_USER}}"
+AI_WORKSPACE_USER="${AI_WORKSPACE_USER:-ai-workspace}"
+AI_WORKSPACE_HOME="${AI_WORKSPACE_HOME:-/var/lib/${AI_WORKSPACE_USER}}"
 
 C_RESET=$'\033[0m'
 C_BOLD=$'\033[1m'
@@ -82,12 +82,16 @@ die() { log_err "$*"; exit 1; }
 # curl сырого install.sh) — в этом случае хелпера ещё нет на диске; он
 # подхватывается лениво внутри install_python_env() из уже склонированного
 # $INSTALL_DIR (install_or_update_repo к тому моменту уже отработал).
-_VELS_INSTALL_SH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-.}")" 2>/dev/null && pwd || true)"
-if [[ -n "$_VELS_INSTALL_SH_DIR" && -f "$_VELS_INSTALL_SH_DIR/lib/python-env.sh" ]]; then
+_AI_WORKSPACE_INSTALL_SH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-.}")" 2>/dev/null && pwd || true)"
+if [[ -n "$_AI_WORKSPACE_INSTALL_SH_DIR" && -f "$_AI_WORKSPACE_INSTALL_SH_DIR/lib/python-env.sh" ]]; then
     # shellcheck source=./lib/python-env.sh
-    source "$_VELS_INSTALL_SH_DIR/lib/python-env.sh"
+    source "$_AI_WORKSPACE_INSTALL_SH_DIR/lib/python-env.sh"
 fi
-unset _VELS_INSTALL_SH_DIR
+if [[ -n "$_AI_WORKSPACE_INSTALL_SH_DIR" && -f "$_AI_WORKSPACE_INSTALL_SH_DIR/lib/migrate-previous-install.sh" ]]; then
+    # shellcheck source=./lib/migrate-previous-install.sh
+    source "$_AI_WORKSPACE_INSTALL_SH_DIR/lib/migrate-previous-install.sh"
+fi
+unset _AI_WORKSPACE_INSTALL_SH_DIR
 
 print_banner() {
     cat <<'EOF'
@@ -174,13 +178,13 @@ expand_absolute_path() {
 passwd_entry_for_user() {
     local username=$1
     local entry
-    if [[ "${VELS_PASSWD_ENTRY_OVERRIDE+x}" == x ]]; then
+    if [[ "${AI_WORKSPACE_PASSWD_ENTRY_OVERRIDE+x}" == x ]]; then
         while IFS= read -r entry; do
             if [[ "$entry" == "$username:"* ]]; then
                 printf '%s' "$entry"
                 return 0
             fi
-        done <<<"$VELS_PASSWD_ENTRY_OVERRIDE"
+        done <<<"$AI_WORKSPACE_PASSWD_ENTRY_OVERRIDE"
         return 0
     fi
     getent passwd "$username" 2>/dev/null || true
@@ -189,14 +193,14 @@ passwd_entry_for_user() {
 group_entry_for_gid() {
     local gid=$1
     local entry group_name group_gid
-    if [[ "${VELS_GROUP_ENTRY_OVERRIDE+x}" == x ]]; then
+    if [[ "${AI_WORKSPACE_GROUP_ENTRY_OVERRIDE+x}" == x ]]; then
         while IFS= read -r entry; do
             IFS=: read -r group_name _ group_gid _ <<<"$entry"
             if [[ "$group_gid" == "$gid" ]]; then
                 printf '%s' "$entry"
                 return 0
             fi
-        done <<<"$VELS_GROUP_ENTRY_OVERRIDE"
+        done <<<"$AI_WORKSPACE_GROUP_ENTRY_OVERRIDE"
         return 0
     fi
     getent group "$gid" 2>/dev/null || true
@@ -226,10 +230,10 @@ existing_unit_service_user() {
     # M-2: если юнит УЖЕ установлен (повторный запуск install.sh на живом
     # хосте), его User= — источник истины поверх дефолта/SUDO_USER ниже:
     # переключение сервис-юзера на re-run сломало бы владение data/.venv/HOME
-    # относительно уже запущенного сервиса. VELS_UNIT_CONTENT_OVERRIDE — для
-    # тестов (тот же приём, что VELS_PASSWD_ENTRY_OVERRIDE выше).
-    if [[ "${VELS_UNIT_CONTENT_OVERRIDE+x}" == x ]]; then
-        awk -F= '$1=="User"{print $2; exit}' <<<"$VELS_UNIT_CONTENT_OVERRIDE"
+    # относительно уже запущенного сервиса. AI_WORKSPACE_UNIT_CONTENT_OVERRIDE — для
+    # тестов (тот же приём, что AI_WORKSPACE_PASSWD_ENTRY_OVERRIDE выше).
+    if [[ "${AI_WORKSPACE_UNIT_CONTENT_OVERRIDE+x}" == x ]]; then
+        awk -F= '$1=="User"{print $2; exit}' <<<"$AI_WORKSPACE_UNIT_CONTENT_OVERRIDE"
         return 0
     fi
     [[ -r "$UNIT_PATH" ]] || return 0
@@ -237,7 +241,7 @@ existing_unit_service_user() {
 }
 
 resolve_service_user() {
-    local euid="${VELS_EUID_OVERRIDE:-$EUID}"
+    local euid="${AI_WORKSPACE_EUID_OVERRIDE:-$EUID}"
     if (( euid == 0 )); then
         # Приоритет 1: уже установленный юнит — НЕ переключаем сервис-юзера.
         local existing_user
@@ -253,7 +257,7 @@ resolve_service_user() {
 
         # Приоритет 2 (opt-in, ТОЛЬКО новые установки): явно попросили
         # переиспользовать личный логин-аккаунт (старое поведение).
-        if [[ "${VELS_USE_LOGIN_USER:-}" == "1" \
+        if [[ "${AI_WORKSPACE_USE_LOGIN_USER:-}" == "1" \
               && -n "${SUDO_USER:-}" && "$SUDO_USER" != "root" ]]; then
             SERVICE_USER="$SUDO_USER"
             SERVICE_HOME="$(home_for_user "$SUDO_USER")"
@@ -268,19 +272,19 @@ resolve_service_user() {
         # (AWS/GCP/Azure/Oracle) личный логин обычно имеет NOPASSWD sudo;
         # отдавать его боту с bypassPermissions и ReadWritePaths=$HOME
         # расширяет поверхность атаки на весь /home/<user>. Старое поведение —
-        # VELS_USE_LOGIN_USER=1 (см. выше). Уже авторизованная Claude-сессия
+        # AI_WORKSPACE_USE_LOGIN_USER=1 (см. выше). Уже авторизованная Claude-сессия
         # инвокера переносится отдельно, см. migrate_invoker_claude_session().
         local managed_entry
-        managed_entry="$(passwd_entry_for_user "$VELS_BOT_USER")"
-        SERVICE_USER="$VELS_BOT_USER"
+        managed_entry="$(passwd_entry_for_user "$AI_WORKSPACE_USER")"
+        SERVICE_USER="$AI_WORKSPACE_USER"
         if [[ -n "$managed_entry" ]]; then
             SERVICE_HOME="$(home_for_user "$SERVICE_USER")"
-            [[ -n "$SERVICE_HOME" ]] || SERVICE_HOME="$VELS_BOT_HOME"
+            [[ -n "$SERVICE_HOME" ]] || SERVICE_HOME="$AI_WORKSPACE_HOME"
             SERVICE_GROUP="$(primary_group_for_user "$SERVICE_USER")"
             SERVICE_NEEDS_CREATE=0
         else
-            SERVICE_HOME="$VELS_BOT_HOME"
-            SERVICE_GROUP="$VELS_BOT_USER"
+            SERVICE_HOME="$AI_WORKSPACE_HOME"
+            SERVICE_GROUP="$AI_WORKSPACE_USER"
             SERVICE_NEEDS_CREATE=1
         fi
         return 0
@@ -290,12 +294,12 @@ resolve_service_user() {
 }
 
 migrate_invoker_claude_session() {
-    # M-2: дефолт теперь — выделенный $VELS_BOT_USER вместо личного логина
+    # M-2: дефолт теперь — выделенный $AI_WORKSPACE_USER вместо личного логина
     # инвокера. Чтобы не терять уже авторизованную Claude-сессию (SUDO_USER
     # мог раньше пройти `claude login` под своим аккаунтом), переносим его
     # ~/.claude в HOME сервис-юзера ОДИН РАЗ — только если у сервис-юзера
     # своей сессии ещё нет и мы реально на дефолтном (не opt-in login-user) пути.
-    [[ "$SERVICE_USER" == "$VELS_BOT_USER" ]] || return 0
+    [[ "$SERVICE_USER" == "$AI_WORKSPACE_USER" ]] || return 0
     [[ -n "${SUDO_USER:-}" && "$SUDO_USER" != "root" && "$SUDO_USER" != "$SERVICE_USER" ]] || return 0
     [[ -n "$SERVICE_HOME" ]] || return 0
     [[ -e "$SERVICE_HOME/.claude" ]] && return 0
@@ -314,7 +318,7 @@ migrate_invoker_claude_session() {
 }
 
 reconcile_projects_dir_with_user() {
-    [[ "$SERVICE_USER" == "$VELS_BOT_USER" ]] || return 0
+    [[ "$SERVICE_USER" == "$AI_WORKSPACE_USER" ]] || return 0
     if [[ "$CFG_PROJECTS_DIR" == "/root/projects" || "$CFG_PROJECTS_DIR" == "/root/"* ]]; then
         log_warn "Projects directory moved from $CFG_PROJECTS_DIR to $SERVICE_HOME/projects for $SERVICE_USER"
         CFG_PROJECTS_DIR="$SERVICE_HOME/projects"
@@ -496,12 +500,12 @@ claude_probe_command() {
 }
 
 run_as_service_user() {
-    # M-4: опциональный таймаут (VELS_RUN_TIMEOUT=<секунды>) — для точечных
+    # M-4: опциональный таймаут (AI_WORKSPACE_RUN_TIMEOUT=<секунды>) — для точечных
     # вызовов, которые НЕ должны виснуть навсегда (напр. claude -p ping ДО
     # онбординга на медленной/заблокированной сети). Способ запуска
     # (runuser/sudo) не меняется — timeout лишь оборачивает его.
     local -a prefix=()
-    [[ -n "${VELS_RUN_TIMEOUT:-}" ]] && prefix=(timeout "$VELS_RUN_TIMEOUT")
+    [[ -n "${AI_WORKSPACE_RUN_TIMEOUT:-}" ]] && prefix=(timeout "$AI_WORKSPACE_RUN_TIMEOUT")
     if [[ $EUID -eq 0 ]]; then
         "${prefix[@]}" runuser -u "$SERVICE_USER" -- env HOME="$SERVICE_HOME" USER="$SERVICE_USER" LOGNAME="$SERVICE_USER" "$@"
     else
@@ -595,7 +599,7 @@ seed_claude_project_mcp_trust() {
     # project-scope MCP-серверов из .mcp.json. Сидим флаг идемпотентно
     # (read-modify-write через python3 json) — существующие ключи НЕ трогаем.
     # Джейл-изоляция флага (чтобы он не протёк в confined-сессии) — отдельная
-    # зона (scripts/vels-claude-jail.sh), НЕ здесь.
+    # зона (scripts/ai-workspace-jail.sh), НЕ здесь.
     command -v python3 >/dev/null 2>&1 || { log_warn "python3 не найден — пропускаю MCP-сид ~/.claude/settings.json."; return 0; }
     [[ -n "$SERVICE_HOME" ]] || return 0
     local settings_dir="$SERVICE_HOME/.claude"
@@ -691,7 +695,7 @@ verify_claude_auth() {
     # timeout 30 через run_as_service_user (тот же runuser/sudo, см. функцию).
     local probe_rc=0
     set +e
-    VELS_RUN_TIMEOUT=30 run_as_service_user claude -p "ping" --output-format stream-json --verbose >/dev/null 2>&1
+    AI_WORKSPACE_RUN_TIMEOUT=30 run_as_service_user claude -p "ping" --output-format stream-json --verbose >/dev/null 2>&1
     probe_rc=$?
     set -e
     if [[ $probe_rc -eq 0 ]]; then
@@ -711,8 +715,8 @@ verify_claude_auth() {
 
 getme_check() {
     local token=$1
-    if [[ -n "${VELS_GETME_MOCK:-}" ]]; then
-        printf '%s' "$VELS_GETME_MOCK"
+    if [[ -n "${AI_WORKSPACE_GETME_MOCK:-}" ]]; then
+        printf '%s' "$AI_WORKSPACE_GETME_MOCK"
         return 0
     fi
     local response
@@ -1327,7 +1331,7 @@ install_or_update_repo() {
         # установку узнаём по src/main.py; пустой/новый каталог — ок.
         if [[ -e "$INSTALL_DIR" && -n "$(ls -A "$INSTALL_DIR" 2>/dev/null)" \
               && ! -f "$INSTALL_DIR/src/main.py" ]]; then
-            die "$INSTALL_DIR непустой и не похож на установку AI-Panel. Удалите его или задайте INSTALL_DIR=/srv/vels-claude."
+            die "$INSTALL_DIR непустой и не похож на установку AI-Panel. Удалите его или задайте INSTALL_DIR=/srv/ai-workspace."
         fi
         mkdir -p "$INSTALL_DIR"
         # Сносим stale .git от старой git-установки: её remote с протухшим
@@ -1390,7 +1394,7 @@ install_or_update_repo() {
         git -C "$INSTALL_DIR" pull --ff-only origin "$REPO_BRANCH"
         log_ok "Repository updated: $INSTALL_DIR"
     elif [[ -e "$INSTALL_DIR" && -n "$(ls -A "$INSTALL_DIR" 2>/dev/null)" ]]; then
-        die "$INSTALL_DIR exists and is not empty. Remove it or set INSTALL_DIR=/srv/vels-claude."
+        die "$INSTALL_DIR exists and is not empty. Remove it or set INSTALL_DIR=/srv/ai-workspace."
     else
         mkdir -p "$(dirname "$INSTALL_DIR")"
         git clone --branch "$REPO_BRANCH" "$REPO_URL" "$INSTALL_DIR"
@@ -1780,6 +1784,10 @@ main() {
     write_caddy_config
     ensure_projects_dir
     ensure_data_dir
+    if declare -F migrate_previous_install_state >/dev/null 2>&1; then
+        migrate_previous_install_state
+        ensure_data_dir
+    fi
     install_systemd_unit
     open_firewall_port
     # H-7: ПОСЛЕ всех записей в INSTALL_DIR (код/venv/фронт/.env/config) и ПОСЛЕ

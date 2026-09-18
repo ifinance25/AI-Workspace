@@ -155,7 +155,7 @@ def make_admin_router(
     require_admin = require_admin_factory(
         jwt_secret, session_manager, set(allowed_user_ids or [])
     )
-    projects_root = Path(projects_dir or "/var/lib/vels-bot/projects")
+    projects_root = Path(projects_dir or "/var/lib/ai-workspace/projects")
 
     @router.get("/users")
     async def list_users(_: dict = Depends(require_admin)) -> list[dict]:

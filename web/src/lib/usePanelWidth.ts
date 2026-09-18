@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // Ширина боковой панели (Файлы/Артефакты) на десктопе. Тянется ручкой за левый
 // край, запоминается в localStorage. Кнопка-разворот (toggleMax) расширяет
 // панель до ~70% окна и обратно — «режим просмотра».
-const KEY = "vels.panelWidth";
+const KEY = "ai-workspace.panelWidth";
 const DEFAULT = 380;
 const MIN = 320;
 

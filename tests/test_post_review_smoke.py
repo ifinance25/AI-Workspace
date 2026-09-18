@@ -186,7 +186,7 @@ async def test_cookie_secure_explicit_true_overrides_http_origin(tmp_dir):
         r = await c.post("/api/auth/telegram", json=payload)
     assert r.status_code == 200
     set_cookie = r.headers.get("set-cookie", "")
-    assert "vels_session=" in set_cookie
+    assert "ai_workspace_session=" in set_cookie
     assert "Secure" in set_cookie, f"missing Secure in: {set_cookie}"
 
 

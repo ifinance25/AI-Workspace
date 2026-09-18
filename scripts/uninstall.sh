@@ -2,9 +2,9 @@
 # uninstall.sh - AI-Panel uninstaller for Ubuntu/Debian VPS.
 #
 # Удаляет ТОЛЬКО артефакты установщика:
-#   - systemd-сервис vels-claude
-#   - директорию /opt/vels-claude (или INSTALL_DIR)
-#   - service user vels-bot (только если был создан установщиком)
+#   - systemd-сервис ai-workspace
+#   - директорию /opt/ai-workspace (или INSTALL_DIR)
+#   - service user ai-workspace (только если был создан установщиком)
 #
 # НЕ ТРОГАЕТ:
 #   - PROJECTS_DIR (там код пользователя!)
@@ -17,13 +17,13 @@
 set -euo pipefail
 
 INSTALL_DIR="${INSTALL_DIR:-}"
-SERVICE_NAME="${SERVICE_NAME:-vels-claude}"
+SERVICE_NAME="${SERVICE_NAME:-ai-workspace}"
 UNIT_PATH="${UNIT_PATH:-/etc/systemd/system/${SERVICE_NAME}.service}"
-VELS_BOT_USER="${VELS_BOT_USER:-vels-bot}"
+AI_WORKSPACE_USER="${AI_WORKSPACE_USER:-ai-workspace}"
 ASSUME_YES="${ASSUME_YES:-0}"
 KEEP_USER="${KEEP_USER:-0}"
-NGINX_SITE_AVAIL="${NGINX_SITE_AVAIL:-/etc/nginx/sites-available/vels-web.conf}"
-NGINX_SITE_ENABLED="${NGINX_SITE_ENABLED:-/etc/nginx/sites-enabled/vels-web.conf}"
+NGINX_SITE_AVAIL="${NGINX_SITE_AVAIL:-/etc/nginx/sites-available/ai-workspace-web.conf}"
+NGINX_SITE_ENABLED="${NGINX_SITE_ENABLED:-/etc/nginx/sites-enabled/ai-workspace-web.conf}"
 
 C_RESET=$'\033[0m'
 C_BOLD=$'\033[1m'
@@ -49,17 +49,17 @@ Usage:
 
 Options:
   -y, --yes        Пропустить интерактивное подтверждение
-      --keep-user  Не удалять vels-bot system user
+      --keep-user  Не удалять ai-workspace system user
   -h, --help       Эта справка
 
 Env-переопределения:
-  INSTALL_DIR    Путь установки (default: auto-detect среди /opt/vels-claude и др.)
-  SERVICE_NAME   Имя systemd-сервиса (default: vels-claude)
+  INSTALL_DIR    Путь установки (default: auto-detect среди /opt/ai-workspace и др.)
+  SERVICE_NAME   Имя systemd-сервиса (default: ai-workspace)
 
 Что удаляется:
   - systemd service: \$SERVICE_NAME
   - директория установки
-  - system user vels-bot (только если был создан установщиком)
+  - system user ai-workspace (только если был создан установщиком)
 
 Что НЕ удаляется:
   - папка проектов (PROJECTS_DIR из .env) — если она внутри home сервис-юзера,
@@ -91,8 +91,8 @@ detect_install_dir() {
         return 0
     fi
     local candidates=(
-        "/opt/vels-claude"
-        "/srv/vels-claude"
+        "/opt/ai-workspace"
+        "/srv/ai-workspace"
         "/opt/telegram-claude-code"
         "/srv/telegram-claude-code"
     )
@@ -149,7 +149,7 @@ service_home_of() {
     getent passwd "$user" | cut -d: -f6
 }
 
-# Дефолтный PROJECTS_DIR (/var/lib/vels-bot/projects) лежит ВНУТРИ home
+# Дефолтный PROJECTS_DIR (/var/lib/ai-workspace/projects) лежит ВНУТРИ home
 # сервис-юзера, а `userdel -r` сносит home целиком — вместе с кодом, который
 # человек писал через AI-Panel. Проверка ниже по строке 196 ловила только
 # случай «проекты внутри INSTALL_DIR» и этот, основной, пропускала: на живом
@@ -173,12 +173,12 @@ detect_projects_dir() {
 # Был ли user создан НАШИМ установщиком? Признак — GECOS comment.
 is_managed_user() {
     local user=$1
-    [[ "$user" == "$VELS_BOT_USER" ]] || return 1
+    [[ "$user" == "$AI_WORKSPACE_USER" ]] || return 1
     local entry comment
     entry="$(getent passwd "$user" 2>/dev/null || true)"
     [[ -n "$entry" ]] || return 1
     comment="$(printf '%s' "$entry" | cut -d: -f5)"
-    [[ "$comment" == "AI-Panel service account" || "$comment" == "Vels Claude service account" ]]
+    [[ "$comment" == "AI-Panel service account" || "$comment" == "AI-Workspace service account" ]]
 }
 
 confirm() {

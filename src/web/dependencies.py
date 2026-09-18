@@ -78,14 +78,14 @@ def get_current_user_factory(jwt_secret: str, session_manager=None, allowed_user
     в живом whitelist (немедленный отзыв при снятии из ALLOWED_USER_IDS)."""
 
     async def get_current_user(
-        vels_session: str | None = Cookie(default=None),
+        ai_workspace_session: str | None = Cookie(default=None),
     ) -> dict[str, Any]:
-        if not vels_session:
+        if not ai_workspace_session:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="no session"
             )
         try:
-            user = decode_jwt(vels_session, secret=jwt_secret)
+            user = decode_jwt(ai_workspace_session, secret=jwt_secret)
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid session"

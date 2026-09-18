@@ -208,7 +208,7 @@ async def test_probe_key_sends_expected_url_and_headers():
     headers = kwargs["headers"]
     assert headers["x-api-key"] == VALID_KEY
     assert headers["anthropic-version"] == "2023-06-01"
-    assert headers["user-agent"] == "vels-claude-bot/1.0"
+    assert headers["user-agent"] == "ai-workspace-panel/1.0"
 
 
 async def test_probe_key_applies_timeout():

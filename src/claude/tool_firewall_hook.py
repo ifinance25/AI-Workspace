@@ -41,10 +41,10 @@ def main() -> int:
     except Exception as exc:
         # Fail-CLOSED: внутренняя ошибка → блок (exit 2), а не падение с exit 1
         # (Claude трактует не-2 как «не блокировать»).
-        sys.stderr.write(f"[vels-firewall] internal error, blocking: {exc}\n")
+        sys.stderr.write(f"[ai-workspace-firewall] internal error, blocking: {exc}\n")
         return 2
     if reason:
-        sys.stderr.write(f"[vels-firewall] blocked: {reason}\n")
+        sys.stderr.write(f"[ai-workspace-firewall] blocked: {reason}\n")
         return 2
     return 0
 
