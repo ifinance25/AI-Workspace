@@ -236,3 +236,28 @@ src/web/  (FastAPI)                      src/bot/
   PreToolUse-файрвола.
 
 Второй путь включается `CONNECTIONS_SECRET_KEY`.
+
+<!-- autopilot:start -->
+# AI-Panel
+
+Claude Code на своём сервере, в браузере: личная работа и небольшая команда.
+
+## Команды
+
+| Команда | Что делает |
+|---------|------------|
+| `.venv/bin/python -m pip install -r requirements.txt` | Установить зависимости Python |
+| `cd web && npm install && npm run build` | Собрать фронт |
+| `bash scripts/run_stand.sh` | Поднять локальный стенд на порту 8600 |
+| `.venv/bin/python -m pytest tests -q` | Прогнать тесты бэкенда |
+| `cd web && npx vitest run` | Прогнать тесты фронта |
+
+## Как здесь работает Autopilot
+
+Сборка ведётся навыком `/autopilot`. Требования, спецификация и таски — в `.autopilot/`.
+Прогресс — `.autopilot/dashboard.html`. Правило: требование из `manifest.md`
+может снять только пользователь.
+
+Если работа продолжается — скажи «продолжи автопилот»: состояние поднимется
+из `.autopilot/state.js`, переспрашивать ничего не нужно.
+<!-- autopilot:end -->

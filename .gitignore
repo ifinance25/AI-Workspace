@@ -123,3 +123,4 @@ docs/_playground*.md
 
 # Superpowers brainstorm companion (mockups, transient)
 .superpowers/
+.autopilot/serve.*
