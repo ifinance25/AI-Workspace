@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.config.settings import WebSettings
+from src.office.storage import OfficeStore
 from src.web.magic_link import MagicLinkStore
 from src.web.origin_check import build_allowed_origins, is_allowed_origin
 from src.web.routes_admin import make_admin_router
@@ -29,6 +30,7 @@ from src.web.routes_docs import make_docs_router
 from src.web.routes_files import make_files_router
 from src.web.routes_members import make_members_router
 from src.web.routes_model import make_model_router
+from src.web.routes_office import make_office_router
 from src.web.routes_projects import make_projects_router
 from src.web.routes_sessions import make_sessions_router
 from src.web.routes_settings import make_settings_router
@@ -139,6 +141,8 @@ class WebServer:
         self._running_tracker: RunningSessionsTracker | None = (
             RunningSessionsTracker(event_bus) if event_bus is not None else None
         )
+        # Хранилище проектного офиса; создаётся при монтировании роутера.
+        self.office_store: OfficeStore | None = None
 
         # Lifespan starts the WSForwarder before the first WS handshake. Tests
         # use TestClient which drives the lifespan automatically.
@@ -421,6 +425,19 @@ class WebServer:
                     get_project_paths=self._effective_project_paths,
                 )
             )
+            # Проектный офис: таблицы office_* в той же SQLite-базе, что и
+            # чаты. Нужен путь к базе; у подменённого в тестах менеджера его нет.
+            storage_path = getattr(self.session_manager, "storage_path", None)
+            if isinstance(storage_path, (str, Path)):
+                self.office_store = OfficeStore(storage_path)
+                self.app.include_router(
+                    make_office_router(
+                        jwt_secret=self.jwt_secret,
+                        session_manager=self.session_manager,
+                        office_store=self.office_store,
+                        allowed_user_ids=self.allowed_user_ids,
+                    )
+                )
 
         # Статика фронта монтируется ПОСЛЕ всех /api-роутеров (SPA-fallback
         # перехватывает только не-API пути). No-op, если web/dist нет (dev).

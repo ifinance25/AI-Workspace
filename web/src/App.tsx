@@ -5,6 +5,7 @@ import { ModelInfoProvider } from "@/lib/ModelInfoContext";
 import AdminPage from "@/routes/AdminPage";
 import ChatPage from "@/routes/ChatPage";
 import LoginPage from "@/routes/LoginPage";
+import OfficePage from "@/routes/OfficePage";
 import SettingsPage from "@/routes/SettingsPage";
 import { ROUTER_BASENAME } from "@/api/base";
 
@@ -47,6 +48,22 @@ export default function App() {
               element={
                 <Protected>
                   <SettingsPage />
+                </Protected>
+              }
+            />
+            <Route
+              path="/office"
+              element={
+                <Protected>
+                  <OfficePage />
+                </Protected>
+              }
+            />
+            <Route
+              path="/office/:id"
+              element={
+                <Protected>
+                  <OfficePage />
                 </Protected>
               }
             />

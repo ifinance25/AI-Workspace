@@ -2,7 +2,7 @@
 
 **Требования:** R11, R19
 **Blocked by:** 01
-**Зона:** `src/office/knowledge/` · `src/web/routes_office_brief.py` · `web/src/components/office/brief/` · `web/src/api/officeBrief.ts` · `tests/office/test_brief*.py` · `web/src/__tests__/OfficeBrief*.test.tsx`
+**Зона:** `src/office/knowledge/` · `src/web/routes_office_brief.py` (в хранилище только через `knowledge`; `src/office/storage.py` не трогать) · `web/src/components/office/brief/` · `tests/office/test_brief*.py` · `web/src/__tests__/OfficeBrief*.test.tsx`
 **Волна:** 2
 **Status:** ready
 

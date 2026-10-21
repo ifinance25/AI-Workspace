@@ -11,7 +11,7 @@ window.STATE =
   "memoryFile": "CLAUDE.md",
   "skillDir": "/Users/ifinance/.claude/skills/autopilot",
   "startedAt": "2026-10-18T23:28:00+03:00",
-  "updatedAt": "2026-10-21T23:09:21+03:00",
+  "updatedAt": "2026-10-21T23:49:49+03:00",
   "finishedAt": null,
   "stages": [
     {
@@ -48,12 +48,14 @@ window.STATE =
     {
       "id": "build",
       "status": "active",
-      "note": "срез A: 0 из 4 тасков готовы, идёт 01",
+      "note": "срез A: 1 из 4 тасков готов",
       "startedAt": "2026-10-21T23:09:21+03:00"
     },
     {
       "id": "review",
-      "status": "pending"
+      "status": "active",
+      "startedAt": "2026-10-21T23:27:39+03:00",
+      "note": "проверено 1 из 4"
     },
     {
       "id": "final",
@@ -62,8 +64,8 @@ window.STATE =
   ],
   "requirements": {
     "total": 192,
-    "done": 0,
-    "inTicket": 13,
+    "done": 2,
+    "inTicket": 11,
     "inSpec": 179,
     "placeholder": 0,
     "deferred": 0,
@@ -89,11 +91,34 @@ window.STATE =
         "web/src/components/Sidebar.tsx",
         "tests/office/"
       ],
-      "status": "in-progress",
+      "status": "done",
       "retries": 0,
-      "repairs": 0,
+      "repairs": 1,
       "handoffs": 0,
-      "startedAt": "2026-10-21T23:09:21+03:00"
+      "startedAt": "2026-10-21T23:09:21+03:00",
+      "repairFindings": [
+        "мок OfficePage.test теряет officeRequest; нет теста 404 по несуществующему id; нечисловой id даёт NaN и сырой 422"
+      ],
+      "finishedAt": "2026-10-21T23:49:49+03:00",
+      "tests": {
+        "passed": 17,
+        "failed": 0
+      },
+      "files": [
+        "src/office/",
+        "src/web/routes_office*.py",
+        "src/web/server.py",
+        "web/src/routes/OfficePage.tsx",
+        "web/src/components/office/",
+        "web/src/App.tsx",
+        "web/src/components/Sidebar.tsx",
+        "tests/office/",
+        "web/src/__tests__/Office*.test.tsx"
+      ],
+      "concerns": [
+        "клиент API оболочки в components/office/officeApi.ts, не в web/src/api/",
+        "кнопка «Новый проект» заглушка до таска 02"
+      ]
     },
     {
       "id": "02",
@@ -114,9 +139,9 @@ window.STATE =
       "wave": 2,
       "zone": [
         "src/office/project/",
+        "src/office/storage.py",
         "src/web/routes_office_project.py",
-        "web/src/components/office/passport/",
-        "web/src/api/officeProject.ts"
+        "web/src/components/office/passport/"
       ],
       "status": "pending",
       "retries": 0,
@@ -137,8 +162,7 @@ window.STATE =
       "zone": [
         "src/office/knowledge/",
         "src/web/routes_office_brief.py",
-        "web/src/components/office/brief/",
-        "web/src/api/officeBrief.ts"
+        "web/src/components/office/brief/"
       ],
       "status": "pending",
       "retries": 0,
@@ -160,8 +184,7 @@ window.STATE =
         "src/office/cycle/",
         "src/office/agents/",
         "src/web/routes_office_spec.py",
-        "web/src/components/office/spec/",
-        "web/src/api/officeSpec.ts"
+        "web/src/components/office/spec/"
       ],
       "status": "pending",
       "retries": 0,
@@ -170,7 +193,10 @@ window.STATE =
     }
   ],
   "singlePass": null,
-  "tests": null,
+  "tests": {
+    "passed": 1000,
+    "failed": 39
+  },
   "debt": {
     "placeholders": [],
     "assumptions": [],
@@ -183,10 +209,21 @@ window.STATE =
     "extraAttached": true,
     "action": "spec amended before leaving the phase"
   },
-  "concerns": [],
+  "concerns": [
+    "База до среза A красная, не трогалась: бэкенд 865 passed / 29 failed / 4 errors (2 файла не импортируются: tests/test_config_env_placeholders.py, tests/test_model_catalog.py; падения в тестах бота и веб-роутов), фронт 118 passed / 10 failed в 4 файлах (LoginPageTelegramOptional, newSession, UsageEventNumbers, ChatEmptyState). Зелёный таск = ни одного нового падения",
+    "Корень репозитория: посторонний package-lock.json с @xterm (не в git, не из этого прогона)",
+    "tenancy: два источника администратора, флаг users.is_admin и роль участника system_admin, которую open_project не учитывает (src/office/tenancy/_roles.py:22); в срезе A источник один, флаг",
+    "src/office/storage.py:17: константа OFFICE_TABLES не используется",
+    "tests/office/test_access.py:23,42: фикстура строит SessionManager вручную и чистит через приватный _engine вместо make_mgr из conftest; :95 async-тест без await",
+    "web/src/components/office/officeApi.ts:19: officeRequest повторяет форму api/client.ts (fetch, событие 401, ApiError), общего request там нет",
+    "src/web/routes_office.py:29: require_actor повторяет перепроверку роли по БД из require_admin (dependencies.py вне зоны)",
+    "OfficeProjectList.tsx:29, OfficeProjectView.tsx:45, OfficePage.tsx:21: шапка с кнопкой назад и баннер ошибки повторены дословно трижды, нужна одна общая шапка",
+    "web/src/App.tsx:54: защита /office под Protected не покрыта тестом на редирект неавторизованного",
+    "фронт: SshSettingsPanel.test.tsx флакает под нагрузкой параллельных прогонов, в одиночном зелёный"
+  ],
   "reviewers": {
-    "manifestSpec": null,
-    "craft": null
+    "manifestSpec": "ad33f64a7ea3fdd11",
+    "craft": "a6c9dd36834ace861"
   },
   "blind": null
 }

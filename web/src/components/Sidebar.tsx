@@ -13,6 +13,7 @@ import {
   SettingsIcon,
   TerminalIcon,
   TrashIcon,
+  UsersIcon,
 } from "@/components/icons";
 import Logo from "@/components/Logo";
 import NewChatDialog from "@/components/NewChatDialog";
@@ -555,6 +556,18 @@ export default function Sidebar({
           </button>
         </div>
       )}
+
+      {/* Проектный офис */}
+      <div className="px-3 pt-2">
+        <Link
+          to="/office"
+          onClick={() => overlay && onToggleCollapsed()}
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
+        >
+          <UsersIcon size={18} />
+          <span>Проектный офис</span>
+        </Link>
+      </div>
 
       {/* Админ-панель — только для администраторов */}
       {user?.is_admin && (

@@ -1,0 +1,302 @@
+"""Хранилище проектного офиса: таблицы ``office_*`` в той же SQLite-базе, что и чаты.
+
+Схема создаётся при старте идемпотентно (``CREATE TABLE IF NOT EXISTS``), поэтому
+повторный запуск ничего не ломает. ``SessionManager`` не расширяется: офис держит
+собственное соединение к тому же файлу (WAL + busy_timeout, как ``ApiKeyStore``).
+
+Три сущности, на которые опираются паспорт, бриф и задание:
+проект офиса (паспорт), участники с ролью, документ проекта и его версии Markdown.
+"""
+from __future__ import annotations
+
+import sqlite3
+import threading
+from datetime import datetime, timezone
+from pathlib import Path
+
+OFFICE_TABLES = (
+    "office_projects",
+    "office_members",
+    "office_documents",
+    "office_document_versions",
+)
+
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS office_projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    work_kind TEXT NOT NULL DEFAULT '',
+    nature TEXT NOT NULL DEFAULT '',
+    project_type TEXT NOT NULL DEFAULT 'small',
+    status TEXT NOT NULL DEFAULT 'active',
+    created_by INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS office_members (
+    project_id INTEGER NOT NULL REFERENCES office_projects(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
+    role TEXT NOT NULL,
+    added_at TEXT NOT NULL,
+    PRIMARY KEY (project_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS office_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES office_projects(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE (project_id, kind)
+);
+CREATE TABLE IF NOT EXISTS office_document_versions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    document_id INTEGER NOT NULL REFERENCES office_documents(id) ON DELETE CASCADE,
+    number INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft',
+    source TEXT NOT NULL DEFAULT '',
+    markdown TEXT NOT NULL DEFAULT '',
+    created_by INTEGER,
+    created_at TEXT NOT NULL,
+    UNIQUE (document_id, number)
+);
+"""
+
+# Колонки паспорта, которые можно менять через update_project.
+PASSPORT_FIELDS = ("name", "work_kind", "nature", "project_type", "status")
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+class OfficeStore:
+    """Сырой доступ к таблицам офиса. Правила видимости и ролей живут в границах."""
+
+    def __init__(self, db_path: str | Path):
+        self._path = Path(db_path).expanduser()
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.RLock()
+        self._conn: sqlite3.Connection | None = None
+        self._initialize_db()
+
+    def _connection(self) -> sqlite3.Connection:
+        if self._conn is not None:
+            return self._conn
+        conn = sqlite3.connect(self._path, timeout=30.0, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute("PRAGMA busy_timeout=30000")
+        self._conn = conn
+        return conn
+
+    def _initialize_db(self) -> None:
+        with self._lock:
+            conn = self._connection()
+            conn.executescript(_SCHEMA)
+            conn.commit()
+
+    def close(self) -> None:
+        with self._lock:
+            if self._conn is not None:
+                try:
+                    self._conn.close()
+                except Exception:
+                    pass
+                self._conn = None
+
+    # ------------------------------------------------------------------
+    # Проекты (паспорт)
+    # ------------------------------------------------------------------
+
+    def create_project(
+        self,
+        *,
+        name: str,
+        created_by: int,
+        work_kind: str = "",
+        nature: str = "",
+        project_type: str = "small",
+        status: str = "active",
+    ) -> dict:
+        now = _now()
+        with self._lock:
+            conn = self._connection()
+            cur = conn.execute(
+                "INSERT INTO office_projects (name, work_kind, nature, project_type, status, "
+                "created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (name, work_kind, nature, project_type, status, created_by, now, now),
+            )
+            conn.commit()
+            project_id = int(cur.lastrowid)
+        project = self.get_project(project_id)
+        assert project is not None
+        return project
+
+    def get_project(self, project_id: int) -> dict | None:
+        with self._lock:
+            row = self._connection().execute(
+                "SELECT * FROM office_projects WHERE id = ?", (project_id,)
+            ).fetchone()
+        return dict(row) if row is not None else None
+
+    def list_projects(self) -> list[dict]:
+        with self._lock:
+            rows = self._connection().execute(
+                "SELECT * FROM office_projects ORDER BY id"
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def list_projects_for_user(self, user_id: int) -> list[dict]:
+        """Проекты, где пользователь записан участником."""
+        with self._lock:
+            rows = self._connection().execute(
+                "SELECT p.* FROM office_projects p "
+                "JOIN office_members m ON m.project_id = p.id "
+                "WHERE m.user_id = ? ORDER BY p.id",
+                (user_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def update_project(self, project_id: int, **fields: str) -> dict | None:
+        """Меняет поля паспорта (см. ``PASSPORT_FIELDS``); чужие ключи отвергает."""
+        unknown = set(fields) - set(PASSPORT_FIELDS)
+        if unknown:
+            raise ValueError(f"не поля паспорта: {sorted(unknown)}")
+        if not fields:
+            return self.get_project(project_id)
+        assignments = ", ".join(f"{key} = ?" for key in fields)
+        with self._lock:
+            conn = self._connection()
+            conn.execute(
+                f"UPDATE office_projects SET {assignments}, updated_at = ? WHERE id = ?",
+                (*fields.values(), _now(), project_id),
+            )
+            conn.commit()
+        return self.get_project(project_id)
+
+    # ------------------------------------------------------------------
+    # Участники
+    # ------------------------------------------------------------------
+
+    def add_member(self, project_id: int, user_id: int, role: str) -> dict:
+        """Записывает участника; повторный вызов меняет роль."""
+        with self._lock:
+            conn = self._connection()
+            conn.execute(
+                "INSERT INTO office_members (project_id, user_id, role, added_at) "
+                "VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(project_id, user_id) DO UPDATE SET role = excluded.role",
+                (project_id, user_id, role, _now()),
+            )
+            conn.commit()
+        member = self.get_member(project_id, user_id)
+        assert member is not None
+        return member
+
+    def get_member(self, project_id: int, user_id: int) -> dict | None:
+        with self._lock:
+            row = self._connection().execute(
+                "SELECT * FROM office_members WHERE project_id = ? AND user_id = ?",
+                (project_id, user_id),
+            ).fetchone()
+        return dict(row) if row is not None else None
+
+    def list_members(self, project_id: int) -> list[dict]:
+        with self._lock:
+            rows = self._connection().execute(
+                "SELECT * FROM office_members WHERE project_id = ? ORDER BY added_at, user_id",
+                (project_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    # ------------------------------------------------------------------
+    # Документы и версии Markdown
+    # ------------------------------------------------------------------
+
+    def ensure_document(self, project_id: int, kind: str) -> dict:
+        """Документ проекта данного вида (``brief``, ``spec``); создаёт, если нет."""
+        existing = self.get_document(project_id, kind)
+        if existing is not None:
+            return existing
+        with self._lock:
+            conn = self._connection()
+            conn.execute(
+                "INSERT OR IGNORE INTO office_documents (project_id, kind, created_at) "
+                "VALUES (?, ?, ?)",
+                (project_id, kind, _now()),
+            )
+            conn.commit()
+        document = self.get_document(project_id, kind)
+        assert document is not None
+        return document
+
+    def get_document(self, project_id: int, kind: str) -> dict | None:
+        with self._lock:
+            row = self._connection().execute(
+                "SELECT * FROM office_documents WHERE project_id = ? AND kind = ?",
+                (project_id, kind),
+            ).fetchone()
+        return dict(row) if row is not None else None
+
+    def add_version(
+        self,
+        document_id: int,
+        *,
+        markdown: str,
+        source: str,
+        status: str = "draft",
+        created_by: int | None = None,
+    ) -> dict:
+        """Новая версия с номером на единицу больше последней; старые не меняются."""
+        with self._lock:
+            conn = self._connection()
+            number = conn.execute(
+                "SELECT COALESCE(MAX(number), 0) + 1 FROM office_document_versions "
+                "WHERE document_id = ?",
+                (document_id,),
+            ).fetchone()[0]
+            cur = conn.execute(
+                "INSERT INTO office_document_versions "
+                "(document_id, number, status, source, markdown, created_by, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (document_id, number, status, source, markdown, created_by, _now()),
+            )
+            conn.commit()
+            version_id = int(cur.lastrowid)
+        version = self.get_version(version_id)
+        assert version is not None
+        return version
+
+    def get_version(self, version_id: int) -> dict | None:
+        with self._lock:
+            row = self._connection().execute(
+                "SELECT * FROM office_document_versions WHERE id = ?", (version_id,)
+            ).fetchone()
+        return dict(row) if row is not None else None
+
+    def list_versions(self, document_id: int) -> list[dict]:
+        with self._lock:
+            rows = self._connection().execute(
+                "SELECT * FROM office_document_versions WHERE document_id = ? ORDER BY number",
+                (document_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def latest_version(self, document_id: int) -> dict | None:
+        with self._lock:
+            row = self._connection().execute(
+                "SELECT * FROM office_document_versions WHERE document_id = ? "
+                "ORDER BY number DESC LIMIT 1",
+                (document_id,),
+            ).fetchone()
+        return dict(row) if row is not None else None
+
+    def set_version_status(self, version_id: int, status: str) -> dict | None:
+        with self._lock:
+            conn = self._connection()
+            conn.execute(
+                "UPDATE office_document_versions SET status = ? WHERE id = ?",
+                (status, version_id),
+            )
+            conn.commit()
+        return self.get_version(version_id)
