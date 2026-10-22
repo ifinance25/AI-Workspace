@@ -11,7 +11,7 @@ window.STATE =
   "memoryFile": "CLAUDE.md",
   "skillDir": "/Users/ifinance/.claude/skills/autopilot",
   "startedAt": "2026-10-18T23:28:00+03:00",
-  "updatedAt": "2026-10-21T23:49:49+03:00",
+  "updatedAt": "2026-10-22T10:41:54+03:00",
   "finishedAt": null,
   "stages": [
     {
@@ -36,7 +36,8 @@ window.STATE =
       "id": "spec",
       "status": "done",
       "startedAt": "2026-10-19T00:16:00+03:00",
-      "finishedAt": "2026-10-19T00:27:41+03:00"
+      "finishedAt": "2026-10-21T23:09:21+03:00",
+      "note": "дополнение 2026-10-21 выполнено 2026-10-22: штурм пятью агентами, ядро RAG и след требований в спецификации (истории 34-56), независимая проверка покрытия: 2 непокрытых, 17 половинчатых, 9 добавок, всё закрыто; список на выбор ждёт номеров пользователя в brainstorm-2026-10-21.md"
     },
     {
       "id": "plan",
@@ -48,14 +49,14 @@ window.STATE =
     {
       "id": "build",
       "status": "active",
-      "note": "срез A: 1 из 4 тасков готов",
+      "note": "срез A: 1 из 4 готов; остановлено пользователем 21.10 («stop»); таски 03 и 04 уточнены после штурма; ждёт номеров из brainstorm-2026-10-21.md и команды «продолжи сборку»",
       "startedAt": "2026-10-21T23:09:21+03:00"
     },
     {
       "id": "review",
       "status": "active",
       "startedAt": "2026-10-21T23:27:39+03:00",
-      "note": "проверено 1 из 4"
+      "note": "проверено 1 из 4; ждёт сборку"
     },
     {
       "id": "final",
@@ -63,13 +64,14 @@ window.STATE =
     }
   ],
   "requirements": {
-    "total": 192,
+    "total": 197,
     "done": 2,
     "inTicket": 11,
-    "inSpec": 179,
+    "inSpec": 184,
     "placeholder": 0,
     "deferred": 0,
-    "dropped": 0
+    "dropped": 0,
+    "open": 0
   },
   "tickets": [
     {
@@ -118,7 +120,8 @@ window.STATE =
       "concerns": [
         "клиент API оболочки в components/office/officeApi.ts, не в web/src/api/",
         "кнопка «Новый проект» заглушка до таска 02"
-      ]
+      ],
+      "commit": "0cd8eb7"
     },
     {
       "id": "02",
@@ -146,7 +149,8 @@ window.STATE =
       "status": "pending",
       "retries": 0,
       "repairs": 0,
-      "handoffs": 0
+      "handoffs": 0,
+      "note": "остановлен пользователем 2026-10-21, кода не написано"
     },
     {
       "id": "03",
@@ -167,7 +171,8 @@ window.STATE =
       "status": "pending",
       "retries": 0,
       "repairs": 0,
-      "handoffs": 0
+      "handoffs": 0,
+      "note": "остановлен пользователем 2026-10-21, кода не написано"
     },
     {
       "id": "04",
@@ -202,12 +207,23 @@ window.STATE =
     "assumptions": [],
     "emptyEnv": []
   },
-  "additions": [],
+  "additions": [
+    "A01 → G93, G55: договоры, допсоглашения и акты как виды документов со следом и колонкой «Договор» (история 56); конструктор договоров не строится"
+  ],
   "coverage": {
-    "missing": 18,
-    "half": 8,
+    "checkedAt": "2026-10-22T10:41:54+03:00",
+    "missing": 2,
+    "half": 17,
     "extraAttached": true,
-    "action": "spec amended before leaving the phase"
+    "action": "непокрытые: подраздел «Что показал штурм 2026-10-21»; половинчатые: подраздел «Уточнения после проверки покрытия 2026-10-22» (17 решений ремесла); добавки привязаны к родителям, одна помечена A01 (история 56)",
+    "history": [
+      {
+        "missing": 18,
+        "half": 8,
+        "extraAttached": true,
+        "action": "spec amended before leaving the phase"
+      }
+    ]
   },
   "concerns": [
     "База до среза A красная, не трогалась: бэкенд 865 passed / 29 failed / 4 errors (2 файла не импортируются: tests/test_config_env_placeholders.py, tests/test_model_catalog.py; падения в тестах бота и веб-роутов), фронт 118 passed / 10 failed в 4 файлах (LoginPageTelegramOptional, newSession, UsageEventNumbers, ChatEmptyState). Зелёный таск = ни одного нового падения",
