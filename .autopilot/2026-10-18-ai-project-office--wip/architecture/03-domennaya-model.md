@@ -452,6 +452,19 @@ erDiagram
 | `office_bridge_connections` | `system`, `scope`, `scope_id`, `settings`, `credential_ids json`, `state enum(draft, checking, active, degraded, suspended, off)`, `last_error`, `connection_token` (для вебхука) |
 | `office_bridge_links`, `office_bridge_outbox`, `office_bridge_cursor` | внутренний ключ и внешний id с ревизией и отпечатком; очередь отправки с попытками; курсор опроса. Наружу уходит только принятое (P06: один трекер) |
 
+Дополнение 2026-10-28 (сверка 35; `33`, `34` с правками `35`). Новые таблицы и поля разделов 33 и 34 с единственным писателем. Имена проверены против §2 и `interfaces.md`, совпадений нет.
+
+| Таблица или поле | Писатель | Ключевое |
+|---|---|---|
+| `office_risk_categories` | `tenancy` | `company_id`, `project_id?` (лист проекта виден только в проекте), `parent_id?`, `code`, `title`, `archived_at?`; глубина до трёх; удаления нет, только архив |
+| `office_risks.category_id` | `cycle` | у кандидата может быть пусто; при принятии обязательно (422 `category_required`) |
+| `office_cause_diagrams`, `office_cause_branches`, `office_causes` | `cycle` | `34` §2.1; причина хранит `source_kind`, `source_id` записи из области запустившего (И-156) |
+| `office_story_maps`, `office_story_activities`, `office_story_cards` | `plan` | `34` §5.1; часов и денег нет |
+| `office_team_surveys`, `office_team_survey_tokens`, `office_team_survey_answers`, `office_team_survey_results` | `insight` | `33` §3.1; ответ без `user_id` и без метки времени, токен без ссылки на ответ (И-153, И-162) |
+| `office_gantt_forecasts` | `plan` | `project_id`, `as_of`, `method enum(es, network)`, `finish_date`, `milestones json`, `calc_epoch` |
+| `office_ev_snapshots` (было D06) | `plan` | заполняются `pv`, `ev`, `ac`, `spi`, `spi_t`; `cpi`, `eac`, `etc`, `vac`, `tcpi` пусты до слова пользователя (D06) |
+| Каталог метрик §2.11 | `insight` | `cycle_time`, `review_return_rate`, `spi_week` (по трудоёмкости), `model_point_reject_rate`; набор `team_effectiveness`; измерения `person`, `assignee` запрещены (И-152, И-157) |
+
 ## 3. Машины состояний
 
 Общее правило: переход делает публичная операция модуля-владельца; проверка прав идёт первой; событие пишется в `office_events` в той же транзакции, что смена статуса. Недопустимый переход отдаёт 409 с кодом `invalid_transition`.
@@ -722,6 +735,8 @@ stateDiagram-v2
 
 Дополнение 2026-10-27 (проверка ИБ 29, УИБ29-04, -05). (1) РПО (`pmo_head`) и наблюдатель подразделения и компании назначаются флагом компании в `office_company_users` операцией АдмК, а не `add_member` менеджера; в проект они входят с этим флагом. (2) Предлагающий и утверждающий разные учётки (409 `same_person`): ресёрч выше порога, карточка библиотеки и витрины, наложение компании, база, смена типа (И-123). (3) Права администраторов одной формулировкой: АдмП входит в содержимое проекта только `admin_as_role` с немедленным неотключаемым уведомлением МП, РПО и АдмК и не проходит `sovereignty/*`, `pii/*` (И-122); АдмК в содержимом проекта только участником; «Адм» в таблицах §4.1 и §5 читается так.
 
+Дополнение 2026-10-28 (сверка 35; `34` §5.2, И-167). Видимость для заказчика (§4.2) получает одну строку: снимок карты историй `story_map:customer` виден после публикации МП и ручного ревью. В нём только принятые карточки с ключом требования из видимой заказчику версии задания, вехи, открытые заказчику, и выпуски порядковым номером без имён спринтов и дат. Живая карта историй, рыбья кость, контрольная карта, рассеяние, командная оценка, S-кривая и прогнозы заказчику закрыты, запрос к ним даёт 404 (принцип `00` №23). Новые клетки матрицы: `insight/view_process`, `insight/view_scatter`, `plan/view_story_map`, `plan/edit_story_map`, `team/view_effectiveness`, `team/run_survey`, `pmo/edit_risk_taxonomy` (`13` §4.7, дополнение сверки 35).
+
 ## 5. Каталог API
 
 ### 5.1 Общие правила
@@ -930,6 +945,8 @@ stateDiagram-v2
 
 Дополнение 2026-10-27 (сверка 32; `31` §8.4 с правками `32`). Новые события: `pmo_profile.proposed`, `pmo_profile.activated`, `ai_policy.proposed`, `ai_policy.activated`, `ai_policy.expired`, `strategic_goal.changed`, `work_calendar.updated` (`tenancy`); `bias_check.started`, `bias_check.finished`, `model_class.suspended`, `model_class.enabled` (`routing`); `contribution.recorded`, `milestone.registered`, `gate.passed (project_id, milestone_key)`, `benefit.measured`, `procurement.created`, `procurement.state_changed`, `procurement.offer_added`, `procurement.selected`, `procurement.rfp_sent` (`cycle`); `goal_link.proposed`, `goal_link.decided`, `project.start_approved` (`project`); `contract_stage.state_changed` (`contracts`); `portfolio_cycle.state_changed`, `portfolio.scored`, `portfolio_scenario.evaluated`, `portfolio.frozen`, `portfolio.decision_recorded`, `portfolio.decision_executed`, `portfolio.decision_mismatch`, `maturity_campaign.opened`, `maturity.answered`, `maturity_campaign.closed` (`insight`). Правило: события несут ключи и ссылки, не оценки, суммы, часы и тексты; `procurement.offer_added` имеет `data_classes = [budget]` (у поля `audience` значения `budget` нет); события портфеля доставляются по WS только через `channels.may_deliver` с клеткой `portfolio/view_scores` и областью получателя (И-126, И-142). Событие `gate.passed`, на которое ссылались подписки `26` §5.6 и отчёт О9, до сверки 32 нигде не было объявлено.
 
+Дополнение 2026-10-28 (сверка 35; `33`, `34`). Новые события, только ключи: `process.out_of_control (project_id, metric_key)` (`insight`; слушают `cycle`, `channels` К15, WS); `gantt.forecast_shifted (project_id, milestone_key, shift_days)` (`plan`; слушают `cycle`, `channels` К15); `team_survey.closed (survey_id, project_id)` (`insight`; слушает `channels`, МП). Имя `schedule.forecast_shifted` из первой редакции `33` не вводится: `schedule.*` занято расписаниями агентов. Кандидата риска по `process.out_of_control`, `gantt.forecast_shifted`, `plan.deviation_detected`, `gantt.deadline_unreachable` создаёт одна операция `cycle.propose_risk_from_signal` с ключом повтора `risk_signal:<project>:<signal_kind>:<metric_key>`. Правило подписки (уточняет `00` §3.3, сверка 32): нижний модуль слушает событие верхнего, только если событие несёт ключи, а обработчик пишет свои таблицы и не зовёт и не читает верхний модуль.
+
 ## 7. Инварианты и правила целостности
 
 - И-01. У каждой таблицы один модуль-писатель; чужие таблицы читаются только через публичные операции.
@@ -1097,6 +1114,15 @@ stateDiagram-v2
 - И-159. Заказчик не читает живую карту историй. Опубликованный снимок вида `story_map` не содержит часов, денег и класса `internal_text`.
 - И-160. Портфельные срезы контрольной карты и рассеяния отдают ключи и счётчики проектов из области зрителя. Названия задач в этот срез не входят.
 - И-161. Среднее, сигма, границы контрольной карты и линия тренда рассеяния пишет только код.
+
+Дополнение 2026-10-28 (сверка 35, `35` §2). Инварианты И-162..И-167. Номера продолжают И-161, пересечений нет. В И-159 вид снимка читается как `story_map:customer`.
+
+- И-162. Порог k анкеты считается без запустившего опрос. Показываются только средние по вопросам, без распределения. Ответ хранится без метки времени, отметка токена не ссылается на ответ, тело ответа не пишется в журналы, аудит и события. Комментарии не индексируются в RAG и удаляются вместе с сырыми ответами. В ядро попадает только итог, принятый МП.
+- И-163. Командные показатели `team_effectiveness`, границы контрольной карты, событие `process.out_of_control` и кандидат риска по нему не строятся, если у данных окна меньше k разных исполнителей.
+- И-164. Число точек, состав исполнителей и авторов и сработавшее правило проверки `sample_too_small` живут только в памяти запроса: их нет в снимках метрик, кэше, журналах, аудите, событиях, журнале запуска агента, наборах отчётов и индексе RAG. Агент инструмента рассеяния не получает.
+- И-165. Зритель без `plan.budget/view` видит S-кривую, прогноз и `spi_week` вида «Трудоёмкость» только долями от плана, без часов. `spi_week` для контрольной карты считается по трудоёмкости, не по деньгам.
+- И-166. Контекст `cycle.draft_causes` собирается маской класса `team` в области запустившего: поля `budget`, класс `management_chat` и `personal` сверх `contact` в подсказку не идут.
+- И-167. Снимок `story_map:customer` содержит только принятые карточки с `requirement_key` из версии задания, видимой заказчику, вехи, открытые заказчику, и выпуски порядковым номером без имён спринтов и дат. При публикации `tenancy` перепроверяет, что `data_classes` снимка не шире `customer`.
 
 ## 8. Миграции от среза A к полной модели
 

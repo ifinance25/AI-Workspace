@@ -354,3 +354,23 @@
 - Номера тасков: 144-151 (`architecture/31` §11); расширяются 13, 32, 44, 53, 64, 68, 70, 75, 89, 93, 94, 95, 96, 104, 112, 115, 119, 127, 134.
 - Инварианты И-140..И-150 и дополнение И-123: `architecture/03` §7, дополнение сверки 32.
 - Код пока не пишется: разработка остановлена пользователем 2026-10-22.
+
+## Дополнение 2026-10-28 (сверка 35): категории рисков, командная оценка, S-кривая, прогнозы, рыбья кость, контрольная карта, рассеяние, карта историй (A84-A91)
+
+Источник: `architecture/33`, `34` после сверки `architecture/35-sverka-superarhitektora-celostnost.md`; при расхождении верен 35. Модулей не прибавилось (15), рёбер вызова тоже. Запись вниз у `insight` прежняя (`trigger_risk`, `observe_risk`). Правило подписки уточнено (`00` §3.3, дополнение 35): нижний модуль слушает событие верхнего, только если событие несёт ключи, а обработчик пишет свои таблицы и не зовёт и не читает верхний модуль.
+
+| Модуль | Новые таблицы и поля (единственный писатель) | Новые операции | Срез |
+|---|---|---|---|
+| `tenancy` | `office_risk_categories` (удаления нет, только архив) | `set_risk_category`, `archive_risk_category`, `risk_categories(company, project?)` | C2 |
+| `cycle` | `office_risks.category_id`; `office_cause_diagrams`, `office_cause_branches`, `office_causes` | `open_cause_diagram`, `draft_causes`, `decide_cause`, `promote_cause_to_lesson`, `propose_risk_from_signal`; слушатель `process.out_of_control`, `gantt.forecast_shifted` | C2, E2, F2 |
+| `plan` | `office_story_maps`, `office_story_activities`, `office_story_cards`; `office_gantt_forecasts`; `office_ev_snapshots` (только `pv`, `ev`, `ac`, `spi`, `spi_t`) | `earned_value` (часть по срокам), `forecast_schedule`, `draft_story_map`, `move_story_item`, `decide_story_item`, `snapshot_story_map` (зовёт `cycle.draft_artifact`) | F2 |
+| `insight` | `office_team_surveys`, `office_team_survey_tokens`, `office_team_survey_answers`, `office_team_survey_results`; метрики `cycle_time`, `review_return_rate`, `spi_week`, `model_point_reject_rate`, набор `team_effectiveness` | `open_team_survey`, `submit_team_survey`, `close_team_survey`, `team_effectiveness`, `control_chart`, `process_portfolio`, `scatter` | E2, F2, G2 |
+
+- Клетки матрицы (одна таблица `architecture/13` §4.7, дополнение сверки 35): `insight/view_process`, `insight/view_scatter`, `plan/view_story_map`, `plan/edit_story_map`, `team/view_effectiveness`, `team/run_survey`, `pmo/edit_risk_taxonomy`. Ключ `plan.budget` цельный, не раздел `plan` с действием `budget`.
+- События (`architecture/03` §6, дополнение 35): `process.out_of_control` (`insight`), `gantt.forecast_shifted` (`plan`), `team_survey.closed` (`insight`); только ключи. `schedule.*` остаётся за расписаниями агентов. Задание `gantt_forecast`.
+- Виды уведомлений К15 `risk_quality` (`architecture/25` §3.3): `process.out_of_control` (МП, РПО области; ссылка РПО вне проекта на портфельный срез), `gantt.forecast_shifted` (МП, РПО), класс «Сразу», до таска 102 только колокольчик веба.
+- Виды документов в Git: `story_map:customer` (класс `customer`, публикует МП после ручного ревью).
+- Ошибки: 409 `diagram_exists`, `map_exists`, база не принята; 422 `category_required`, `person_cause`, `dimension_forbidden`, `pair_forbidden`, `sample_too_small`; скрытое 404.
+- Портфельный виджет W11 «S-кривые проектов» продолжает каталог `architecture/31` §5.1, строит таск 150.
+- Таски 152-159: C2 152; E2 153, 156, 158; F2 154, 155, 157, 159 (`plan.md`, дополнение сверки 35).
+- Инварианты И-151..И-167: `architecture/03` §7, дополнения 2026-10-28.
