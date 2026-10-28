@@ -330,3 +330,27 @@
 - Клетки: строка `privacy_officer`; `terminal/use`; `pii/*`, `sovereignty/*` закреплены.
 - Токены клиентов `mcp`, `extension` действуют только на своих маршрутах (И-124).
 - Таски 138-143; инварианты И-122..И-139 (`architecture/03` §7, дополнение проверки ИБ 29; `architecture/29` §10).
+
+## Дополнение 2026-10-27 (сверка 32): проектный офис, портфель, политика ИИ, дополнения PMBOK 8 (A76-A83)
+
+Источник: `architecture/31-proektnyj-ofis-portfel-ii-politika.md` после сверки `architecture/32-sverka-superarhitektora-pmo-pmbok.md`; при расхождении верен 32. Модулей не прибавилось (15), направление зависимостей прежнее: вехи ворот `cycle` получает вызовом сверху, черновик итога зрелости создаёт `agents`, старт по решению комитета собирает `ui`.
+
+| Модуль | Новые таблицы и поля (единственный писатель) | Новые операции | Срез |
+|---|---|---|---|
+| `tenancy` | `office_pmo_profiles`, `office_ai_policy_profiles`, `office_strategic_goals`; `office_work_calendars` (было D06); `office_model_providers.node_power_kw` | `propose_pmo_profile`, `preview_pmo_profile`, `activate_pmo_profile` (только из `cycle`), `pmo_profile`, `propose_ai_policy`, `activate_ai_policy` (только из `cycle`), `ai_policy`, `set_strategic_goal`, `set_work_calendar`, `import_work_calendar`; проверка политики в `propose_cloud`, `confirm_cloud` | C2, G2, F |
+| `routing` | `office_model_evals.suite`, `office_model_class_gates` | `run_bias_suite`, `class_gate_state`; `resolve` с проверкой профиля политики и ворот классов | B3, C2 |
+| `knowledge` | `office_document_versions.space_audience`; `office_artifact_templates.focus_area` (было `phase`), `required` у пункта набора; виды входа `pmo_profile`, `ai_policy`, `contract_stages` | `company_doc(company, kind)`, `paragraph_origins(version)`; проверка слияния пространства компании (422 `company_space_leak`) | B2, C2 |
+| `project` | `office_projects.space_kind`, `office_project_goal_links`; поле настроек `preset_deviations` | `ensure_company_space`, `link_goal`, `decide_goal_link`, `approve_start(project, decision_ref)`, `record_preset_deviation` | C2, G2 |
+| `cycle` | `office_gate_milestones`, `office_contribution_records`, `office_benefits`, `office_benefit_measurements`, `office_procurements`, `office_procurement_offers`; поля `office_review_items.origin_kind`, `origin_run_id` | `check_gate(project, milestone_key)` (было `check_gate(project, phase)`), `register_milestone`, `record_contribution`, `upsert_procurement`, `add_offer`, `select_vendor`, `measure_benefit`; маршрут `company_doc` | C2, E2, G |
+| `plan` | нет | `funding_profile`, `role_demand`; зовёт `cycle.register_milestone` | F |
+| `contracts` | `office_contract_stages` | `set_contract_stages` (зовёт `cycle.register_milestone`), `set_stage_state` | G |
+| `insight` | `office_portfolio_cycles`, `office_portfolio_scores`, `office_portfolio_scenarios`, `office_portfolio_decisions`, `office_role_capacity`, `office_maturity_campaigns`, `office_maturity_answers`, `office_maturity_results`; у `office_dashboards` поле `scope_id`, значение `source = widgets`, `spec_version = 2` | `open_portfolio_cycle`, `score_project`, `rank`, `evaluate_scenario`, `suggest_scenario`, `freeze_portfolio`, `record_decision`, `mark_decision_executed`, `portfolio_widget`, `open_maturity_campaign`, `submit_maturity_answers`, `close_maturity_campaign`, `maturity_indicators` | G2 |
+| `agents` | нет | слушатель `maturity_campaign.closed` (черновик `pmo:maturity`); инструмент `company_docs` | E, G2 |
+
+- Виды документов в Git: `pmo:methodology`, `pmo:maturity`, `policy:ai_use` (пространство компании); `plan:finance`, `plan:benefits-finance`, `business_case:finance` (`budget`); `business_case`, `plan:stakeholder_engagement`, `plan:benefits`, `procurement:sow`, `procurement:rfp`, `register:benefits`, `register:procurements` (`team`); `gate:<веха>`, `act:stage-<веха>` с ключом вехи `MS-N`. В строке «Дополнение 2026-10-26 (сверка 24)» этого файла `check_gate(project, phase)` и `act:phase-*` читаются как `check_gate(project, milestone_key)` и `act:stage-*` (A79).
+- Клетки матрицы (одна таблица `architecture/13` §4.7, дополнение сверки 32): разделы `pmo`, `portfolio` (дополнение), `project` (`assign_pm`, `approve_start`), `ai`, `procurement`, `calendar`.
+- События: `architecture/03` §6, дополнение сверки 32; события несут ключи и ссылки, не значения.
+- Ошибки: 409 `policy_forbids`, `bias_failed`, `start_decision_required`, `decision_not_found`, `decision_not_frozen`, `same_person`; 422 `company_space_leak`, `space_no_channels`, `review_floor`, `system_class`, `section_not_permitted`, `generated_section` (пункт ревью).
+- Номера тасков: 144-151 (`architecture/31` §11); расширяются 13, 32, 44, 53, 64, 68, 70, 75, 89, 93, 94, 95, 96, 104, 112, 115, 119, 127, 134.
+- Инварианты И-140..И-150 и дополнение И-123: `architecture/03` §7, дополнение сверки 32.
+- Код пока не пишется: разработка остановлена пользователем 2026-10-22.

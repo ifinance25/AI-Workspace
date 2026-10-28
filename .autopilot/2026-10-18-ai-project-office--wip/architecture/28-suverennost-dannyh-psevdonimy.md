@@ -223,7 +223,7 @@
 
 | Шаг | Где | Что |
 |---|---|---|
-| Наборы | Поставщик платформы | Золотые наборы `01` §9 (поиск, извлечение, след, инъекции), `02` §11 (протокол, правка задания, ревью), `26` (жёсткие проверки чисел), новый набор инструментов для `LocalLoopRunner` (50 сценариев ассистента и писателя, калибровка, не цель), набор детектора ПД (500 документов на русском с размеченными спанами, синтетические ПД, калибровка, не цель). Все наборы с метками: модель в работе видит метки, замер тоже |
+| Наборы | Поставщик платформы | Золотые наборы `01` §9 (поиск, извлечение, след, инъекции), `02` §11 (протокол, правка задания, ревью), `26` (жёсткие проверки чисел), новый набор инструментов для `LocalLoopRunner` (50 сценариев ассистента и писателя, калибровка, не цель), набор детектора ПД (500 документов на русском с размеченными спанами, синтетические ПД, калибровка, не цель). Все наборы с метками: модель в работе видит метки, замер тоже. Сверка 32 (`32` У32-12): набор предвзятости `31` §7.2 тоже с метками, без имён; пары варьируют признаки, которые переживают псевдонимизацию |
 | Пороги | Наборы | Абсолютные из `01` §9 (точность извлечения не ниже 0,70, цитаты 100% посимвольно, Recall@10 не ниже 0,95) и относительные: не ниже 0,9 от эталонной облачной модели на том же наборе (калибровка, не цель). Порог пишется в набор до прогона |
 | Эталонный прогон | Поставщик, эталонное железо | Результат кладётся в пакет весов; без зелёного результата пакет весов не выпускается для этого класса |
 | Приёмочный прогон | Компания после установки, без сети | Тот же набор на её железе: подтверждает качество и время ответа; `office_model_evals` (`routing`); АдмК нажимает «применить» (`12` §3.3) |
@@ -607,7 +607,7 @@ flowchart LR
 | `office_egress_log` | `core` | §4.4, §7.1: `request_id`, `purpose`, `rule_id`, `module`, `destination`, `bytes_out`, `bytes_in`, `decision`, `reason`, `usage_key?`, `provider_id?`, `task_class?`, `data_classes`, `pii_scan json`, `payload_sha256`, `provenance json`, `actor_id`, `on_behalf_of?`, `project_id?`, `at` |
 | `office_cloud_enablements` | `tenancy` | `provider_id`, `task_classes`, `data_classes`, `projects_excluded`, `proposed_by`, `confirmed_by`, `same_person bool`, `transborder_note`, `valid_until`, `state enum(proposed, active, expired, disabled, emergency_closed)` |
 | `office_model_releases` | `tenancy` | `provider_id`, `model`, `weights_sha256`, `license`, `bundle_id`, `state enum(candidate, approved, retired)` |
-| `office_model_evals` | `routing` | `release_id`, `task_class`, `gold_set_version`, `metrics json`, `thresholds json`, `passed`, `hardware`, `run_at`, `applied_by?` |
+| `office_model_evals` | `routing` | `release_id`, `task_class`, `suite enum(quality, bias, injection)` (сверка 32 по `31` §7.2, таски 127, 142, 147), `gold_set_version`, `metrics json`, `thresholds json`, `passed`, `hardware`, `run_at`, `applied_by?` |
 | `office_update_bundles` | `core` | `bundle_id`, `kind enum(platform, models, detector)`, `version`, `sha256`, `signature_ok`, `installed_at`, `installed_by` |
 | Поля | | `office_companies.settings.sovereignty {external_clients_content, pii_retention, retention_years?, chat_allowed}`; `office_projects.settings.originals`, `.pii_role`; `office_company_users.is_privacy_officer`; `office_model_providers.deployment`, `.node_id`, `.capabilities`; `office_fragments.pii_state`, `.detector_version`; `office_sources.status` плюс `pii_pending`, `.retention_basis`; `office_receipts.key_id`; `office_usage.gpu_ms` |
 

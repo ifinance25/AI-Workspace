@@ -442,7 +442,7 @@
 | Пояс и рабочие часы | `office_company_users.tz`, `work_hours` (`tenancy`, `09` §8.3) | Пояс компании, будни 10:00-19:00 (калибровка) | `immediate` и `batched` во внешние каналы ждут начала рабочего окна, если включено `work_hours_only` (умолчание да) |
 | Тихие часы | `office_notification_user_settings.quiet_from`, `quiet_to` | 22:00-08:00 (калибровка) | Откладывают всё, кроме `critical` |
 | «Не беспокоить» | `dnd_until` | Выключено | Временные тихие часы на 1, 2, 4 часа или до утра; кроме `critical` |
-| Выходные и праздники | Дни недели из `work_hours`; праздники производственного календаря после D06 | | Как вне рабочих часов |
+| Выходные и праздники | Дни недели из `work_hours`; праздники производственного календаря `office_work_calendars` с таска 93 (срез F, `31` §6.3; сверка 32, С32-14), до F только дни недели | | Как вне рабочих часов |
 | Заглушить проект | `office_notification_prefs` со `scope = project` и `until?` | | Все виды проекта только в веб без значка, кроме К18 и `critical` |
 
 Отложенная строка получает новый `scheduled_at`; при наступлении снова проходит П-2. Просрочки (`*.overdue`) считают сроки в рабочих часах адресата.
@@ -509,7 +509,7 @@
 
 | Поле | Значения | Умолчание |
 |---|---|---|
-| `review_policy` | `manual_items` (ревью по пунктам), `manual_whole` (одно решение по артефакту), `none` | `manual_items` для видов PM Book: `spec:*`, `plan:*`, `gate:*`, `final_report*`, `status_report:customer`, `act:phase-*`; `manual_whole` для `guide`, `page:*`; `none` для снимков `register:*` (они не согласуются, `22` В22-2) |
+| `review_policy` | `manual_items` (ревью по пунктам), `manual_whole` (одно решение по артефакту), `none` | `manual_items` для видов PM Book: `spec:*`, `plan:*`, `gate:*`, `final_report*`, `status_report:customer`, `act:stage-*` (A79; сверка 32); `manual_whole` для `guide`, `page:*`; `none` для снимков `register:*` (они не согласуются, `22` В22-2) |
 | `review_owner_role` | Роль, которая ведёт ревью | `project_manager`; МП может делегировать ревью экземпляра (клетка `review/delegate`) |
 | `review_sla_days` | Рабочие дни до напоминания | 3 (калибровка) |
 
