@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { officeApi, type OfficeProject } from "@/components/office/officeApi";
 import BriefTab from "@/components/office/brief/BriefTab";
@@ -44,12 +44,20 @@ export default function OfficeProjectView({ projectId }: { projectId: number }) 
     <>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold sm:text-2xl">{project?.name ?? "Проект"}</h1>
-        <button
-          onClick={() => nav("/office")}
-          className="rounded-lg bg-[var(--bg-hover)] px-3 py-1.5 text-sm"
-        >
-          ← К проектам
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            to={`/office/${projectId}/redmine`}
+            className="rounded-lg bg-[var(--bg-hover)] px-3 py-1.5 text-sm"
+          >
+            Задачи
+          </Link>
+          <button
+            onClick={() => nav("/office")}
+            className="rounded-lg bg-[var(--bg-hover)] px-3 py-1.5 text-sm"
+          >
+            ← К проектам
+          </button>
+        </div>
       </div>
 
       {error && (
