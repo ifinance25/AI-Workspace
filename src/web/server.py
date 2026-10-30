@@ -28,7 +28,10 @@ from src.web.routes_providers import make_providers_router
 from src.web.routes_connections import make_connections_router
 from src.web.routes_docs import make_docs_router
 from src.web.routes_files import make_files_router
-from src.web.routes_kb_proxy import make_kb_proxy_router
+try:
+    from src.web.routes_kb_proxy import make_kb_proxy_router
+except ModuleNotFoundError:
+    make_kb_proxy_router = None  # файл базы знаний не в этом дереве
 from src.web.routes_members import make_members_router
 from src.web.routes_model import make_model_router
 from src.web.routes_office import make_office_router
@@ -449,8 +452,19 @@ class WebServer:
                         allowed_user_ids=self.allowed_user_ids,
                     )
                 )
+                from src.web.routes_redmine_admin import make_redmine_admin_router
 
-        self.app.include_router(make_kb_proxy_router())
+                self.app.include_router(
+                    make_redmine_admin_router(
+                        jwt_secret=self.jwt_secret,
+                        session_manager=self.session_manager,
+                        office_store=self.office_store,
+                        allowed_user_ids=self.allowed_user_ids,
+                    )
+                )
+
+        if make_kb_proxy_router is not None:
+            self.app.include_router(make_kb_proxy_router())
 
         # Статика фронта монтируется ПОСЛЕ всех /api-роутеров (SPA-fallback
         # перехватывает только не-API пути). No-op, если web/dist нет (dev).

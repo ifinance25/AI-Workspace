@@ -181,6 +181,26 @@ export const api = {
   adminPatchDisplay(patch: Partial<DisplaySettingsAdmin>) {
     return req<DisplaySettingsAdmin>("PATCH", "/api/admin/display", patch);
   },
+  adminGetRedmine() {
+    return req<{
+      base_url: string;
+      redmine_project: string;
+      has_token: boolean;
+      last4: string;
+    }>("GET", "/api/admin/redmine");
+  },
+  adminPutRedmine(body: {
+    base_url: string;
+    redmine_project: string;
+    api_key: string | null;
+  }) {
+    return req<{
+      base_url: string;
+      redmine_project: string;
+      has_token: boolean;
+      last4: string;
+    }>("PUT", "/api/admin/redmine", body);
+  },
   logout() {
     return req<void>("POST", "/api/auth/logout");
   },

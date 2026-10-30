@@ -66,6 +66,7 @@ def make_office_router(
             require_actor=require_actor,
             require_project=require_project,
             session_manager=session_manager,
+            jwt_secret=jwt_secret,
         )
     )
     return router

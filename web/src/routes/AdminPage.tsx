@@ -6,15 +6,22 @@ import UserTab from "@/components/admin/UserTab";
 import ProjectsTab from "@/components/admin/ProjectsTab";
 import AccessesTab from "@/components/admin/AccessesTab";
 import DisplayTab from "@/components/admin/DisplayTab";
+import RedmineTab from "@/components/admin/RedmineTab";
 
-type TabType = "users" | "projects" | "accesses" | "display";
+type TabType = "users" | "projects" | "accesses" | "display" | "redmine";
 
 const TAB_STORAGE_KEY = "admin-last-tab";
 
 function loadInitialTab(): TabType {
   try {
     const saved = localStorage.getItem(TAB_STORAGE_KEY);
-    if (saved === "users" || saved === "projects" || saved === "accesses" || saved === "display") {
+    if (
+      saved === "users" ||
+      saved === "projects" ||
+      saved === "accesses" ||
+      saved === "display" ||
+      saved === "redmine"
+    ) {
       return saved;
     }
   } catch {
@@ -42,6 +49,7 @@ export default function AdminPage() {
     { id: "projects", label: "Проекты" },
     { id: "accesses", label: "Доступы" },
     { id: "display", label: "Интерфейс" },
+    { id: "redmine", label: "Redmine" },
   ];
 
   return (
@@ -92,6 +100,7 @@ export default function AdminPage() {
               {tab === "projects" && <ProjectsTab />}
               {tab === "accesses" && <AccessesTab />}
               {tab === "display" && <DisplayTab />}
+              {tab === "redmine" && <RedmineTab />}
             </motion.div>
           </AnimatePresence>
         </div>

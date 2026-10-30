@@ -59,13 +59,18 @@ class _UpdateIn(BaseModel):
 class _LazyClient:
     """Клиент открывается на первом вызове, чтобы отказ по правам не трогал ключ."""
 
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: str, api_key: str):
         self._base_url = base_url
+        self._api_key = api_key
         self._real = None
 
     def _client(self):
         if self._real is None:
-            self._real = redmine_mirror.open_client(self._base_url)
+            if not self._api_key:
+                raise redmine_mirror.MirrorError("no_key", "Ключ Redmine не задан")
+            from src.office.redmine_mirror._http import HttpRedmine
+
+            self._real = HttpRedmine(self._base_url, self._api_key)
         return self._real
 
     def list_issues(self, project: str) -> list[dict]:
@@ -85,13 +90,25 @@ class _LazyClient:
 
 
 def make_redmine_mirror_router(
-    *, office_store, require_actor, require_project, session_manager
+    *, office_store, require_actor, require_project, session_manager, jwt_secret: str = ""
 ) -> APIRouter:
+    cipher = redmine_mirror.cipher_for(jwt_secret) if jwt_secret else None
+    def _factory(base_url: str):
+        url, _project, key = redmine_mirror.resolve_access(office_store, cipher, base_url, "")
+        if not key:
+            raise redmine_mirror.MirrorError("no_key", "Ключ Redmine не задан")
+        from src.office.redmine_mirror._http import HttpRedmine
+
+        return HttpRedmine(url or base_url, key)
+
     async def _schedule() -> None:
         while True:
             try:
                 await asyncio.to_thread(
-                    redmine_mirror.run_due, office_store, users=session_manager
+                    redmine_mirror.run_due,
+                    office_store,
+                    users=session_manager,
+                    client_factory=_factory,
                 )
             except Exception as exc:
                 log.warning("redmine_mirror_schedule_failed", error=type(exc).__name__)
@@ -112,11 +129,13 @@ def make_redmine_mirror_router(
     def _fail(exc: redmine_mirror.MirrorError) -> HTTPException:
         return HTTPException(status_code=_STATUS.get(exc.code, 502), detail=exc.message)
 
-    def _url(project_id: int, base_url: str) -> str:
-        return base_url or redmine_mirror.connection_url(office_store, project_id)
+    def _access(project_id: int, base_url: str, redmine_project: str) -> tuple[str, str, str]:
+        saved_url = base_url or redmine_mirror.connection_url(office_store, project_id)
+        return redmine_mirror.resolve_access(office_store, cipher, saved_url, redmine_project)
 
     @router.post("/projects/{project_id}/redmine/load")
     async def load_project(body: _SyncIn, ctx: dict = Depends(require_project)) -> dict:
+        url, project, key = _access(ctx["project"]["id"], body.base_url, body.redmine_project)
         try:
             return await asyncio.to_thread(
                 redmine_mirror.load_project,
@@ -124,10 +143,10 @@ def make_redmine_mirror_router(
                 ctx["project"]["id"],
                 actor_id=ctx["actor"]["user_id"],
                 is_admin=ctx["actor"]["is_admin"],
-                client=_LazyClient(_url(ctx["project"]["id"], body.base_url)),
+                client=_LazyClient(url, key),
                 users=session_manager,
-                redmine_project=body.redmine_project,
-                base_url=body.base_url,
+                redmine_project=project,
+                base_url=url,
             )
         except redmine_mirror.MirrorError as exc:
             raise _fail(exc) from exc
@@ -136,6 +155,7 @@ def make_redmine_mirror_router(
     async def load_issue(
         issue_id: int, body: _UpdateIn, ctx: dict = Depends(require_project)
     ) -> dict:
+        url, _project, key = _access(ctx["project"]["id"], body.base_url, "")
         try:
             return await asyncio.to_thread(
                 redmine_mirror.load_issue,
@@ -144,7 +164,7 @@ def make_redmine_mirror_router(
                 issue_id,
                 actor_id=ctx["actor"]["user_id"],
                 is_admin=ctx["actor"]["is_admin"],
-                client=_LazyClient(_url(ctx["project"]["id"], body.base_url)),
+                client=_LazyClient(url, key),
                 users=session_manager,
             )
         except redmine_mirror.MirrorError as exc:
@@ -152,6 +172,7 @@ def make_redmine_mirror_router(
 
     @router.post("/projects/{project_id}/redmine/issues")
     async def create_issue(body: _CreateIn, ctx: dict = Depends(require_project)) -> dict:
+        url, project, key = _access(ctx["project"]["id"], body.base_url, body.redmine_project)
         try:
             return await asyncio.to_thread(
                 redmine_mirror.create_issue,
@@ -159,10 +180,10 @@ def make_redmine_mirror_router(
                 ctx["project"]["id"],
                 actor_id=ctx["actor"]["user_id"],
                 is_admin=ctx["actor"]["is_admin"],
-                client=_LazyClient(_url(ctx["project"]["id"], body.base_url)),
+                client=_LazyClient(url, key),
                 users=session_manager,
                 request_key=body.request_key,
-                redmine_project=body.redmine_project,
+                redmine_project=project,
                 subject=body.subject,
                 description=body.description,
                 status_id=body.status_id,
@@ -170,7 +191,7 @@ def make_redmine_mirror_router(
                 start_date=body.start_date,
                 due_date=body.due_date,
                 notes=body.notes,
-                base_url=body.base_url,
+                base_url=url,
             )
         except redmine_mirror.MirrorError as exc:
             raise _fail(exc) from exc
@@ -179,6 +200,7 @@ def make_redmine_mirror_router(
     async def update_issue(
         issue_id: int, body: _UpdateIn, ctx: dict = Depends(require_project)
     ) -> dict:
+        url, _project, key = _access(ctx["project"]["id"], body.base_url, "")
         try:
             return await asyncio.to_thread(
                 redmine_mirror.update_issue,
@@ -187,7 +209,7 @@ def make_redmine_mirror_router(
                 issue_id,
                 actor_id=ctx["actor"]["user_id"],
                 is_admin=ctx["actor"]["is_admin"],
-                client=_LazyClient(_url(ctx["project"]["id"], body.base_url)),
+                client=_LazyClient(url, key),
                 users=session_manager,
                 subject=body.subject,
                 description=body.description,

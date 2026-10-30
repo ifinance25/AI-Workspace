@@ -5,6 +5,7 @@
 и сопоставление логинов наружу не выходят.
 """
 
+from src.office.redmine_mirror._account import account_view, cipher_for, resolve_access, save_account
 from src.office.redmine_mirror._http import open_client
 from src.office.redmine_mirror._mirror import (
     SYNC_INTERVAL_MINUTES,
@@ -22,11 +23,15 @@ __all__ = [
     "SYNC_INTERVAL_MINUTES",
     "MirrorError",
     "RedmineUnavailableError",
+    "account_view",
+    "cipher_for",
     "connection_url",
     "create_issue",
     "load_issue",
     "load_project",
     "open_client",
+    "resolve_access",
     "run_due",
+    "save_account",
     "update_issue",
 ]

@@ -538,3 +538,58 @@ def test_section_and_cycle_hours_follow_the_dashboard_rules(tmp_path) -> None:
     assert by_id[35]["cycle_hours"] is None
     store.close()
     sm.close_sync()
+
+
+def test_admin_token_is_not_returned(tmp_path) -> None:
+    store = OfficeStore(tmp_path / "office.db")
+    cipher = redmine_mirror.cipher_for("x" * 32)
+    saved = redmine_mirror.save_account(
+        store, cipher,
+        base_url="https://redmine.example",
+        redmine_project="hr",
+        api_key="secret-token-1234",
+    )
+    assert saved["has_token"] is True
+    assert saved["last4"] == "1234"
+    assert "secret-token" not in str(saved)
+    kept = redmine_mirror.save_account(
+        store, cipher,
+        base_url="https://redmine.example",
+        redmine_project="hr",
+        api_key=None,
+    )
+    assert kept["last4"] == "1234"
+    url, project, key = redmine_mirror.resolve_access(store, cipher, "", "")
+    assert url == "https://redmine.example"
+    assert project == "hr"
+    assert key == "secret-token-1234"
+    store.close()
+
+
+async def test_http_admin_redmine_hides_token(server) -> None:
+    srv, sm = server
+    sm.create_local_user(
+        username="boss", password_hash=hash_password(_PASSWORD), is_admin=True
+    )
+    sm.create_local_user(
+        username="plain", password_hash=hash_password(_PASSWORD), is_admin=False
+    )
+    async with _client(srv, "plain") as plain:
+        denied = await plain.get("/api/admin/redmine")
+        assert denied.status_code == 403
+    async with _client(srv, "boss") as boss:
+        saved = await boss.put(
+            "/api/admin/redmine",
+            json={
+                "base_url": "https://redmine.example",
+                "redmine_project": "hr",
+                "api_key": "secret-token-9876",
+            },
+        )
+        assert saved.status_code == 200
+        body = saved.json()
+        assert body["last4"] == "9876"
+        assert "secret-token" not in saved.text
+        again = await boss.get("/api/admin/redmine")
+        assert again.json()["has_token"] is True
+        assert "secret-token" not in again.text
