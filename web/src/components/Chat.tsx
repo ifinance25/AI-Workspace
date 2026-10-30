@@ -666,7 +666,7 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
     };
   }, [notes, session.session_uuid]);
 
-  const sendMessage = (text: string, attachments: Attachment[] = []) => {
+  const sendMessage = (text: string, attachments: Attachment[] = [], kbSearch = false) => {
     stickToBottomRef.current = true;
     // Авто-заголовок чата из первого сообщения, чтобы в истории сайдбара
     // было понятно, о чём шёл разговор. Делаем только когда заголовка
@@ -713,6 +713,9 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
         mime_type: a.mime_type,
         kind: a.kind,
       })),
+      // Поле только при включённом поиске по Базе знаний; без него сервер базы
+      // знаний к запуску не подключается.
+      ...(kbSearch ? { kb_search: true } : {}),
     });
   };
 
@@ -762,6 +765,7 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
       projectPath={session.project_path}
       isGenerating={isGenerating}
       onStop={stopGeneration}
+      kbSearchEnabled={user?.kb_search_enabled ?? false}
       leftSlot={
         <ContextGauge
           pct={ctxPct}
