@@ -22,6 +22,10 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    # Тесты веба: httpx.ASGITransport/AsyncClient. В рантайме не нужен: mcp 2.x
+    # и src/connections/proxy.py используют httpx2, классический httpx больше
+    # не приходит транзитивно и в requirements.lock его нет.
+    "httpx>=0.28.0",
     "ruff>=0.3.0",
     # E2E web tests (tests/integration/web/test_apikey_ui.py). Requires a
     # browser binary: `python -m playwright install chromium`. Tests skip
