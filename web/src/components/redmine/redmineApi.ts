@@ -58,6 +58,9 @@ export interface RedmineIssueResult {
 }
 
 export const redmineApi = {
+  fetchMirror(projectId: number) {
+    return officeRequest<RedmineView>("GET", `/api/office/projects/${projectId}/redmine`);
+  },
   loadProject(projectId: number, redmineProject: string) {
     return officeRequest<RedmineView>(
       "POST",

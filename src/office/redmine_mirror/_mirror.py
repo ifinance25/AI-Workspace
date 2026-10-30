@@ -315,6 +315,24 @@ def _prune_missing(conn: Any, project_id: int, remote_ids: set[int]) -> None:
             )
 
 
+def mirror_snapshot(
+    store: Any,
+    project_id: int,
+    *,
+    actor_id: int,
+    is_admin: bool,
+) -> dict:
+    """Локальная копия из БД без обращения к Redmine (мгновенный ответ UI)."""
+    _ensure(store)
+    _guard(store, project_id, actor_id=actor_id, is_admin=is_admin)
+    row = _row(store, project_id)
+    if not row or not int(row.get("connected") or 0):
+        msg = str((row or {}).get("stale_message") or NOT_CONNECTED)
+        return _view(store, project_id, updated=False, message=msg)
+    stale = str(row.get("stale_message") or "")
+    return _view(store, project_id, updated=False, message=stale)
+
+
 def load_project(
     store: Any,
     project_id: int,

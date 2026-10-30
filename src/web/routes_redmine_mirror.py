@@ -137,6 +137,19 @@ def make_redmine_mirror_router(
     def _access(redmine_project: str) -> tuple[str, str, str]:
         return redmine_mirror.resolve_access(office_store, cipher, "", redmine_project)
 
+    @router.get("/projects/{project_id}/redmine")
+    async def get_mirror(ctx: dict = Depends(require_project)) -> dict:
+        try:
+            return await asyncio.to_thread(
+                redmine_mirror.mirror_snapshot,
+                office_store,
+                ctx["project"]["id"],
+                actor_id=ctx["actor"]["user_id"],
+                is_admin=ctx["actor"]["is_admin"],
+            )
+        except redmine_mirror.MirrorError as exc:
+            raise _fail(exc) from exc
+
     @router.post("/projects/{project_id}/redmine/load")
     async def load_project(body: _SyncIn, ctx: dict = Depends(require_project)) -> dict:
         url, project, key = _access(body.redmine_project)

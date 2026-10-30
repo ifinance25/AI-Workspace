@@ -1,6 +1,6 @@
 // Четыре экрана зеркала и карточка задачи. Стили те же, что у офиса.
 // Ключ API на страницу не выводится. Вики, настройки Redmine и учёт часов не входят.
-import LoadingCenter from "@/components/uikit/LoadingCenter";
+import LoadingCenter, { UIKitTopProgress } from "@/components/uikit/LoadingCenter";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ApiError } from "@/api/client";
@@ -199,6 +199,7 @@ export default function RedmineScreens({
 }) {
   const [view, setView] = useState<RedmineView | null>(null);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [forbidden, setForbidden] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [screen, setScreen] = useState<ViewId>("board");
@@ -220,21 +221,50 @@ export default function RedmineScreens({
   useEffect(() => {
     let alive = true;
     setLoading(true);
+    setSyncing(true);
     setForbidden(null);
     setError(null);
     setView(null);
     setOpen(null);
+
+    const showCached = (cached: RedmineView) => {
+      const hasBody =
+        cached.connected &&
+        ((cached.issues?.length ?? 0) > 0 || Boolean(cached.synced_at));
+      if (hasBody) {
+        setView(cached);
+        setLoading(false);
+      }
+    };
+
+    redmineApi.fetchMirror(projectId).then(
+      (cached) => {
+        if (!alive) return;
+        showCached(cached);
+      },
+      (err: unknown) => {
+        if (!alive) return;
+        if (err instanceof ApiError && err.status === 403) {
+          setForbidden(errorText(err));
+          setLoading(false);
+          setSyncing(false);
+        }
+      },
+    );
+
     redmineApi.loadProject(projectId, "").then(
       (loaded) => {
         if (!alive) return;
         setView(loaded);
         setLoading(false);
+        setSyncing(false);
       },
       (err: unknown) => {
         if (!alive) return;
         if (err instanceof ApiError && err.status === 403) setForbidden(errorText(err));
         else setError(errorText(err));
         setLoading(false);
+        setSyncing(false);
       },
     );
     return () => {
@@ -382,6 +412,9 @@ export default function RedmineScreens({
 
   return (
     <>
+      {syncing && !loading ? (
+        <UIKitTopProgress label="Обновление задач…" />
+      ) : null}
       <Header projectId={projectId} />
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold sm:text-2xl">Задачи</h1>

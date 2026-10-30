@@ -251,6 +251,33 @@ def test_load_copies_description_histories_comments_and_matches_login(tmp_path) 
     sm.close_sync()
 
 
+def test_mirror_snapshot_reads_db_without_redmine(tmp_path) -> None:
+    sm, store, pid, ivan = _office(tmp_path)
+    client = _Redmine()
+    redmine_mirror.load_project(
+        store,
+        pid,
+        actor_id=ivan,
+        is_admin=False,
+        client=client,
+        users=sm,
+        redmine_project="fact",
+    )
+    client.calls = 0
+
+    class _Broken:
+        def list_issues(self, *args, **kwargs):
+            raise AssertionError("snapshot не ходит в Redmine")
+
+    snap = redmine_mirror.mirror_snapshot(
+        store, pid, actor_id=ivan, is_admin=False
+    )
+    assert snap["issues"][0]["id"] == 15
+    assert client.calls == 0
+    store.close()
+    sm.close_sync()
+
+
 def test_second_load_is_incremental_and_merges(tmp_path) -> None:
     sm, store, pid, ivan = _office(tmp_path)
     client = _Redmine()

@@ -5,6 +5,7 @@ import { ApiError } from "@/api/client";
 import type { RedmineIssue, RedmineView } from "@/components/redmine/redmineApi";
 
 const mockRedmine = vi.hoisted(() => ({
+  fetchMirror: vi.fn(),
   loadProject: vi.fn(),
   createIssue: vi.fn(),
   updateIssue: vi.fn(),
@@ -81,6 +82,15 @@ function view(over: Partial<RedmineView> = {}): RedmineView {
 describe("Экраны зеркала Redmine", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRedmine.fetchMirror.mockResolvedValue({
+      connected: false,
+      updated: false,
+      message: "",
+      issues: [],
+      interval_minutes: 15,
+      synced_at: null,
+      next_sync_at: null,
+    });
     mockApi.listProjects.mockResolvedValue([]);
     mockApi.listSessions.mockResolvedValue([]);
     window.matchMedia = ((query: string) => ({

@@ -25,6 +25,7 @@ from src.office.redmine_mirror._mirror import (
     create_issue,
     load_issue,
     load_project,
+    mirror_snapshot,
     run_due,
     update_issue,
 )
@@ -41,6 +42,7 @@ __all__ = [
     "create_issue",
     "load_issue",
     "load_project",
+    "mirror_snapshot",
     "open_client",
     "resolve_access",
     "run_due",
