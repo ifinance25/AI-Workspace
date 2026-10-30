@@ -105,8 +105,12 @@ class WebServer:
         projects_dir: str | Path | None = None,
         kb_search_enabled: bool = False,
         display_settings: DisplaySettings | None = None,
+        connections_secret_key: str = "",
     ) -> None:
         self.settings = settings
+        # Ключ шифрования секретов (подключения, SSH, токен Redmine). Пусто:
+        # хранение токена Redmine выключено (У43-07). В ответы не попадает.
+        self.connections_secret_key = connections_secret_key or ""
         # Общий объект с Telegram-ботом: in-memory тумблеры display.*.
         self.display_settings = display_settings or DisplaySettings()
         # Только булев флаг «общая база знаний подключена» для /api/me: адрес и
@@ -450,6 +454,7 @@ class WebServer:
                         session_manager=self.session_manager,
                         office_store=self.office_store,
                         allowed_user_ids=self.allowed_user_ids,
+                        connections_secret_key=self.connections_secret_key,
                     )
                 )
                 from src.web.routes_redmine_admin import make_redmine_admin_router
@@ -460,6 +465,7 @@ class WebServer:
                         session_manager=self.session_manager,
                         office_store=self.office_store,
                         allowed_user_ids=self.allowed_user_ids,
+                        connections_secret_key=self.connections_secret_key,
                     )
                 )
 

@@ -13,7 +13,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from src.office import tenancy
+from src.office import redmine_mirror, tenancy
 from src.web.dependencies import get_current_user_factory
 from src.web.routes_office_brief import make_office_brief_router
 from src.web.routes_office_project import make_office_project_router
@@ -22,7 +22,12 @@ from src.web.routes_redmine_mirror import make_redmine_mirror_router
 
 
 def make_office_router(
-    *, jwt_secret: str, session_manager, office_store, allowed_user_ids=None,
+    *,
+    jwt_secret: str,
+    session_manager,
+    office_store,
+    allowed_user_ids=None,
+    connections_secret_key: str = "",
 ) -> APIRouter:
     router = APIRouter(prefix="/api/office", tags=["office"])
     get_current_user = get_current_user_factory(jwt_secret, session_manager, allowed_user_ids)
@@ -66,7 +71,7 @@ def make_office_router(
             require_actor=require_actor,
             require_project=require_project,
             session_manager=session_manager,
-            jwt_secret=jwt_secret,
+            cipher=redmine_mirror.cipher_from_key(connections_secret_key),
         )
     )
     return router

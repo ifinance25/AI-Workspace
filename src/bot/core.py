@@ -189,6 +189,7 @@ class TelegramClaudeBot:
             # Пилот включён, если резолвер собирает общий сервер (URL и ключ непусты).
             kb_search_enabled=bool(build_shared_mcp_servers(settings)),
             display_settings=settings.display,
+            connections_secret_key=settings.get_connections_secret_key(),
         )
 
         # Setup middleware

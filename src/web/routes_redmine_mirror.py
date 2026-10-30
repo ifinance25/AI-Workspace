@@ -1,6 +1,7 @@
 """Зеркало Redmine: четыре вызова под ``/api/office``.
 
-Ключ берётся из ``REDMINE_API_KEY`` в момент обращения и в ответ не кладётся.
+Ключ берётся из сохранённой учётки (шифр ``CONNECTIONS_SECRET_KEY``) или из
+``REDMINE_API_KEY`` в момент обращения и в ответ не кладётся.
 Расписание 15 минут догружает уже подключённые проекты.
 """
 
@@ -23,6 +24,7 @@ _STATUS = {
     "unavailable": 503,
     "no_number": 502,
     "no_key": 503,
+    "bad_url": 503,
     "pending": 409,
 }
 
@@ -90,9 +92,8 @@ class _LazyClient:
 
 
 def make_redmine_mirror_router(
-    *, office_store, require_actor, require_project, session_manager, jwt_secret: str = ""
+    *, office_store, require_actor, require_project, session_manager, cipher=None
 ) -> APIRouter:
-    cipher = redmine_mirror.cipher_for(jwt_secret) if jwt_secret else None
     def _factory(base_url: str):
         del base_url
         url, _project, key = redmine_mirror.resolve_access(office_store, cipher, "", "")

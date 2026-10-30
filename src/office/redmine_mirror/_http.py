@@ -1,4 +1,9 @@
-"""HTTP к Redmine. Ключ читается из ``REDMINE_API_KEY`` и в ответы не попадает."""
+"""HTTP к Redmine. Ключ читается из ``REDMINE_API_KEY`` и в ответы не попадает.
+
+Редиректы не выполняются: стандартный обработчик ``urllib`` переносит заголовок
+``X-Redmine-API-Key`` на новый адрес, в том числе чужой хост (У43-05). Адрес
+только https, http допустим лишь на петлевой адрес.
+"""
 
 from __future__ import annotations
 
@@ -8,9 +13,20 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from src.office.redmine_mirror._account import url_allowed
 from src.office.redmine_mirror._mirror import MirrorError, RedmineUnavailableError
 
 _KEY = "REDMINE_API_KEY"
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Любой 3xx это ошибка, а не переход: ключ на другой адрес не отправляется."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D401
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
 
 
 class HttpRedmine:
@@ -18,6 +34,10 @@ class HttpRedmine:
         parsed = urllib.parse.urlparse(base_url)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise MirrorError("unavailable", "Адрес Redmine не задан")
+        if not url_allowed(base_url):
+            raise MirrorError(
+                "bad_url", "Адрес Redmine должен начинаться с https:// (http только для 127.0.0.1)"
+            )
         self._base = base_url.rstrip("/")
         self._key = api_key
 
@@ -35,8 +55,14 @@ class HttpRedmine:
             headers["Content-Type"] = "application/json"
         request = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
-            with urllib.request.urlopen(request, timeout=20) as response:
+            with _OPENER.open(request, timeout=20) as response:
                 raw = response.read()
+        except urllib.error.HTTPError as exc:
+            if 300 <= exc.code < 400:
+                raise RedmineUnavailableError(
+                    "Redmine перенаправляет запрос на другой адрес: ключ туда не отправлен"
+                ) from exc
+            raise RedmineUnavailableError("Redmine не ответил") from exc
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise RedmineUnavailableError("Redmine не ответил") from exc
         if not raw:

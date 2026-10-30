@@ -128,6 +128,7 @@ async def _serve(host: str | None, port: int | None) -> int:
         # Пилот включён, если резолвер собирает общий сервер (как в src/bot/core.py).
         kb_search_enabled=bool(build_shared_mcp_servers(settings)),
         display_settings=settings.display,
+        connections_secret_key=settings.get_connections_secret_key(),
     )
 
     await persister.start()
