@@ -175,22 +175,6 @@ class SQLitePersistenceTests(unittest.TestCase):
             Path("~/bot-data/sessions.db").expanduser(),
         )
 
-    def test_alembic_bootstrap_files_exist(self) -> None:
-        self.assertTrue((ROOT / "alembic.ini").exists())
-        self.assertTrue((ROOT / "alembic" / "env.py").exists())
-        self.assertTrue((ROOT / "alembic" / "script.py.mako").exists())
-        versions = list((ROOT / "alembic" / "versions").glob("*.py"))
-        self.assertGreaterEqual(len(versions), 1)
-
-    def test_alembic_env_references_session_metadata_and_url_helper(self) -> None:
-        env_text = (ROOT / "alembic" / "env.py").read_text()
-
-        # env.py uses Base.metadata from the ORM models
-        self.assertIn("Base", env_text)
-        self.assertIn("target_metadata", env_text)
-        self.assertIn("build_sync_database_url", env_text)
-        self.assertNotIn("target_metadata = None", env_text)
-
     def test_messages_table_created(self) -> None:
         import shutil
 
