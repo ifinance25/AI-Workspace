@@ -1,5 +1,13 @@
+import LoadingCenter from "@/components/uikit/LoadingCenter";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import {
+  CheckIcon,
+  ChevronRightIcon,
+  CloseIcon,
+  EditIcon,
+  TrashIcon,
+} from "@/components/icons";
 import { officeApi, type OfficeProject } from "@/components/office/officeApi";
 import NewProjectButton from "@/components/office/passport/NewProjectButton";
 
@@ -8,6 +16,9 @@ const PAGE = 20;
 
 const btnSecondary =
   "rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-canvas)] px-2.5 py-1 text-sm text-[var(--fg-primary)] hover:bg-[var(--bg-hover)]";
+
+const iconAction = "icon-btn text-[var(--fg-muted)] hover:text-[var(--fg-primary)]";
+const iconDanger = "icon-btn text-[var(--fg-muted)] hover:text-red-400";
 
 // Список проектов офиса (/office): только те, что открыты пользователю.
 // Листается страницами по PAGE, кнопка «Показать ещё» догружает следующую.
@@ -110,7 +121,7 @@ export default function OfficeProjectList() {
 
       {error && <div className="alert-error mb-3">{error}</div>}
       {projects === null && !error && (
-        <p className="text-sm text-[var(--fg-muted)]">Загрузка…</p>
+        <LoadingCenter label="Загрузка проектов…" className="min-h-[40vh]" />
       )}
       {projects !== null && projects.length === 0 && (
         <p className="text-sm text-[var(--fg-muted)]">Проектов нет</p>
@@ -130,14 +141,22 @@ export default function OfficeProjectList() {
                   />
                   <button
                     type="button"
-                    className={btnSecondary}
+                    className={iconAction}
+                    title="Сохранить"
+                    aria-label="Сохранить"
                     disabled={busyId === p.id}
                     onClick={() => void saveEdit(p.id)}
                   >
-                    Сохранить
+                    <CheckIcon size={15} />
                   </button>
-                  <button type="button" className={btnSecondary} onClick={cancelEdit}>
-                    Отмена
+                  <button
+                    type="button"
+                    className={iconAction}
+                    title="Отмена"
+                    aria-label="Отмена"
+                    onClick={cancelEdit}
+                  >
+                    <CloseIcon size={15} />
                   </button>
                 </>
               ) : (
@@ -148,12 +167,23 @@ export default function OfficeProjectList() {
                   >
                     {p.name}
                   </Link>
-                  <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                    <Link to={`/office/${p.id}`} className={btnSecondary}>
-                      Открыть
+                  <div className="flex shrink-0 flex-wrap items-center gap-1">
+                    <Link
+                      to={`/office/${p.id}`}
+                      className={iconAction}
+                      title="Открыть"
+                      aria-label="Открыть"
+                    >
+                      <ChevronRightIcon size={15} />
                     </Link>
-                    <button type="button" className={btnSecondary} onClick={() => startEdit(p)}>
-                      Переименовать
+                    <button
+                      type="button"
+                      className={iconAction}
+                      title="Переименовать"
+                      aria-label="Переименовать"
+                      onClick={() => startEdit(p)}
+                    >
+                      <EditIcon size={15} />
                     </button>
                     {confirmDeleteId === p.id ? (
                       <>
@@ -177,13 +207,15 @@ export default function OfficeProjectList() {
                     ) : (
                       <button
                         type="button"
-                        className={btnSecondary}
+                        className={iconDanger}
+                        title="Удалить"
+                        aria-label="Удалить"
                         onClick={() => {
                           setEditId(null);
                           setConfirmDeleteId(p.id);
                         }}
                       >
-                        Удалить
+                        <TrashIcon size={15} />
                       </button>
                     )}
                   </div>

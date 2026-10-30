@@ -1,10 +1,18 @@
+import LoadingCenter from "@/components/uikit/LoadingCenter";
 import { useEffect, useRef, useState } from "react";
 import SheetTable from "./SheetTable";
 
 // Защита от подвисания UI на гигантских таблицах.
 const MAX_TABLE_ROWS = 5000;
 
-function Centered({ children }: { children: React.ReactNode }) {
+function Centered({ children, loading }: { children: React.ReactNode; loading?: boolean }) {
+  if (loading) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+        <LoadingCenter label={typeof children === "string" ? children : "Загрузка…"} fill={false} />
+      </div>
+    );
+  }
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center p-6 text-center text-sm text-[var(--fg-muted)]">
       {children}
@@ -57,7 +65,7 @@ export function CsvView({ text, delimiter }: { text: string; delimiter: string }
   }, [text, delimiter]);
 
   if (err) return <Centered>Не удалось разобрать таблицу: {err}</Centered>;
-  if (!rows) return <Centered>Разбираем таблицу…</Centered>;
+  if (!rows) return <Centered loading>Разбираем таблицу…</Centered>;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <SheetTable rows={rows.slice(0, MAX_TABLE_ROWS)} />
@@ -118,7 +126,7 @@ export function XlsxView({ url }: { url: string }) {
   }, [active, names]);
 
   if (err) return <Centered>Не удалось открыть таблицу: {err}</Centered>;
-  if (loading) return <Centered>Открываем таблицу…</Centered>;
+  if (loading) return <Centered loading>Открываем таблицу…</Centered>;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {names.length > 1 && (
@@ -167,7 +175,7 @@ export function DocxView({ url }: { url: string }) {
   }, [url]);
 
   if (err) return <Centered>Не удалось открыть документ: {err}</Centered>;
-  if (html == null) return <Centered>Открываем документ…</Centered>;
+  if (html == null) return <Centered loading>Открываем документ…</Centered>;
   const doc = `<!doctype html><html><head><meta charset="utf-8"><style>
     body{font-family:system-ui,'Segoe UI',Roboto,sans-serif;color:#1a1a1a;background:#fff;padding:28px;line-height:1.65;max-width:820px;margin:0 auto}
     img{max-width:100%}h1,h2,h3{line-height:1.3}
@@ -248,7 +256,7 @@ export function DocHtmlView({
       </div>
     );
   }
-  if (html == null) return <Centered>Открываем документ…</Centered>;
+  if (html == null) return <Centered loading>Открываем документ…</Centered>;
   const doc = `<!doctype html><html><head><meta charset="utf-8"><style>
     body{font-family:system-ui,'Segoe UI',Roboto,sans-serif;color:#1a1a1a;background:#fff;padding:28px;line-height:1.65;max-width:820px;margin:0 auto}
     img{max-width:100%}h1,h2,h3{line-height:1.3}

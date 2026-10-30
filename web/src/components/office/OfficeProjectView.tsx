@@ -1,3 +1,4 @@
+import LoadingCenter from "@/components/uikit/LoadingCenter";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ApiError } from "@/api/client";
@@ -59,7 +60,9 @@ export default function OfficeProjectView({ projectId }: { projectId: number }) 
           {error}
         </div>
       )}
-      {!project && !error && <p className="text-sm text-[var(--fg-muted)]">Загрузка…</p>}
+      {!project && !error && (
+        <LoadingCenter label="Загрузка проекта…" className="min-h-[40vh]" />
+      )}
 
       {project && (
         <>

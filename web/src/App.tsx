@@ -1,4 +1,5 @@
-import { JSX } from "react";
+import { type JSX } from "react";
+import LoadingCenter from "@/components/uikit/LoadingCenter";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/auth/AuthContext";
 import { ModelInfoProvider } from "@/lib/ModelInfoContext";
@@ -14,8 +15,8 @@ function Protected({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth();
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[var(--bg-canvas)] text-base text-[var(--fg-muted)]">
-        Загрузка…
+      <div className="flex h-screen min-h-0 flex-col bg-[var(--bg-canvas)]">
+        <LoadingCenter label="Загрузка…" />
       </div>
     );
   }

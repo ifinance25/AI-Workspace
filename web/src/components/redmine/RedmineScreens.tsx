@@ -1,5 +1,6 @@
 // Четыре экрана зеркала и карточка задачи. Стили те же, что у офиса.
 // Ключ API на страницу не выводится. Вики, настройки Redmine и учёт часов не входят.
+import LoadingCenter from "@/components/uikit/LoadingCenter";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ApiError } from "@/api/client";
@@ -363,7 +364,9 @@ export default function RedmineScreens({
     }
   }
 
-  if (loading) return <p className="text-sm text-[var(--fg-muted)]">Загрузка…</p>;
+  if (loading) {
+    return <LoadingCenter label="Загрузка задач…" className="min-h-[50vh]" />;
+  }
 
   if (forbidden) {
     return (
