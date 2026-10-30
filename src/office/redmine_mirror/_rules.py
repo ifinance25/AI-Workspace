@@ -152,6 +152,40 @@ def work_hours_between(start: str | None, end: str | None) -> float | None:
     return math.floor(total * 100 + 0.5) / 100
 
 
+def add_work_hours(start: str, amount: float) -> str:
+    """Дата в Москве, когда истекут рабочие часы с момента start."""
+    if amount <= 0:
+        return _parts(start)["date"]
+    left = amount
+    cursor = _parse(start)
+    guard = 0
+    while left > 0 and guard < 5000:
+        day = cursor.astimezone(MSK).strftime("%Y-%m-%d")
+        hours = _day_hours(day)
+        end_hour = 17 if hours and hours < 8 else 18
+        blocks = (
+            (_at(day, "09:00:00"), _at(day, "13:00:00")),
+            (_at(day, "14:00:00"), _at(day, f"{end_hour:02d}:00:00")),
+        ) if hours else ()
+        moved = False
+        for begin, finish in blocks:
+            if cursor >= finish:
+                continue
+            start_at = cursor if cursor > begin else begin
+            room = (finish - start_at).total_seconds() / 3600
+            if room <= 0:
+                continue
+            if room >= left:
+                return (start_at + timedelta(hours=left)).astimezone(MSK).strftime("%Y-%m-%d")
+            left -= room
+            cursor = finish
+            moved = True
+        if not moved:
+            cursor = _at(_next_day(day), "09:00:00")
+        guard += 1
+    return cursor.astimezone(MSK).strftime("%Y-%m-%d")
+
+
 def _status_id(issue: dict) -> int:
     raw = (issue.get("status") or {}).get("id")
     try:

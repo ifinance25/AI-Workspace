@@ -3,6 +3,7 @@ import { officeRequest } from "@/components/office/officeApi";
 
 export interface RedminePerson {
   user_id: number | null;
+  redmine_id?: number | null;
   login: string;
   name: string;
 }
@@ -28,6 +29,7 @@ export interface RedmineIssue {
   cycle_hours: number | null;
   type?: string;
   environment?: string;
+  forecast_date?: string | null;
 }
 
 export interface RedmineView {

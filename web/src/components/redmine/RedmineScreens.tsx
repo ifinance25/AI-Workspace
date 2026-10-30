@@ -48,6 +48,12 @@ function errorText(err: unknown): string {
   return message;
 }
 
+function personKey(person: RedminePerson | null): string {
+  if (person?.redmine_id != null) return String(person.redmine_id);
+  if (person?.user_id != null) return String(person.user_id);
+  return "";
+}
+
 function personName(person: RedminePerson | null, empty: string): string {
   const name = person?.name?.trim();
   return name || empty;
@@ -122,7 +128,7 @@ function draftFrom(issue: RedmineIssue): Draft {
     subject: issue.subject,
     description: issue.description,
     statusId: issue.status?.id ?? "",
-    assigneeId: issue.assignee?.user_id != null ? String(issue.assignee.user_id) : "",
+    assigneeId: personKey(issue.assignee),
     start: issue.start_date ?? "",
     due: issue.due_date ?? "",
     notes: "",
@@ -762,7 +768,7 @@ function Forecasts({
               <th className="py-2 pr-3 font-medium">Задача</th>
               <th className="py-2 pr-3 font-medium">Статус</th>
               <th className="py-2 pr-3 font-medium">Срок</th>
-              <th className="py-2 font-medium">Ориентир, ч</th>
+              <th className="py-2 font-medium">Прогноз</th>
             </tr>
           </thead>
           <tbody>
@@ -778,7 +784,11 @@ function Forecasts({
                   </td>
                   <td className="py-2 pr-3">{statusName(issue)}</td>
                   <td className="py-2 pr-3">{issue.due_date || "-"}</td>
-                  <td className="py-2">{hoursText(guide)}</td>
+                  <td className="py-2">
+                    {issue.forecast_date
+                      ? `${issue.forecast_date} (${hoursText(guide)} ч)`
+                      : hoursText(guide)}
+                  </td>
                 </tr>
               );
             })}
@@ -830,7 +840,7 @@ function mergePeopleOptions(
   for (const issue of issues) {
     for (const person of [issue.author, issue.assignee]) {
       if (!person?.name) continue;
-      const value = person.user_id != null ? String(person.user_id) : `name:${person.name}`;
+      const value = personKey(person) || `name:${person.name}`;
       map.set(value, person.name);
     }
   }

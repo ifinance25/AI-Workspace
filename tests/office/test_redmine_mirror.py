@@ -242,9 +242,14 @@ def test_load_copies_description_histories_comments_and_matches_login(tmp_path) 
         {"at": "2026-10-02T10:00:00Z", "old": "3", "new": "4"}
     ]
     assert [c["text"] for c in issue["comments"]] == ["Передал в работу"]
-    assert issue["author"] == {"user_id": ivan, "login": "ivan", "name": "Иван Петров"}
+    assert issue["author"] == {
+        "user_id": ivan, "redmine_id": 3, "login": "ivan", "name": "Иван Петров",
+    }
     assert issue["assignee"]["user_id"] is None
+    assert issue["assignee"]["redmine_id"] == 4
     assert issue["assignee"]["name"] == "Анна"
+    assert issue["type"] == ""
+    assert issue["environment"] == ""
     assert {row["username"] for row in sm.list_users()} == before
     assert "password_hash" not in str(loaded)
     store.close()
@@ -822,3 +827,55 @@ async def test_http_admin_redmine_hides_token(server) -> None:
         again = await boss.get("/api/admin/redmine")
         assert again.json()["has_token"] is True
         assert "secret-token" not in again.text
+
+
+def test_type_environment_and_forecast_date(tmp_path) -> None:
+    sm, store, pid, ivan = _office(tmp_path)
+    client = _Redmine()
+    client.issues[0]["custom_fields"] = [
+        {"name": "Тип", "value": "Доработка"},
+        {"name": "Окружение", "value": "Прод"},
+    ]
+    client.issues.append({
+        "id": 16,
+        "subject": "Закрыто",
+        "description": "",
+        "status": {"id": 5, "name": "Закрыта"},
+        "author": {"id": 3, "name": "Иван Петров"},
+        "assigned_to": {"id": 4, "name": "Анна"},
+        "journals": [
+            {
+                "id": 1,
+                "created_on": "2026-10-01T09:00:00+03:00",
+                "notes": "",
+                "user": {"id": 3},
+                "details": [{
+                    "property": "attr", "name": "status_id",
+                    "old_value": "1", "new_value": "2",
+                }],
+            },
+            {
+                "id": 2,
+                "created_on": "2026-10-01T11:00:00+03:00",
+                "notes": "",
+                "user": {"id": 3},
+                "details": [{
+                    "property": "attr", "name": "status_id",
+                    "old_value": "2", "new_value": "5",
+                }],
+            },
+        ],
+    })
+    loaded = redmine_mirror.load_project(
+        store, pid, actor_id=ivan, is_admin=False, client=client, users=sm,
+        redmine_project="fact",
+    )
+    open_issue = next(item for item in loaded["issues"] if item["id"] == 15)
+    closed = next(item for item in loaded["issues"] if item["id"] == 16)
+    assert open_issue["type"] == "Доработка"
+    assert open_issue["environment"] == "Прод"
+    assert isinstance(open_issue["forecast_date"], str)
+    assert closed["forecast_date"] is None
+    assert closed["cycle_hours"] == 2
+    store.close()
+    sm.close_sync()

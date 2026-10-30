@@ -278,7 +278,11 @@ describe("Экраны зеркала Redmine", () => {
 
   it("правка карточки показывает описание, которое вернул сервер", async () => {
     const saved = issue({ description: "как в Redmine" });
-    mockRedmine.loadProject.mockResolvedValue(view({ issues: [issue()] }));
+    mockRedmine.loadProject.mockResolvedValue(view({
+      issues: [issue({
+        assignee: { user_id: 4, redmine_id: 9, login: "anna", name: "Анна" },
+      })],
+    }));
     mockRedmine.updateIssue.mockResolvedValue({ updated: true, issue: saved });
     renderAt("/office/7/redmine");
     fireEvent.click(await screen.findByRole("button", { name: /Статья/ }));
@@ -291,7 +295,10 @@ describe("Экраны зеркала Redmine", () => {
     expect(mockRedmine.updateIssue).toHaveBeenCalledWith(
       7,
       15,
-      expect.objectContaining({ description: "ещё не подтверждено" }),
+      expect.objectContaining({
+        description: "ещё не подтверждено",
+        assigned_to_id: 9,
+      }),
     );
   });
 

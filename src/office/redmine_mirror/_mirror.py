@@ -6,12 +6,19 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from src.office import tenancy
 from src.office.redmine_mirror._lookups import filters_for_api
-from src.office.redmine_mirror._rules import cycle_hours, ftt_section
+from src.office.redmine_mirror._rules import (
+    MSK,
+    add_work_hours,
+    cycle_hours,
+    ftt_section,
+    work_hours_between,
+)
 
 SYNC_INTERVAL_MINUTES = 15
 SYNC_OVERLAP_SECONDS = 30
@@ -103,13 +110,19 @@ def _person(client: Any, raw: dict | None, users: Any, cache: dict) -> dict | No
     name = str(raw.get("name") or "")
     login = str(raw.get("login") or "")
     remote_id = raw.get("id")
-    if not login and remote_id is not None and hasattr(client, "get_user"):
-        if remote_id not in cache:
+    redmine_id = None
+    if remote_id is not None:
+        try:
+            redmine_id = int(remote_id)
+        except (TypeError, ValueError):
+            redmine_id = None
+    if not login and redmine_id is not None and hasattr(client, "get_user"):
+        if redmine_id not in cache:
             try:
-                cache[remote_id] = client.get_user(int(remote_id)) or {}
+                cache[redmine_id] = client.get_user(redmine_id) or {}
             except (MirrorError, *_DOWN, KeyError, TypeError, ValueError):
-                cache[remote_id] = {}
-        found = cache[remote_id]
+                cache[redmine_id] = {}
+        found = cache[redmine_id]
         login = str(found.get("login") or "")
         if not name:
             name = str(found.get("name") or "")
@@ -117,7 +130,12 @@ def _person(client: Any, raw: dict | None, users: Any, cache: dict) -> dict | No
     platform_id = None
     if linked is not None and linked.get("is_active", 1):
         platform_id = int(linked["user_id"])
-    return {"user_id": platform_id, "login": login, "name": name}
+    return {
+        "user_id": platform_id,
+        "redmine_id": redmine_id,
+        "login": login,
+        "name": name,
+    }
 
 
 def _history(journals: list, field: str) -> list[dict]:
@@ -159,6 +177,17 @@ def _number(raw_id: Any) -> int:
         raise MirrorError("no_number", "Redmine не вернул номер задачи") from exc
 
 
+def _custom(raw: dict, name: str) -> str:
+    for field in raw.get("custom_fields") or []:
+        if field.get("name") != name:
+            continue
+        value = field.get("value")
+        if value is None:
+            return ""
+        return value if isinstance(value, str) else str(value)
+    return ""
+
+
 def _issue_from_redmine(client: Any, raw: dict, users: Any, cache: dict) -> dict:
     if not isinstance(raw, dict) or raw.get("id") is None:
         raise MirrorError("no_number", "Redmine не вернул номер задачи")
@@ -179,6 +208,9 @@ def _issue_from_redmine(client: Any, raw: dict, users: Any, cache: dict) -> dict
         "assignee_history": _history(journals, "assigned_to_id"),
         "ftt_section": ftt_section(raw.get("subject") or "", raw.get("description") or ""),
         "cycle_hours": cycle_hours(raw),
+        "type": _custom(raw, "Тип"),
+        "environment": _custom(raw, "Окружение"),
+        "forecast_date": None,
     }
 
 
@@ -231,13 +263,65 @@ def _schedule(last_ok_at: str | None) -> dict:
     return base
 
 
+def _percentile(values: list[float], q: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    pos = (len(ordered) - 1) * q
+    lo = int(pos)
+    hi = math.ceil(pos)
+    if lo == hi:
+        return ordered[lo]
+    return ordered[lo] + (ordered[hi] - ordered[lo]) * (pos - lo)
+
+
+def _open_start(issue: dict) -> str | None:
+    for row in issue.get("status_history") or []:
+        if row.get("new") == "2" and row.get("at"):
+            return str(row["at"])
+    if issue.get("start_date"):
+        return f"{issue['start_date']}T09:00:00+03:00"
+    return None
+
+
+def _with_forecasts(issues: list[dict]) -> list[dict]:
+    """Дата прогноза открытой задачи: оставшиеся часы P85 раздела по календарю."""
+    done = [item["cycle_hours"] for item in issues if item.get("cycle_hours") is not None]
+    by_section: dict[str, list[float]] = {}
+    for item in issues:
+        hours = item.get("cycle_hours")
+        if hours is None:
+            continue
+        by_section.setdefault(item.get("ftt_section") or "", []).append(hours)
+    now = datetime.now(timezone.utc).astimezone(MSK).isoformat()
+    stamped = []
+    for item in issues:
+        copy = dict(item)
+        if copy.get("cycle_hours") is not None:
+            copy["forecast_date"] = None
+            stamped.append(copy)
+            continue
+        pool = by_section.get(copy.get("ftt_section") or "") or done
+        guide = _percentile(pool, 0.85)
+        if guide is None:
+            copy["forecast_date"] = None
+            stamped.append(copy)
+            continue
+        start = _open_start(copy)
+        age = work_hours_between(start, now) if start else 0
+        left = max(0.0, guide - (age or 0))
+        copy["forecast_date"] = add_work_hours(now, left)
+        stamped.append(copy)
+    return stamped
+
+
 def _view(store: Any, project_id: int, *, updated: bool, message: str) -> dict:
     row = _row(store, project_id)
     body: dict[str, Any] = {
         "connected": bool(row and row["connected"]),
         "updated": updated,
         "message": message,
-        "issues": _issues(store, project_id),
+        "issues": _with_forecasts(_issues(store, project_id)),
         **_schedule(row["last_ok_at"] if row else None),
     }
     lookups = filters_for_api(store)
