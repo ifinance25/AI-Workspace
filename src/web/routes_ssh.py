@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, status
 from pydantic import BaseModel, Field
 
 from src.ssh.keys import InvalidSshKeyError, fingerprint_private_key
-from src.ssh.session import bridge_ssh_websocket
+from src.ssh.session import bridge_ssh_websocket, host_key_fingerprint
 from src.ssh.store import SshProfile, SshStore
 from src.web.auth import decode_jwt
 from src.web.dependencies import get_current_user_factory, is_account_active
@@ -28,6 +28,9 @@ class SshPutIn(BaseModel):
     username: str = Field(..., min_length=1, max_length=64)
     private_key: str | None = Field(default=None, max_length=32_768)
     passphrase: str | None = Field(default=None, max_length=256)
+    # У43-06: забыть запомненный ключ сервера (сервер переустановлен). Смена
+    # адреса или порта забывает его сама.
+    forget_host_key: bool = False
 
 
 def _public_profile(store_enabled: bool, profile: SshProfile | None) -> dict:
@@ -40,6 +43,8 @@ def _public_profile(store_enabled: bool, profile: SshProfile | None) -> dict:
             "username": "",
             "has_key": False,
             "fingerprint": None,
+            "host_key_known": False,
+            "host_key_fingerprint": None,
         }
     return {
         "enabled": store_enabled,
@@ -49,6 +54,8 @@ def _public_profile(store_enabled: bool, profile: SshProfile | None) -> dict:
         "username": profile.username,
         "has_key": bool(profile.private_key),
         "fingerprint": profile.fingerprint or None,
+        "host_key_known": bool(profile.host_key),
+        "host_key_fingerprint": host_key_fingerprint(profile.host_key),
     }
 
 
@@ -122,6 +129,10 @@ def make_ssh_router(
             fingerprint = fingerprint_private_key(key_text, key_pass)
         except InvalidSshKeyError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+        same_server = (
+            existing is not None and existing.host == host and existing.port == payload.port
+        )
+        host_key = existing.host_key if (same_server and not payload.forget_host_key) else None
         profile = SshProfile(
             host=host,
             port=payload.port,
@@ -129,6 +140,7 @@ def make_ssh_router(
             private_key=key_text,
             passphrase=key_pass,
             fingerprint=fingerprint,
+            host_key=host_key,
         )
         await asyncio.to_thread(ssh_store.save, uid, profile)
         return _public_profile(True, profile)
@@ -181,8 +193,11 @@ def make_ssh_router(
 
         await websocket.accept()
         ws_conn_counts[user_id] = ws_conn_counts.get(user_id, 0) + 1
+        def _remember(host_key: str) -> None:
+            ssh_store.remember_host_key(user_id, host_key)
+
         try:
-            await bridge_ssh_websocket(websocket, profile)
+            await bridge_ssh_websocket(websocket, profile, remember_host_key=_remember)
         finally:
             remaining = ws_conn_counts.get(user_id, 1) - 1
             if remaining > 0:

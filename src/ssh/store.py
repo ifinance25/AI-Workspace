@@ -1,6 +1,12 @@
-"""SQLite store for per-user SSH profiles (encrypted private key)."""
+"""SQLite store for per-user SSH profiles (encrypted private key).
+
+В том же шифрованном блобе лежит ключ сервера (``host_key``), запомненный при
+первом подключении: дальше терминал подключается только к серверу с этим ключом
+(У43-06).
+"""
 from __future__ import annotations
 
+import dataclasses
 import json
 import sqlite3
 import threading
@@ -36,6 +42,9 @@ class SshProfile:
     private_key: str
     passphrase: str | None
     fingerprint: str
+    # Публичный ключ сервера одной строкой OpenSSH (``ssh-ed25519 AAAA...``) или None,
+    # пока сервер не был подключён ни разу.
+    host_key: str | None = None
 
 
 class SshStore:
@@ -87,6 +96,7 @@ class SshStore:
             private_key=str(data.get("private_key") or ""),
             passphrase=passphrase,
             fingerprint=str(row["fingerprint"] or data.get("fingerprint") or ""),
+            host_key=str(data.get("host_key") or "") or None,
         )
 
     def save(self, user_id: int, profile: SshProfile) -> None:
@@ -97,6 +107,7 @@ class SshStore:
                 "username": profile.username,
                 "private_key": profile.private_key,
                 "passphrase": profile.passphrase or "",
+                "host_key": profile.host_key or "",
             },
             ensure_ascii=False,
         )
@@ -122,6 +133,14 @@ class SshStore:
             username=profile.username,
             fingerprint=profile.fingerprint,
         )
+
+    def remember_host_key(self, user_id: int, host_key: str) -> bool:
+        """Записывает ключ сервера в профиль (первое подключение). False: профиля нет."""
+        profile = self.get(user_id)
+        if profile is None or not host_key.strip():
+            return False
+        self.save(user_id, dataclasses.replace(profile, host_key=host_key.strip()))
+        return True
 
     def delete(self, user_id: int) -> bool:
         with self._lock:

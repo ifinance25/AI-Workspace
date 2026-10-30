@@ -1,4 +1,9 @@
-"""Open an interactive SSH shell and bridge it to a WebSocket."""
+"""Open an interactive SSH shell and bridge it to a WebSocket.
+
+Ключ сервера проверяется (У43-06): при первом подключении он запоминается в
+профиле (доверие при первом знакомстве), дальше подключение идёт только к
+серверу с тем же ключом. Подменённый сервер получает отказ до входа.
+"""
 from __future__ import annotations
 
 import asyncio
@@ -24,8 +29,42 @@ class SshConnectError(RuntimeError):
     """Public, safe-to-show SSH connection failure."""
 
 
+HOST_KEY_CHANGED_MESSAGE = (
+    "Ключ сервера не совпадает с сохранённым: возможна подмена сервера. Если сервер "
+    "переустановлен, сохраните профиль SSH заново с отметкой «забыть ключ сервера»"
+)
+
+
+def known_hosts_for(profile: SshProfile):
+    """Что передать asyncssh: None при первом подключении, иначе только сохранённый ключ."""
+    if not profile.host_key:
+        return None
+    import asyncssh
+
+    key = asyncssh.import_public_key(profile.host_key)
+    return ([key], [], [])
+
+
+def host_key_fingerprint(host_key: str | None) -> str | None:
+    """Отпечаток SHA256 сохранённого ключа сервера для показа человеку."""
+    if not host_key:
+        return None
+    try:
+        import asyncssh
+
+        return asyncssh.import_public_key(host_key).get_fingerprint()
+    except Exception:  # noqa: BLE001 - битый ключ показываем как отсутствующий
+        return None
+
+
+def _is_host_key_error(exc: BaseException) -> bool:
+    return type(exc).__name__ == "HostKeyNotVerifiable" or "host key" in str(exc).lower()
+
+
 def public_ssh_error(exc: BaseException) -> str:
     """Map library errors to a short Russian message (no secrets)."""
+    if _is_host_key_error(exc):
+        return HOST_KEY_CHANGED_MESSAGE
     msg = str(exc).lower()
     if "permission denied" in msg or "authentication" in msg or "auth" in msg:
         return "Сервер отклонил ключ или имя пользователя"
@@ -43,8 +82,13 @@ async def open_ssh_shell(
     *,
     cols: int = DEFAULT_COLS,
     rows: int = DEFAULT_ROWS,
+    on_host_key: Callable[[str], Any] | None = None,
 ) -> tuple[Any, Any]:
-    """Connect and start a PTY login shell. Returns (connection, process)."""
+    """Connect and start a PTY login shell. Returns (connection, process).
+
+    ``on_host_key`` вызывается один раз при первом подключении с публичным ключом
+    сервера одной строкой OpenSSH; владелец профиля его запоминает.
+    """
     import asyncssh
 
     try:
@@ -56,13 +100,20 @@ async def open_ssh_shell(
         raise SshConnectError("Не удалось прочитать сохранённый ключ") from exc
 
     try:
+        known_hosts = known_hosts_for(profile)
+    except (asyncssh.KeyImportError, ValueError, TypeError) as exc:
+        raise SshConnectError(
+            "Сохранённый ключ сервера не читается: сохраните профиль SSH заново"
+        ) from exc
+
+    try:
         conn = await asyncio.wait_for(
             asyncssh.connect(
                 profile.host,
                 port=profile.port,
                 username=profile.username,
                 client_keys=[key],
-                known_hosts=None,
+                known_hosts=known_hosts,
                 keepalive_interval=KEEPALIVE_INTERVAL,
                 login_timeout=CONNECT_TIMEOUT_SEC,
             ),
@@ -72,6 +123,14 @@ async def open_ssh_shell(
         raise SshConnectError("Не удалось достучаться до сервера (таймаут)") from exc
     except Exception as exc:
         raise SshConnectError(public_ssh_error(exc)) from exc
+
+    if known_hosts is None and on_host_key is not None:
+        server_key = conn.get_server_host_key()
+        if server_key is not None:
+            try:
+                on_host_key(server_key.export_public_key("openssh").decode().strip())
+            except Exception as exc:  # noqa: BLE001 - запись ключа не рвёт сеанс
+                logger.warning("ssh_host_key_remember_failed", error=type(exc).__name__)
 
     try:
         process = await conn.create_process(
@@ -105,15 +164,17 @@ async def bridge_ssh_websocket(
     profile: SshProfile,
     *,
     open_shell: OpenShellFn | None = None,
+    remember_host_key: Callable[[str], Any] | None = None,
 ) -> None:
     """Accept is already done. Pump stdin/stdout until either side closes."""
     connect = open_shell or open_ssh_shell
     conn = None
     process = None
+    kwargs: dict[str, Any] = {"cols": DEFAULT_COLS, "rows": DEFAULT_ROWS}
+    if remember_host_key is not None:
+        kwargs["on_host_key"] = remember_host_key
     try:
-        conn, process = await connect(
-            profile, cols=DEFAULT_COLS, rows=DEFAULT_ROWS
-        )
+        conn, process = await connect(profile, **kwargs)
     except SshConnectError as exc:
         await websocket.send_json({"type": "error", "error": str(exc)})
         return
