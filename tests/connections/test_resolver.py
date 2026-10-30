@@ -24,12 +24,51 @@ def _store(tmp_path):
     return ConnectionsStore(tmp_path / "c.db", SecretBox(Fernet.generate_key().decode()))
 
 
-def test_build_returns_server_with_injected_secret(tmp_path):
+@pytest.mark.parametrize("service_id", ["notion", "github"])
+def test_build_returns_proxy_record_without_secret(tmp_path, service_id):
+    """Личное подключение идёт в claude как запись sdk: токен остаётся в панели."""
+    store = _store(tmp_path)
+    store.connect(user_id=1, service_id=service_id, secret="tok-x-FAKE-0123")
+    servers = build_mcp_servers(1, store)
+    assert set(servers) == {service_id}
+    entry = servers[service_id]
+    assert entry["type"] == "sdk"
+    assert entry["name"] == service_id
+    assert entry["instance"] is not None
+    assert {name: value for name, value in entry.items() if name != "instance"} == {
+        "type": "sdk",
+        "name": service_id,
+    }
+    assert "tok-x-FAKE-0123" not in repr(servers)
+
+
+@pytest.mark.parametrize("transport", ["tmux", "cli"])
+def test_personal_connections_only_on_sdk_transport(tmp_path, transport):
+    """Вне SDK запись sdk не работает, а сырую запись с токеном отдавать нельзя."""
     store = _store(tmp_path)
     store.connect(user_id=1, service_id="notion", secret="tok-x")
-    servers = build_mcp_servers(1, store)
-    assert "notion" in servers
-    assert servers["notion"]["env"]["NOTION_TOKEN"] == "tok-x"
+    settings = _kb_settings(transport=transport)
+    assert build_mcp_servers(1, store, settings) == {}
+    assert dispatch_mcp_servers(1, store, settings, include_shared=False) is None
+
+
+def test_personal_connections_on_sdk_transport(tmp_path):
+    store = _store(tmp_path)
+    store.connect(user_id=1, service_id="github", secret="tok-x")
+    servers = dispatch_mcp_servers(1, store, _kb_settings(), include_shared=False)
+    assert set(servers) == {"github"}
+    assert servers["github"]["type"] == "sdk"
+
+
+def test_personal_connections_skipped_without_proxy_support(tmp_path, monkeypatch):
+    """mcp 1.x: прокси не собрать, подключения выключены, сырые записи не уходят."""
+    monkeypatch.setattr("src.connections.resolver.proxy.supported", lambda: False)
+    store = _store(tmp_path)
+    store.connect(user_id=1, service_id="notion", secret="tok-x")
+    with structlog.testing.capture_logs() as logs:
+        assert build_mcp_servers(1, store) == {}
+    assert any(entry["event"] == "connection_proxy_unsupported" for entry in logs)
+    assert "tok-x" not in repr(logs)
 
 
 def test_empty_for_user_without_connections(tmp_path):
@@ -283,7 +322,7 @@ def test_dispatch_does_not_log_key_when_personal_build_fails(tmp_path, monkeypat
     store.connect(user_id=1, service_id="notion", secret="tok-x")
 
     def _boom(secret):
-        raise ValueError("boom")
+        raise ValueError(f"boom {secret}")
 
     fake = SimpleNamespace(build_mcp_server=_boom)
     monkeypatch.setattr("src.connections.resolver.catalog.get_service", lambda _id: fake)
@@ -292,3 +331,4 @@ def test_dispatch_does_not_log_key_when_personal_build_fails(tmp_path, monkeypat
     assert servers is None
     assert any(entry["event"] == "mcp_build_failed" for entry in logs)
     assert KB_KEY not in repr(logs)
+    assert "tok-x" not in repr(logs)

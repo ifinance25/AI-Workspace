@@ -10,6 +10,7 @@ os.system. Пока включена фикстура spawn_audit, каждый 
 from __future__ import annotations
 
 import sys
+from contextlib import contextmanager
 
 import pytest
 
@@ -34,7 +35,7 @@ INTENTIONAL_NAMES = frozenset(
 INTENTIONAL_PREFIXES = ("AI_WORKSPACE_",)
 _ALLOWED = ALLOWED_NAMES | CLAUDE_SETTING_NAMES | CLAUDE_AUTH_NAMES | INTENTIONAL_NAMES
 
-_state = {"active": False, "violations": []}
+_state = {"active": False, "violations": [], "extra": frozenset()}
 
 
 def _name(key: object) -> str:
@@ -44,6 +45,7 @@ def _name(key: object) -> str:
 def _allowed(name: str) -> bool:
     return (
         name in _ALLOWED
+        or name in _state["extra"]
         or name.startswith(ALLOWED_PREFIXES)
         or name.startswith(INTENTIONAL_PREFIXES)
     )
@@ -94,6 +96,21 @@ def spawn_audit():
     finally:
         _state["active"] = False
     assert not _state["violations"], "\n".join(_state["violations"])
+
+
+@contextmanager
+def allowing_names(*names: str):
+    """Разрешает имена на время блока: собственная переменная подключения (NOTION_TOKEN).
+
+    Только для теста, который сам запускает процесс подключения. Остальные запуски
+    в блоке проверяются по тому же списку плюс эти имена.
+    """
+    saved = _state["extra"]
+    _state["extra"] = saved | frozenset(names)
+    try:
+        yield
+    finally:
+        _state["extra"] = saved
 
 
 def violations_during(action) -> list[str]:

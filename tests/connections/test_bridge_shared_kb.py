@@ -164,13 +164,13 @@ def test_temp_config_skips_sdk_record(kb_server):
     assert ClaudeBridge()._write_temp_mcp_config({"fakt_kb": kb_server}) is None
 
 
-def test_temp_config_keeps_personal_servers(kb_server):
-    path = ClaudeBridge()._write_temp_mcp_config({"fakt_kb": kb_server, "notion": NOTION_SERVER})
-    try:
-        with open(path, encoding="utf-8") as fh:
-            assert json.load(fh) == {"mcpServers": {"notion": NOTION_SERVER}}
-    finally:
-        os.unlink(path)
+def test_temp_config_skips_personal_proxy_records(kb_server):
+    """Личные подключения теперь тоже записи sdk (прокси в панели): на запасной CLI-путь
+    они не идут, и файла с расшифрованным токеном нет."""
+    from src.connections.proxy import build_proxy_server
+
+    notion = build_proxy_server("notion", NOTION_SERVER)
+    assert ClaudeBridge()._write_temp_mcp_config({"fakt_kb": kb_server, "notion": notion}) is None
 
 
 def _record_cli_run(monkeypatch, bridge: ClaudeBridge) -> dict:

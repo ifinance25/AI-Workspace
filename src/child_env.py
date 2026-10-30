@@ -10,6 +10,7 @@ systemd кладёт .env в окружение процесса панели, �
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 
 # Без них не работают программы и Bash внутри Claude. Только пути и язык, без значений,
 # которые дают доступ к чему-либо.
@@ -64,6 +65,15 @@ def child_env(*, claude: bool = False, owner_auth: bool = False) -> dict[str, st
         for name, value in os.environ.items()
         if name in allowed or name.startswith(ALLOWED_PREFIXES)
     }
+
+
+def connection_env(own: Mapping[str, str]) -> dict[str, str]:
+    """Окружение процесса личного подключения (stdio MCP, например Notion).
+
+    Белый список плюс только собственные переменные сервиса из каталога (NOTION_TOKEN).
+    Секреты панели и других подключений сюда не попадают.
+    """
+    return {**child_env(), **{str(name): str(value) for name, value in own.items()}}
 
 
 def blank_the_rest(env: dict[str, str]) -> dict[str, str]:

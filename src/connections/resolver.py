@@ -1,8 +1,10 @@
 """Assemble a user's connected services into an mcp_servers dict.
 
 Called by bot/web handlers before dispatching to the Claude bridge. Secrets are
-decrypted here and live only in the returned dict (in memory). Unknown or
-undecryptable services are skipped so one bad row never breaks the chat.
+decrypted here and stay in panel memory: each service becomes an in-process MCP
+proxy (src/connections/proxy.py), so claude only gets a ``type: sdk`` record with
+the name. Unknown or undecryptable services are skipped so one bad row never
+breaks the chat.
 """
 from __future__ import annotations
 
@@ -10,7 +12,7 @@ from typing import Any
 
 import structlog
 
-from src.connections import catalog, kb_tools
+from src.connections import catalog, kb_tools, proxy
 from src.connections.store import ConnectionsStore
 
 logger = structlog.get_logger()
@@ -19,9 +21,22 @@ logger = structlog.get_logger()
 SHARED_KB_SERVER_NAME = kb_tools.SERVER_NAME
 
 
-def build_mcp_servers(user_id: int, store: ConnectionsStore) -> dict[str, dict[str, Any]]:
+def build_mcp_servers(
+    user_id: int, store: ConnectionsStore, settings: Any = None
+) -> dict[str, dict[str, Any]]:
+    """Личные подключения как прокси в процессе панели (записи типа sdk).
+
+    Только на пути SDK: tmux и CLI запись sdk не принимают, а сырую запись с токеном
+    отдавать нельзя, она попала бы в аргументы claude или во временный файл.
+    """
+    if not _uses_sdk_transport(settings):
+        return {}
+    service_ids = store.list_service_ids(user_id)
+    if service_ids and not proxy.supported():
+        logger.warning("connection_proxy_unsupported", user_id=user_id)
+        return {}
     servers: dict[str, dict[str, Any]] = {}
-    for service_id in store.list_service_ids(user_id):
+    for service_id in service_ids:
         svc = catalog.get_service(service_id)
         if svc is None:
             continue
@@ -29,9 +44,15 @@ def build_mcp_servers(user_id: int, store: ConnectionsStore) -> dict[str, dict[s
         if not secret:
             continue
         try:
-            servers[service_id] = svc.build_mcp_server(secret)
+            servers[service_id] = proxy.build_proxy_server(service_id, svc.build_mcp_server(secret))
         except Exception as exc:  # noqa: BLE001 — never let one service break dispatch
-            logger.warning("mcp_build_failed", user_id=user_id, service_id=service_id, error=str(exc))
+            # Только класс: текст исключения мог бы содержать токен.
+            logger.warning(
+                "mcp_build_failed",
+                user_id=user_id,
+                service_id=service_id,
+                error_class=type(exc).__name__,
+            )
     return servers
 
 
@@ -86,10 +107,11 @@ def dispatch_mcp_servers(
     таком запуске читает внешний текст задач, поэтому личные подключения в него не
     идут, а мост оставляет ей одни инструменты базы. Сервер не собрался: None.
 
-    include_shared=False: только личные подключения. Нет серверов: None.
-    Результат содержит секреты: не логировать.
+    include_shared=False: только личные подключения, прокси в процессе панели и только
+    на пути SDK. Нет серверов: None.
+    Результат держит секреты в памяти (внутри прокси): не логировать.
     """
     if include_shared:
         return build_shared_mcp_servers(settings, user_id=user_id) or None
-    servers = build_mcp_servers(user_id, store) if store is not None else {}
+    servers = build_mcp_servers(user_id, store, settings) if store is not None else {}
     return servers or None

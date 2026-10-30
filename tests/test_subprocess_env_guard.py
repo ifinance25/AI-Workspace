@@ -22,6 +22,7 @@ from src.child_env import (
     CLAUDE_SETTING_NAMES,
     child_env,
     claude_env,
+    connection_env,
 )
 from src.claude import commands
 from src.claude.bridge import ClaudeBridge
@@ -35,9 +36,11 @@ SCANNED = (REPO / "src", REPO / "scripts")
 # Запуски, которым разрешено идти без общей функции окружения: (файл, функция): причина.
 EXCEPTIONS: dict[tuple[str, str], str] = {}
 
-ENV_FUNCTIONS = {"child_env", "claude_env", "_spawn_env"}
+ENV_FUNCTIONS = {"child_env", "claude_env", "_spawn_env", "connection_env"}
 CLAUDE_ENV_FUNCTIONS = {"claude_env", "_spawn_env"}
 OPTIONS_CALLS = {"options_cls", "ClaudeAgentOptions"}
+# Параметры запуска stdio-сервера MCP: процесс запускает библиотека mcp, env берётся отсюда.
+MCP_STDIO_CALLS = {"StdioServerParameters"}
 # Запуск SDK без options берёт окружение по умолчанию, то есть весь os.environ.
 SDK_ENTRY_CALLS = {"query", "query_fn", "ClaudeSDKClient"}
 # Методы цикла событий и модули, которыми процесс запускается мимо subprocess.
@@ -103,6 +106,7 @@ class _Scanner(ast.NodeVisitor):
         self.modules: dict[str, str] = {}
         self.functions: dict[str, tuple[str, str]] = {}
         self.sdk_names: set[str] = {"query_fn"}
+        self.stdio_names: set[str] = set(MCP_STDIO_CALLS)
         self.dicts: dict[str, ast.Dict] = {}
         self.stack: list[str] = []
         self.findings: list[Finding] = []
@@ -121,6 +125,9 @@ class _Scanner(ast.NodeVisitor):
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         if node.module in FORBIDDEN_MODULES or (node.module or "").startswith("multiprocessing"):
             self._report(node, node.module or "", "модуль запуска процессов мимо общей функции")
+        for alias in node.names:
+            if alias.name in MCP_STDIO_CALLS:
+                self.stdio_names.add(alias.asname or alias.name)
         if node.module == "claude_agent_sdk":
             for alias in node.names:
                 if alias.name in SDK_ENTRY_CALLS:
@@ -217,6 +224,11 @@ class _Scanner(ast.NodeVisitor):
             self._check_spawn(node, spawner)
         func = node.func
         func_name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+        if func_name in self.stdio_names:
+            self.spawns += 1
+            env = next((kw.value for kw in node.keywords if kw.arg == "env"), None)
+            if self._env_function(env) not in ENV_FUNCTIONS:
+                self._report(node, func_name, "stdio MCP без env= из общей функции окружения")
         if func_name in OPTIONS_CALLS:
             self.spawns += 1
             if self._env_function(self._options_env(node)) not in CLAUDE_ENV_FUNCTIONS:
@@ -351,6 +363,11 @@ def test_exceptions_are_real_and_explained():
         "import os\nos.forkpty()",
         "from os import system\nsystem('ls')",
         "import os as o\no.posix_spawn('/bin/ls', ['ls'], {})",
+        # Личные подключения: stdio-сервер MCP запускает библиотека mcp.
+        "StdioServerParameters(command='npx', args=[])",
+        "StdioServerParameters(command='npx', env={'NOTION_TOKEN': token})",
+        "import os\nStdioServerParameters(command='npx', env=dict(os.environ))",
+        "from mcp.client.stdio import StdioServerParameters as P\nP(command='npx')",
     ],
 )
 def test_scanner_catches_violation(source):
@@ -371,6 +388,7 @@ def test_scanner_catches_violation(source):
         "query_fn(prompt=prompt, options=options)",
         "loop.subprocess_exec(proto, 'x', env=child_env())",
         "import importlib\nimportlib.import_module('json')",
+        "StdioServerParameters(command='npx', env=connection_env(own))",
     ],
 )
 def test_scanner_accepts_shared_env(source):
@@ -429,6 +447,16 @@ def test_unknown_name_never_passes(monkeypatch, name):
     assert name not in child_env()
     assert name not in child_env(claude=True, owner_auth=True)
     assert claude_env()[name] == ""
+
+
+def test_connection_env_is_allowlist_plus_own_names(monkeypatch):
+    """Процесс подключения (Notion): белый список и только его собственная переменная."""
+    monkeypatch.setenv(NEW_NAME, NEW_VALUE)
+    monkeypatch.setenv("KB_MCP_KEY", NEW_VALUE)
+    env = connection_env({"NOTION_TOKEN": "ntn_FAKE_TEST_TOKEN_456"})
+    assert env["NOTION_TOKEN"] == "ntn_FAKE_TEST_TOKEN_456"
+    assert NEW_NAME not in env and "KB_MCP_KEY" not in env
+    assert set(env) - {"NOTION_TOKEN"} == set(child_env())
 
 
 def test_child_env_keeps_what_programs_need(monkeypatch):
