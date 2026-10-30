@@ -40,6 +40,41 @@ class HttpRedmine:
             )
         self._base = base_url.rstrip("/")
         self._key = api_key
+        self._project_ids: dict[str, str] = {}
+
+    def _resolve_project_id(self, project: str) -> str:
+        """Redmine принимает id или identifier; имя проекта из UI сопоставляем через /projects.json."""
+        key = str(project or "").strip()
+        if not key:
+            return key
+        cached = self._project_ids.get(key)
+        if cached:
+            return cached
+        if key.isdigit():
+            self._project_ids[key] = key
+            return key
+        offset = 0
+        limit = 100
+        while True:
+            page = self._call("GET", "/projects.json", {"limit": limit, "offset": offset})
+            batch = page.get("projects") or []
+            for row in batch:
+                ident = str(row.get("identifier") or "")
+                name = str(row.get("name") or "")
+                pid = str(row.get("id") or "")
+                resolved = ident or pid
+                for label in (ident, name, pid):
+                    if label:
+                        self._project_ids.setdefault(label, resolved)
+                if key in (ident, name, pid):
+                    self._project_ids[key] = resolved
+                    return resolved
+            total = int(page.get("total_count") or len(batch))
+            offset += limit
+            if offset >= total or not batch:
+                break
+        self._project_ids[key] = key
+        return key
 
     def __repr__(self) -> str:
         return f"HttpRedmine(base_url={self._base!r})"
@@ -73,6 +108,7 @@ class HttpRedmine:
             raise RedmineUnavailableError("Redmine не ответил") from exc
 
     def list_issues(self, project: str) -> list[dict]:
+        project_id = self._resolve_project_id(project)
         offset = 0
         limit = 100
         found: list[dict] = []
@@ -81,7 +117,7 @@ class HttpRedmine:
                 "GET",
                 "/issues.json",
                 {
-                    "project_id": project,
+                    "project_id": project_id,
                     "status_id": "*",
                     "limit": limit,
                     "offset": offset,
@@ -104,7 +140,8 @@ class HttpRedmine:
         return issue
 
     def create_issue(self, project: str, fields: dict) -> dict:
-        body = {"issue": {"project_id": project, **fields}}
+        project_id = self._resolve_project_id(project)
+        body = {"issue": {"project_id": project_id, **fields}}
         return self._call("POST", "/issues.json", payload=body)
 
     def update_issue(self, issue_id: int, fields: dict) -> None:
