@@ -519,18 +519,6 @@ class SessionManager:
                     FOREIGN KEY (topic_id) REFERENCES sessions(topic_id) ON DELETE CASCADE
                 );
 
-                -- Журнал файловых действий Claude для панели «Артефакты».
-                -- Без FK на sessions: удаление/пересоздание сессии не стирает
-                -- артефакты (история messages уходит каскадом).
-                CREATE TABLE IF NOT EXISTS artifact_events (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    chat_id INTEGER NOT NULL,
-                    metadata_json TEXT NOT NULL,
-                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-                );
-                CREATE INDEX IF NOT EXISTS idx_artifact_events_chat
-                    ON artifact_events(chat_id, id);
-
                 CREATE TABLE IF NOT EXISTS user_project_access (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
@@ -1901,40 +1889,74 @@ class SessionManager:
             ).fetchone()
         return r["abspath"] if r else None
 
-    def _backfill_artifact_events(self, connection: sqlite3.Connection) -> None:
+    @property
+    def _artifact_db_path(self) -> Path:
+        return self.storage_path.with_name(self.storage_path.stem + ".artifacts.db")
+
+    def _open_artifact_db(self) -> sqlite3.Connection:
+        """Отдельный файл журнала артефактов рядом с sessions.db.
+
+        Журнал не лежит в sessions.db: сессии и messages удаляются каскадом, а
+        локальный стенд (run_stand.sh) целиком подменяет sessions.db дампом.
+        Отдельный файл переживает и то и другое.
+        """
+        conn = sqlite3.connect(self._artifact_db_path, timeout=30.0)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS artifact_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chat_id INTEGER NOT NULL,
+                metadata_json TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_artifact_events_chat
+                ON artifact_events(chat_id, id);
+            CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+            """
+        )
+        return conn
+
+    def _backfill_artifact_events(self, art: sqlite3.Connection) -> None:
         """Разово переносит старые tool_use с file_path из messages в журнал."""
-        done = connection.execute(
-            "SELECT 1 FROM app_meta WHERE key = 'artifact_events_backfilled'"
-        ).fetchone()
-        if done:
+        if art.execute(
+            "SELECT 1 FROM meta WHERE key = 'backfilled'"
+        ).fetchone():
             return
-        connection.execute(
+        with self._conn_lock:
+            main = self._get_connection()
+            old = main.execute(
+                "SELECT s.chat_id AS chat_id, m.metadata_json AS metadata_json, "
+                "       m.created_at AS created_at "
+                "FROM messages m JOIN sessions s ON m.topic_id = s.topic_id "
+                "WHERE m.kind = 'tool_use' AND m.metadata_json LIKE '%\"file_path\"%' "
+                "ORDER BY m.event_id ASC"
+            ).fetchall()
+        art.executemany(
             "INSERT INTO artifact_events (chat_id, metadata_json, created_at) "
-            "SELECT s.chat_id, m.metadata_json, m.created_at "
-            "FROM messages m JOIN sessions s ON m.topic_id = s.topic_id "
-            "WHERE m.kind = 'tool_use' AND m.metadata_json LIKE '%\"file_path\"%' "
-            "ORDER BY m.event_id ASC"
+            "VALUES (?, ?, ?)",
+            [(r["chat_id"], r["metadata_json"], r["created_at"]) for r in old],
         )
-        connection.execute(
-            "INSERT OR REPLACE INTO app_meta (key, value) "
-            "VALUES ('artifact_events_backfilled', '1')"
-        )
-        connection.commit()
+        art.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('backfilled', '1')")
+        art.commit()
 
     def record_artifact_event(self, topic_id: int, metadata: dict) -> None:
         """Пишет файловое действие Claude в журнал артефактов (переживает сессию)."""
         with self._conn_lock:
-            connection = self._get_connection()
-            row = connection.execute(
+            row = self._get_connection().execute(
                 "SELECT chat_id FROM sessions WHERE topic_id = ?", (topic_id,)
             ).fetchone()
-            if row is None or row["chat_id"] is None:
-                return
-            connection.execute(
+        if row is None or row["chat_id"] is None:
+            return
+        art = self._open_artifact_db()
+        try:
+            art.execute(
                 "INSERT INTO artifact_events (chat_id, metadata_json) VALUES (?, ?)",
                 (int(row["chat_id"]), json.dumps(metadata)),
             )
-            connection.commit()
+            art.commit()
+        finally:
+            art.close()
 
     def list_tool_artifact_rows(
         self, owner_chat_id: int | None = None, limit: int = 5000
@@ -1951,13 +1973,11 @@ class SessionManager:
         БД; затем возвращаем их в хронологическом порядке (для aggregate).
         """
         limit = max(1, int(limit))
-        with self._conn_lock:
-            connection = self._get_connection()
-            # LIKE — лишь префильтр (сокращает скан); корректность гарантирует
-            # Python-проверка ниже: json.loads в try + file_path непустая строка.
-            self._backfill_artifact_events(connection)
+        art = self._open_artifact_db()
+        try:
+            self._backfill_artifact_events(art)
             if owner_chat_id is not None:
-                rows = connection.execute(
+                rows = art.execute(
                     "SELECT metadata_json, created_at FROM ("
                     "  SELECT metadata_json, created_at, id FROM artifact_events "
                     "  WHERE chat_id = ? ORDER BY id DESC LIMIT ?"
@@ -1965,13 +1985,15 @@ class SessionManager:
                     (int(owner_chat_id), limit),
                 ).fetchall()
             else:
-                rows = connection.execute(
+                rows = art.execute(
                     "SELECT metadata_json, created_at FROM ("
                     "  SELECT metadata_json, created_at, id FROM artifact_events "
                     "  ORDER BY id DESC LIMIT ?"
                     ") ORDER BY id ASC",
                     (limit,),
                 ).fetchall()
+        finally:
+            art.close()
         out: list[dict] = []
         for r in rows:
             try:
