@@ -57,6 +57,29 @@ function notifyIfUnauthorized(status: number, path: string): void {
   }
 }
 
+function htmlInsteadOfJsonError(status: number): ApiError {
+  return new ApiError(
+    status,
+    "Сервер вернул HTML вместо JSON. Обновите и перезапустите бэкенд (локально: bash scripts/run_stand.sh)."
+  );
+}
+
+function errorMessageFromBody(status: number, statusText: string, text: string): string {
+  const trimmed = text.trimStart();
+  if (trimmed.startsWith("<!") || trimmed.startsWith("<html") || trimmed.startsWith("<HTML")) {
+    return htmlInsteadOfJsonError(status).message;
+  }
+  let detail = text.slice(0, 240);
+  try {
+    const j = JSON.parse(text) as { detail?: unknown };
+    if (typeof j.detail === "string") detail = j.detail;
+    else if (j.detail !== undefined) detail = JSON.stringify(j.detail);
+  } catch {
+    // plain text body
+  }
+  return `${status} ${statusText}: ${detail}`;
+}
+
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
   const resp = await fetch(apiUrl(path), {
     method,
@@ -64,13 +87,28 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
     credentials: "include",
     body: body ? JSON.stringify(body) : undefined,
   });
+  const text = await resp.text();
   if (!resp.ok) {
-    const text = await resp.text();
     notifyIfUnauthorized(resp.status, path);
-    throw new ApiError(resp.status, `${resp.status} ${resp.statusText}: ${text}`);
+    throw new ApiError(resp.status, errorMessageFromBody(resp.status, resp.statusText, text));
   }
   if (resp.status === 204) return undefined as T;
-  return resp.json() as Promise<T>;
+  const trimmed = text.trimStart();
+  if (
+    trimmed.startsWith("<!") ||
+    trimmed.startsWith("<html") ||
+    trimmed.startsWith("<HTML")
+  ) {
+    throw htmlInsteadOfJsonError(resp.status);
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new ApiError(
+      resp.status,
+      "Ответ API не JSON. Перезапустите бэкенд до актуальной версии."
+    );
+  }
 }
 
 export const api = {
