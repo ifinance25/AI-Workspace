@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from src.office import knowledge
+from src.office import knowledge, tenancy
 from src.web import routes_files
 
 BRIEF = "brief"
@@ -29,6 +29,16 @@ def make_office_brief_router(*, office_store, require_actor, require_project) ->
     router = APIRouter(tags=["office-brief"])
 
     async def _ingest(operation, ctx: dict[str, Any], **kwargs: Any) -> JSONResponse:
+        # У43-09: роли заказчика читают версии, но не кладут бриф (`03` §5.3: запись К).
+        allowed = await asyncio.to_thread(
+            tenancy.can_write,
+            office_store,
+            ctx["project"]["id"],
+            actor_id=ctx["actor"]["user_id"],
+            is_admin=ctx["actor"]["is_admin"],
+        )
+        if not allowed:
+            raise HTTPException(status_code=403, detail="Заказчик не меняет бриф проекта")
         try:
             result = await asyncio.to_thread(
                 operation,

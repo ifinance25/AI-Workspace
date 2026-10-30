@@ -8,6 +8,10 @@ from __future__ import annotations
 
 MANAGER = "project_manager"
 
+# Роли стороны заказчика: читают по видимости, не пишут документы проекта и не
+# создают проекты (У43-09; `03` §5.2, §5.3). Полная матрица 12 ролей это срез B.
+CUSTOMER_ROLES = frozenset({"customer_representative", "customer_signatory"})
+
 ROLES: dict[str, str] = {
     MANAGER: "Менеджер проекта",
     "pmo_head": "Руководитель проектного офиса",

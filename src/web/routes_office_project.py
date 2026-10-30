@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from src.office import project as office_project
+from src.office import tenancy
 
 
 class PassportIn(BaseModel):
@@ -53,6 +54,15 @@ def make_office_project_router(*, office_store, require_actor, require_project) 
     async def create_project(
         body: PassportIn, actor: dict[str, Any] = Depends(require_actor),
     ) -> dict:
+        # У43-09: учётка только с ролями заказчика проектов не создаёт (`03` §5.2).
+        allowed = await asyncio.to_thread(
+            tenancy.can_create_project,
+            office_store,
+            actor_id=actor["user_id"],
+            is_admin=actor["is_admin"],
+        )
+        if not allowed:
+            raise HTTPException(status_code=403, detail="Учётка заказчика не создаёт проекты")
         try:
             return await asyncio.to_thread(
                 office_project.create_project, office_store, body.model_dump(),

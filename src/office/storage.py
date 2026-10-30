@@ -241,6 +241,15 @@ class OfficeStore:
             ).fetchone()
         return dict(row) if row is not None else None
 
+    def list_roles_for_user(self, user_id: int) -> list[str]:
+        """Роли пользователя во всех проектах офиса (по одной на проект)."""
+        with self._lock:
+            rows = self._connection().execute(
+                "SELECT role FROM office_members WHERE user_id = ? ORDER BY project_id",
+                (user_id,),
+            ).fetchall()
+        return [str(r["role"]) for r in rows]
+
     def list_members(self, project_id: int) -> list[dict]:
         with self._lock:
             rows = self._connection().execute(
