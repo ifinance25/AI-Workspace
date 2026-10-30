@@ -1,20 +1,30 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import AppShell from "@/components/AppShell";
 import OfficeProjectList from "@/components/office/OfficeProjectList";
 import OfficeProjectView from "@/components/office/OfficeProjectView";
+import type { Session } from "@/lib/types";
 
-// Проектный офис: /office (список проектов) и /office/:id (проект с вкладками
-// Паспорт, Бриф, Задание). Вкладки живут в components/office/<вкладка>/.
-// Нечисловой id в адресе: «Проект не найден» без запроса к API.
 function parseProjectId(id: string): number | null {
   return /^\d+$/.test(id) ? Number(id) : null;
 }
 
 export default function OfficePage() {
+  const navigate = useNavigate();
   const { id } = useParams();
   const projectId = id === undefined ? undefined : parseProjectId(id);
+
+  const onSelectSession = (s: Session | null) => {
+    if (s) navigate("/");
+    else navigate("/");
+  };
+
   return (
-    <div className="min-h-dvh bg-[var(--bg-canvas)] text-[var(--fg-primary)]">
-      <div className="mx-auto max-w-4xl p-4 sm:p-6">
+    <AppShell
+      activeSessionUuid={null}
+      onSelectSession={onSelectSession}
+      mobileHeaderTitle="Проектный офис"
+    >
+      <div className="mx-auto max-w-4xl p-4 text-[var(--fg-primary)] sm:p-6">
         {projectId === undefined && <OfficeProjectList />}
         {projectId === null && (
           <>
@@ -34,6 +44,6 @@ export default function OfficePage() {
         )}
         {typeof projectId === "number" && <OfficeProjectView projectId={projectId} />}
       </div>
-    </div>
+    </AppShell>
   );
 }

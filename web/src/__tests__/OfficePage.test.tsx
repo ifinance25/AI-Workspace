@@ -13,6 +13,20 @@ vi.mock("@/components/office/officeApi", async (importOriginal) => {
   return { ...actual, officeApi: mockOffice };
 });
 
+const mockApi = vi.hoisted(() => ({
+  listProjects: vi.fn(),
+  listSessions: vi.fn(),
+}));
+vi.mock("@/api/client", () => ({ api: mockApi }));
+
+vi.mock("@/auth/AuthContext", () => ({
+  useAuth: () => ({
+    user: { id: 1, username: "tester", is_admin: false },
+  }),
+}));
+
+vi.mock("@/components/SettingsModal", () => ({ default: () => null }));
+
 import OfficePage from "@/routes/OfficePage";
 
 function renderAt(path: string) {
@@ -29,6 +43,14 @@ function renderAt(path: string) {
 describe("OfficePage: оболочка проектного офиса", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockApi.listProjects.mockResolvedValue([]);
+    mockApi.listSessions.mockResolvedValue([]);
+    window.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
   });
 
   it("пустой список: «Проектов нет» и кнопка «Новый проект»", async () => {

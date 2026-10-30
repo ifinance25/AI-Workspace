@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from cryptography.fernet import Fernet
 from httpx import ASGITransport, AsyncClient
 
 from src.claude.session import SessionManager
@@ -18,6 +19,8 @@ from src.web.passwords import hash_password
 from src.web.server import WebServer
 
 _PASSWORD = "test-only-password"
+# Ключ шифрования секретов на тестовом сервере (У43-07), не секрет.
+_CONN_KEY = Fernet.generate_key().decode()
 
 
 class _Redmine:
@@ -119,6 +122,28 @@ def _office(tmp_path):
     project = store.create_project(name="Факт", created_by=ivan)
     tenancy.record_creator(store, project["id"], ivan)
     return sm, store, project["id"], ivan
+
+
+def test_seed_demo_mirror_served_without_api_key(tmp_path) -> None:
+    sm, store, pid, ivan = _office(tmp_path)
+    count = redmine_mirror.seed_demo_mirror(store, pid)
+    assert count >= 8
+
+    class _NoKey:
+        def list_issues(self, project: str) -> list:
+            raise redmine_mirror.MirrorError("no_key", "Ключ Redmine не задан")
+
+    loaded = redmine_mirror.load_project(
+        store,
+        pid,
+        actor_id=ivan,
+        is_admin=False,
+        client=_NoKey(),
+        users=sm,
+        redmine_project="demo",
+    )
+    assert loaded["connected"] is True
+    assert len(loaded["issues"]) == count
 
 
 def test_load_copies_description_histories_comments_and_matches_login(tmp_path) -> None:
@@ -361,7 +386,7 @@ def server(tmp_path):
     )
     srv = WebServer(
         settings=settings, allowed_user_ids=[], bot_username="t", session_manager=sm,
-        event_bus=EventBus(), jwt_secret="x" * 32,
+        event_bus=EventBus(), jwt_secret="x" * 32, connections_secret_key=_CONN_KEY,
     )
     try:
         yield srv, sm
@@ -542,7 +567,7 @@ def test_section_and_cycle_hours_follow_the_dashboard_rules(tmp_path) -> None:
 
 def test_admin_token_is_not_returned(tmp_path) -> None:
     store = OfficeStore(tmp_path / "office.db")
-    cipher = redmine_mirror.cipher_for("x" * 32)
+    cipher = redmine_mirror.cipher_from_key(_CONN_KEY)
     saved = redmine_mirror.save_account(
         store, cipher,
         base_url="https://redmine.example",
@@ -574,7 +599,7 @@ def test_admin_token_is_not_returned(tmp_path) -> None:
 async def test_member_cannot_send_saved_key_to_own_host(server, monkeypatch) -> None:
     srv, sm = server
     pid = _member(srv, sm, "lead", "project_manager")
-    cipher = redmine_mirror.cipher_for("x" * 32)
+    cipher = redmine_mirror.cipher_from_key(_CONN_KEY)
     redmine_mirror.save_account(
         srv.office_store, cipher,
         base_url="https://redmine.example",

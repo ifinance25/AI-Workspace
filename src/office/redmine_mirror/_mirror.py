@@ -300,6 +300,10 @@ def load_project(
     moment = _clock(now)
     try:
         raw_issues = client.list_issues(redmine_project)
+    except MirrorError as exc:
+        if exc.code == "no_key" and _row(store, project_id) and _row(store, project_id)["connected"]:
+            return _view(store, project_id, updated=False, message="")
+        raise
     except (RedmineUnavailableError, *_DOWN):
         return _keep(store, project_id, redmine_project=redmine_project, base_url=base_url)
     cache: dict = {}

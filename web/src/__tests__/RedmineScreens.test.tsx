@@ -11,6 +11,26 @@ const mockRedmine = vi.hoisted(() => ({
 }));
 vi.mock("@/components/redmine/redmineApi", () => ({ redmineApi: mockRedmine }));
 
+const mockApi = vi.hoisted(() => ({
+  listProjects: vi.fn(),
+  listSessions: vi.fn(),
+}));
+vi.mock("@/api/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/api/client")>();
+  return {
+    ...actual,
+    api: mockApi,
+  };
+});
+
+vi.mock("@/auth/AuthContext", () => ({
+  useAuth: () => ({
+    user: { id: 1, username: "tester", is_admin: false },
+  }),
+}));
+
+vi.mock("@/components/SettingsModal", () => ({ default: () => null }));
+
 import RedminePage from "@/routes/RedminePage";
 
 function renderAt(path: string) {
@@ -60,6 +80,14 @@ function view(over: Partial<RedmineView> = {}): RedmineView {
 describe("Экраны зеркала Redmine", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockApi.listProjects.mockResolvedValue([]);
+    mockApi.listSessions.mockResolvedValue([]);
+    window.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
   });
 
   afterEach(() => {
@@ -92,6 +120,21 @@ describe("Экраны зеркала Redmine", () => {
     }
     expect(screen.getByText("Задач нет")).toBeInTheDocument();
     expect(screen.queryByText("Redmine ещё не подключён")).not.toBeInTheDocument();
+  });
+
+  it("канбан: колонки по статусам со счётчиками", async () => {
+    mockRedmine.loadProject.mockResolvedValue(view({
+      issues: [
+        issue({ id: 1, subject: "A", status: { id: "1", name: "Новая" } }),
+        issue({ id: 2, subject: "B", status: { id: "1", name: "Новая" } }),
+        issue({ id: 3, subject: "C", status: { id: "2", name: "В работе" } }),
+      ],
+    }));
+    renderAt("/office/7/redmine");
+    expect(await screen.findByRole("region", { name: "Новая" })).toBeInTheDocument();
+    expect(screen.getByText("Новая · 2")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "В работе" })).toBeInTheDocument();
+    expect(screen.getByText("В работе · 1")).toBeInTheDocument();
   });
 
   it("фильтр раздела убирает чужую задачу на доске, в списке, в аналитике и в прогнозах", async () => {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useMatch } from "react-router-dom";
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
 import {
@@ -314,9 +314,18 @@ export default function Sidebar({
     </div>
   );
 
-  // Полная панель: бренд, новый чат, поиск, папки/дерево, группы по дате,
-  // админ-ссылка, профиль. Фиксированная ширина w-80 (320px) внутри
-  // motion.aside, чтобы при анимации ширины контент не «дёргался».
+  // Полная панель: бренд, новый чат, поиск, проектный офис, папки/дерево,
+  // группы по дате, терминал, админ-ссылка, профиль. Фиксированная ширина w-80
+  // (320px) внутри motion.aside, чтобы при анимации ширины контент не «дёргался».
+  const location = useLocation();
+  const officeMatch = useMatch({ path: "/office/:id/*", end: false });
+  const officeProjectId = officeMatch?.params.id;
+  const officeProjectNumeric =
+    officeProjectId && /^\d+$/.test(officeProjectId) ? officeProjectId : null;
+  const redmineActive = Boolean(
+    officeProjectNumeric && location.pathname.endsWith("/redmine"),
+  );
+
   const fullContent = (
     <div className="flex h-full w-80 flex-col">
       {/* Top: brand + collapse */}
@@ -354,6 +363,31 @@ export default function Sidebar({
             className="flex-1 bg-transparent placeholder:text-[var(--fg-muted)] focus:outline-none"
           />
         </div>
+      </div>
+
+      {/* Проектный офис */}
+      <div className="px-4 pt-1.5">
+        <Link
+          to="/office"
+          onClick={() => overlay && onToggleCollapsed()}
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
+        >
+          <UsersIcon size={18} />
+          <span>Проектный офис</span>
+        </Link>
+        {officeProjectNumeric && (
+          <Link
+            to={`/office/${officeProjectNumeric}/redmine`}
+            onClick={() => overlay && onToggleCollapsed()}
+            className={`mt-0.5 flex w-full items-center rounded-xl py-2 pl-11 pr-3 text-[14px] transition-colors ${
+              redmineActive
+                ? "bg-[var(--bg-hover)] text-[var(--fg-primary)]"
+                : "text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
+            }`}
+          >
+            Задачи
+          </Link>
+        )}
       </div>
 
       {error && (
@@ -556,18 +590,6 @@ export default function Sidebar({
           </button>
         </div>
       )}
-
-      {/* Проектный офис */}
-      <div className="px-3 pt-2">
-        <Link
-          to="/office"
-          onClick={() => overlay && onToggleCollapsed()}
-          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
-        >
-          <UsersIcon size={18} />
-          <span>Проектный офис</span>
-        </Link>
-      </div>
 
       {/* Админ-панель — только для администраторов */}
       {user?.is_admin && (
