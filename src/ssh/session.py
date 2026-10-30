@@ -7,9 +7,9 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 from collections.abc import Awaitable, Callable
-from functools import partial
 from typing import Any
 
 import structlog
@@ -152,6 +152,17 @@ async def open_ssh_shell(
 OpenShellFn = Callable[..., Awaitable[tuple[Any, Any]]]
 
 
+def _accepts_on_host_key(fn: Any) -> bool:
+    """Принимает ли функция открытия сессии аргумент on_host_key."""
+    try:
+        params = inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return False
+    return "on_host_key" in params or any(
+        p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()
+    )
+
+
 def _clamp_size(value: object, default: int, lo: int, hi: int) -> int:
     try:
         n = int(value)  # type: ignore[arg-type]
@@ -168,18 +179,16 @@ async def bridge_ssh_websocket(
     remember_host_key: Callable[[str], Any] | None = None,
 ) -> None:
     """Accept is already done. Pump stdin/stdout until either side closes."""
-    # Ключ сервера запоминает только настоящий open_ssh_shell; подменённый
-    # open_shell (тесты) получает прежние аргументы.
-    if open_shell is not None:
-        connect = open_shell
-    elif remember_host_key is not None:
-        connect = partial(open_ssh_shell, on_host_key=remember_host_key)
-    else:
-        connect = open_ssh_shell
+    # on_host_key получает только функция, которая его принимает: подменённые
+    # open_shell и monkeypatch в тестах работают с прежними аргументами.
+    connect = open_shell or open_ssh_shell
+    kwargs: dict[str, Any] = {"cols": DEFAULT_COLS, "rows": DEFAULT_ROWS}
+    if remember_host_key is not None and _accepts_on_host_key(connect):
+        kwargs["on_host_key"] = remember_host_key
     conn = None
     process = None
     try:
-        conn, process = await connect(profile, cols=DEFAULT_COLS, rows=DEFAULT_ROWS)
+        conn, process = await connect(profile, **kwargs)
     except SshConnectError as exc:
         await websocket.send_json({"type": "error", "error": str(exc)})
         return
