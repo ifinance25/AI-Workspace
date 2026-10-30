@@ -10,7 +10,8 @@ def test_spawn_env_sets_utf8_and_drops_proxy() -> None:
         env = bridge._spawn_env()
         assert env.get("PYTHONIOENCODING") == "utf-8"
         assert env.get("PYTHONUTF8") == "1"
-        assert "HTTP_PROXY" not in env
+        # Пустая строка, а не отсутствие: SDK подмешивает os.environ, пустое значение побеждает.
+        assert env.get("HTTP_PROXY", "") == ""
     finally:
         os.environ.pop("HTTP_PROXY", None)
 

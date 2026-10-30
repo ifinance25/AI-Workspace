@@ -6,6 +6,7 @@ import {
   FileIcon,
   ImageIcon,
   PlusIcon,
+  SearchIcon,
   SendIcon,
   SkillsIcon,
   SlashIcon,
@@ -14,6 +15,7 @@ import {
 import CommandsPopover from "@/components/CommandsPopover";
 import InputModelButton from "@/components/InputModelButton";
 import type { Attachment, SlashCommand } from "@/lib/types";
+import { setKbSearchOn, useKbSearchOn } from "@/lib/kbSearch";
 import {
   isPlainEnter,
   sendButtonTitle,
@@ -26,7 +28,8 @@ import {
 interface Props {
   /** UUID активной сессии — нужен для POST /api/uploads. */
   sessionUuid: string;
-  onSubmit: (text: string, attachments: Attachment[]) => void;
+  /** Третий аргумент: включён ли поиск по Базе знаний (переключатель с лупой). */
+  onSubmit: (text: string, attachments: Attachment[], kbSearch: boolean) => void;
   disabled?: boolean;
   placeholder?: string;
   /**
@@ -43,6 +46,8 @@ interface Props {
   onStop?: () => void;
   /** Необязательный слот в нижнем баре слева (напр. индикатор контекста). */
   leftSlot?: ReactNode;
+  /** Подключена ли общая база знаний (флаг с сервера); иначе кнопка поиска disabled. */
+  kbSearchEnabled?: boolean;
 }
 
 const MAX_ROWS = 10;
@@ -62,6 +67,7 @@ export default function MessageInput({
   isGenerating,
   onStop,
   leftSlot,
+  kbSearchEnabled = false,
 }: Props) {
   const [text, setText] = useState("");
   const [slashes, setSlashes] = useState<SlashCommand[]>([]);
@@ -71,6 +77,10 @@ export default function MessageInput({
   const [uploadError, setUploadError] = useState<string | null>(null);
   // Меню команд/скиллов, открытое кнопкой (а не вводом "/").
   const [menu, setMenu] = useState<null | "cmd" | "skill">(null);
+  // Переключатель поиска по Базе знаний (хранится в браузере). Без подключённого
+  // сервера считается выключенным.
+  const kbStored = useKbSearchOn();
+  const kbOn = kbSearchEnabled && kbStored;
   const sendKey = useSendKey();
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -136,7 +146,7 @@ export default function MessageInput({
     const raw = override ?? text;
     const trimmed = raw.trim();
     if (!trimmed && attachments.length === 0) return;
-    onSubmit(trimmed, attachments);
+    onSubmit(trimmed, attachments, kbOn);
     setText("");
     setAttachments([]);
     setUploadError(null);
@@ -400,6 +410,27 @@ export default function MessageInput({
                 title="Скиллы"
               >
                 <SkillsIcon size={20} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setKbSearchOn(!kbOn)}
+                disabled={!kbSearchEnabled}
+                aria-pressed={kbOn}
+                className={`icon-btn rounded-full p-2 disabled:opacity-50 ${
+                  kbOn
+                    ? "bg-[var(--bg-hover)] text-[var(--accent-brand)]"
+                    : "text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
+                }`}
+                title={
+                  !kbSearchEnabled
+                    ? "База знаний не подключена"
+                    : kbOn
+                      ? "Поиск по Базе знаний: включён"
+                      : "Поиск по Базе знаний: выключен"
+                }
+                aria-label="Поиск по Базе знаний"
+              >
+                <SearchIcon size={20} />
               </button>
             </div>
             {isGenerating ? (

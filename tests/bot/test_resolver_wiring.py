@@ -21,6 +21,14 @@ def test_mcp_servers_for_user_without_connections(tmp_path):
     assert mcp_servers_for(store, 999) is None
 
 
+def test_mcp_servers_for_never_connects_shared_kb(tmp_path):
+    """Telegram: кнопки нет, а сессии белого списка без файрвола читают внешний текст."""
+    store = ConnectionsStore(tmp_path / "c.db", SecretBox(Fernet.generate_key().decode()))
+    store.connect(user_id=1, service_id="notion", secret="tok")
+    assert set(mcp_servers_for(store, 1)) == {"notion"}
+    assert mcp_servers_for(None, 1) is None
+
+
 def _make_event(**overrides):
     fields = dict(
         request_id="r1",

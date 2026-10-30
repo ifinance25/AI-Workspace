@@ -102,6 +102,32 @@ class ImageAnalysisHandlerTests(unittest.IsolatedAsyncioTestCase):
         destination.write(b"image-bytes")
         destination.flush()
 
+    def _photo_message(self) -> SimpleNamespace:
+        return SimpleNamespace(
+            photo=[SimpleNamespace(file_id="photo", file_size=42, width=1280, height=720)],
+            caption="Что на картинке?",
+            reply_to_message=None,
+            chat=SimpleNamespace(id=1234),
+            message_thread_id=99,
+            from_user=SimpleNamespace(username="tester", id=1166057082),
+            answer=AsyncMock(),
+        )
+
+    async def test_photo_upload_never_connects_shared_kb(self) -> None:
+        """Telegram: база знаний выключена, даже если пилот настроен."""
+        files.router.settings.get_kb_mcp_url = lambda: "https://kb.example.invalid/mcp"
+        files.router.settings.get_kb_mcp_key = lambda: "fake-kb-key"
+
+        await files.handle_photo(self._photo_message())
+
+        self.assertEqual(len(self.bridge.messages), 1)
+        self.assertIsNone(self.bridge.messages[0]["mcp_servers"])
+
+    async def test_photo_upload_without_shared_kb_passes_no_servers(self) -> None:
+        await files.handle_photo(self._photo_message())
+
+        self.assertIsNone(self.bridge.messages[0]["mcp_servers"])
+
     async def test_photo_upload_uses_image_analysis_attachment(self) -> None:
         message = SimpleNamespace(
             photo=[
@@ -260,6 +286,14 @@ class ImageUploadPrivilegeTests(unittest.IsolatedAsyncioTestCase):
         event = self.published[0]
         self.assertTrue(event.privileged)
         self.assertEqual(event.user_id, 1166057082)
+
+    async def test_upload_event_never_requests_shared_kb(self) -> None:
+        """В Telegram нет переключателя, а файл может нести внешний текст."""
+        self._wire_router(self._make_session_manager(is_admin=1))
+
+        await files.handle_document(self._make_message())
+
+        self.assertIs(self.published[0].kb_search, False)
 
     async def test_non_admin_upload_publishes_unprivileged_event(self) -> None:
         self._wire_router(self._make_session_manager(is_admin=0))

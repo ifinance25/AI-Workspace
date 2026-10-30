@@ -44,18 +44,22 @@ def _service_status(service: str) -> str:
     """Краткий статус systemd-сервиса (best-effort, кроссплатформенно)."""
     if not shutil.which("systemctl"):
         return "n/a (нет systemctl — не Linux/systemd)"
+    from src.child_env import child_env
+
     try:
         active = subprocess.run(
             ["systemctl", "is-active", service],
             capture_output=True,
             text=True,
             timeout=5,
+            env=child_env(),
         ).stdout.strip()
         enabled = subprocess.run(
             ["systemctl", "is-enabled", service],
             capture_output=True,
             text=True,
             timeout=5,
+            env=child_env(),
         ).stdout.strip()
         return f"{active or 'unknown'} (автозапуск: {enabled or 'unknown'})"
     except (OSError, subprocess.SubprocessError):

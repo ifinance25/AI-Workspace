@@ -178,6 +178,8 @@ src/web/  (FastAPI)                      src/bot/
 | `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN` | авторизация Claude |
 | `SESSION_DATABASE_PATH` | SQLite с чатами (`data/sessions.db`) |
 | `CONNECTIONS_SECRET_KEY` | Fernet-ключ для секретов Connect Services; без него фича спит |
+| `KB_MCP_URL` | адрес общего MCP-сервера базы знаний ФАКТ (пилот, все чаты); пусто → выключен |
+| `KB_MCP_KEY` | Bearer-ключ этого сервера; пусто → выключен, значение не коммитить |
 | `TELEGRAM_BOT_TOKEN`, `ALLOWED_USER_IDS` | Telegram; пусто → веб-only |
 
 `config/config.yaml` — модель, транспорт (`sdk`/`cli`/`tmux`), режим
@@ -221,6 +223,9 @@ src/web/  (FastAPI)                      src/bot/
    а не `index.html` (иначе фронт получал 200 с HTML вместо ошибки).
 7. Telegram-темы — функция супергрупп: в личном чате `createForumTopic`
    возвращает `the chat is not a forum`.
+8. Окружение подпроцессов строится только по белому списку (`src/child_env.py`):
+   новый запуск без `env=` или новое имя без явного разрешения роняет тест-страж
+   `tests/test_subprocess_env_guard.py`.
 
 ---
 

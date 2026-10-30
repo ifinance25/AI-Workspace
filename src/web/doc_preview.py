@@ -15,6 +15,8 @@ import tempfile
 from html.parser import HTMLParser
 from pathlib import Path
 
+from src.child_env import child_env
+
 MAX_DOC_PREVIEW_BYTES = 12 * 1024 * 1024
 _OLE_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 _ZIP_MAGIC = b"PK\x03\x04"
@@ -120,6 +122,7 @@ def _try_textutil(path: Path) -> str | None:
                 check=True,
                 timeout=20,
                 capture_output=True,
+                env=child_env(),
             )
         except (subprocess.SubprocessError, OSError, TimeoutError):
             return None
@@ -145,6 +148,7 @@ def _try_soffice(path: Path) -> str | None:
                 check=True,
                 timeout=45,
                 capture_output=True,
+                env=child_env(),
             )
         except (subprocess.SubprocessError, OSError, TimeoutError):
             return None

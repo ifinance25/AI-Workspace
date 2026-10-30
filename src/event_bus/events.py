@@ -51,6 +51,10 @@ class UserMessageReceived(BusEvent):
     # проекта (запрет выхода/секретов/деструктива). None → доверенная сессия
     # (admin/whitelist/no-project), firewall не навешивается.
     confine_root: str | None = None
+    # Подключать ли общий MCP-сервер базы знаний к запуску. По умолчанию False:
+    # cron, webhook, Telegram и прочие источники его не получают. Включает только
+    # веб, по переключателю «Поиск по Базе знаний».
+    kb_search: bool = False
 
 
 class AgentStarted(BusEvent):

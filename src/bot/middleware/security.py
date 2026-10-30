@@ -1,6 +1,7 @@
 """Security middleware and Claude tool firewall."""
 from __future__ import annotations
 
+import fnmatch
 import json
 import re
 import shlex
@@ -47,6 +48,41 @@ _NETWORK_CMD_PATTERN = re.compile(
     r"\b(?:curl|wget|nc|ncat|netcat|telnet|ssh|scp|sftp|ftp|rsync)\b"
     r"|/dev/(?:tcp|udp)/",
     re.IGNORECASE,
+)
+
+# Confined-сессии без джейла видят процессы и окружение панели: ps axeww, printenv,
+# /proc/<pid>/environ. Команды и упоминания ниже запрещены в любой части команды.
+_ENV_DUMP_COMMANDS = frozenset(
+    {"ps", "pgrep", "pkill", "top", "htop", "printenv", "env", "compgen", "eval"}
+)
+_ENV_MENTION_PATTERN = re.compile(r"/proc\b|environ", re.IGNORECASE)
+# Встроенные команды, которые без аргументов (или с этими ключами) печатают окружение.
+_ENV_LISTING_BUILTINS = {
+    "export": frozenset({"-p"}),
+    "set": frozenset(),
+    "declare": frozenset({"-x", "-p", "-px", "-xp"}),
+    "typeset": frozenset({"-x", "-p", "-px", "-xp"}),
+}
+_CD_COMMANDS = frozenset({"cd", "pushd", "chdir"})
+# Переменные, которые меняют цель cd без пути в аргументе.
+_CD_ENV_PATTERN = re.compile(r"^(?:CDPATH|HOME|OLDPWD|PWD)=")
+_SEGMENT_SEPARATOR = re.compile(r"^[;&|()]+$")
+_GLOB_CHARS = frozenset("?*[]{}")
+_SENSITIVE_FRAGMENTS = (".en", ".cred", ".ssh", "id_rsa", "id_ed25519", ".netrc", ".pgpass")
+_SENSITIVE_NAMES = (
+    ".env",
+    ".env.local",
+    ".credentials.json",
+    ".git-credentials",
+    ".netrc",
+    ".pgpass",
+    ".ssh",
+    "id_rsa",
+    "id_ed25519",
+    "authorized_keys",
+)
+_SENSITIVE_PATH_PATTERN = re.compile(
+    r"(^|/)\.(?:credentials\.json|git-credentials|netrc|pgpass)$", re.IGNORECASE
 )
 
 
@@ -205,12 +241,20 @@ class SecurityMiddleware(BaseMiddleware):
                 user_id=user_id,
             )
 
-        # Несбалансированные кавычки и т.п. → shlex.split бросает ValueError.
+        if _ENV_MENTION_PATTERN.search(command):
+            self._raise_violation(
+                "Security Error: Process environment access blocked.",
+                attempted_action=command,
+                category="env_dump",
+                user_id=user_id,
+            )
+
+        # Несбалансированные кавычки и т.п. → shlex бросает ValueError.
         # Нераспарсиваемую команду НЕЛЬЗЯ проверить на path-traversal, поэтому
         # блокируем её (fail-closed). Раньше ValueError всплывал мимо firewall'а
         # и приводил к fail-open (обход confine одной кавычкой).
         try:
-            tokens = self._extract_path_tokens(command)
+            segments = self._split_segments(command)
         except ValueError:
             self._raise_violation(
                 "Security Error: Unparseable command blocked.",
@@ -219,13 +263,119 @@ class SecurityMiddleware(BaseMiddleware):
                 user_id=user_id,
             )
 
-        for token in tokens:
-            self._validate_candidate_path(
-                token,
-                project_root=project_root,
+        # cd может как сработать, так и нет: путь обязан быть внутри корня от любой
+        # папки, где оболочка могла оказаться к этому месту команды. Только цепочка
+        # через && гарантирует, что предыдущий cd сработал.
+        seen = {project_root.resolve(strict=False)}
+        current = set(seen)
+        for separator, words in segments:
+            if separator != "&&":
+                current = set(seen)
+            moved_to = self._validate_segment(
+                words, current, project_root=project_root, command=command, user_id=user_id
+            )
+            if moved_to is not None:
+                current = moved_to
+                seen |= moved_to
+
+    @staticmethod
+    def _split_segments(command: str) -> list[tuple[str, list[str]]]:
+        """Части команды между ; && || | & скобками и переводами строк, вместе с
+        разделителем перед каждой частью."""
+        segments: list[tuple[str, list[str]]] = []
+        for line in command.splitlines() or [""]:
+            lexer = shlex.shlex(line, posix=True, punctuation_chars=True)
+            lexer.whitespace_split = True
+            separator, current = "\n", []
+            for token in lexer:
+                if _SEGMENT_SEPARATOR.match(token):
+                    segments.append((separator, current))
+                    separator, current = token, []
+                else:
+                    current.append(token)
+            segments.append((separator, current))
+        return [(separator, words) for separator, words in segments if words]
+
+    def _validate_segment(
+        self,
+        words: list[str],
+        cwds: set[Path],
+        *,
+        project_root: Path,
+        command: str,
+        user_id: int | None,
+    ) -> set[Path] | None:
+        """Проверка одной части. Для cd возвращает папки, куда она могла перейти."""
+
+        def _deny(message: str, category: str) -> None:
+            self._raise_violation(
+                f"Security Error: {message}",
                 attempted_action=command,
+                category=category,
                 user_id=user_id,
             )
+
+        if any(word.rstrip("/").rsplit("/", 1)[-1] in _ENV_DUMP_COMMANDS for word in words):
+            _deny("Process and environment listing blocked.", "env_dump")
+        if any(_CD_ENV_PATTERN.match(word) for word in words):
+            _deny("Changing cd targets via environment blocked.", "cd_outside_root")
+
+        position = 0
+        while position < len(words) and ("=" in words[position] or words[position] in "{!"):
+            position += 1
+        head = words[position] if position < len(words) else ""
+        args = words[position + 1 :]
+        if head in _ENV_LISTING_BUILTINS:
+            listing_flags = _ENV_LISTING_BUILTINS[head]
+            if not args or any(arg in listing_flags for arg in args):
+                _deny("Environment listing blocked.", "env_dump")
+
+        for word in words:
+            if _GLOB_CHARS & set(word) and self._glob_may_hit_secret(word):
+                _deny("Glob that can match secret files blocked.", "sensitive_glob")
+
+        if head in _CD_COMMANDS:
+            targets = [arg for arg in args if not arg.startswith("-") or arg == "-"]
+            if not targets or targets[0] == "-" or targets[0].startswith("~"):
+                _deny("Permission Denied. Stay in project folder.", "cd_outside_root")
+            new_cwds = {self._resolve_from(targets[0], cwd) for cwd in cwds}
+            if not all(self._is_within(cwd, project_root) for cwd in new_cwds):
+                _deny("Permission Denied. Stay in project folder.", "cd_outside_root")
+            return new_cwds
+
+        for token in words:
+            if token.startswith("-"):
+                continue
+            if not (token.startswith(("~", "/", ".")) or "/" in token):
+                continue
+            for cwd in cwds:
+                self._validate_candidate_path(
+                    token,
+                    project_root=project_root,
+                    attempted_action=command,
+                    user_id=user_id,
+                    base=cwd,
+                )
+        return None
+
+    @staticmethod
+    def _glob_may_hit_secret(word: str) -> bool:
+        lowered = word.lower()
+        if any(fragment in lowered for fragment in _SENSITIVE_FRAGMENTS):
+            return True
+        if "{" in word and ("," in word or ".." in word):
+            return True  # brace-раскрытие не проверить без оболочки
+        parts = [part for part in lowered.split("/") if part]
+        return any(
+            fnmatch.fnmatchcase(name, part) for part in parts for name in _SENSITIVE_NAMES
+        )
+
+    @staticmethod
+    def _resolve_from(candidate: str, base: Path) -> Path:
+        path = Path(candidate).expanduser()
+        if not path.is_absolute():
+            path = base / path
+        return path.resolve(strict=False)
 
     def _validate_candidate_path(
         self,
@@ -234,8 +384,9 @@ class SecurityMiddleware(BaseMiddleware):
         project_root: Path,
         attempted_action: str,
         user_id: int | None,
+        base: Path | None = None,
     ) -> None:
-        resolved = self._resolve_candidate_path(candidate, project_root)
+        resolved = self._resolve_from(candidate, base or project_root)
         if not self._is_within(resolved, project_root):
             self._raise_violation(
                 "Security Error: Permission Denied. Stay in project folder.",
@@ -252,23 +403,10 @@ class SecurityMiddleware(BaseMiddleware):
                 user_id=user_id,
             )
 
-    def _resolve_candidate_path(self, candidate: str, project_root: Path) -> Path:
-        candidate_path = Path(candidate).expanduser()
-        if not candidate_path.is_absolute():
-            candidate_path = project_root / candidate_path
-        return candidate_path.resolve(strict=False)
-
-    def _extract_path_tokens(self, command: str) -> list[str]:
-        tokens: list[str] = []
-        for token in shlex.split(command, posix=True):
-            if token.startswith("-"):
-                continue
-            if token.startswith(("~", "/", ".")) or "/" in token:
-                tokens.append(token)
-        return tokens
-
     def _is_sensitive_path(self, candidate: Path) -> bool:
         candidate_str = candidate.as_posix()
+        if _SENSITIVE_PATH_PATTERN.search(candidate_str):
+            return True
         return any(pattern.search(candidate_str) for pattern in _COMMAND_PATTERNS[3:])
 
     def _is_within(self, candidate: Path, root: Path) -> bool:

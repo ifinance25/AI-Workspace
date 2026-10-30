@@ -33,7 +33,7 @@ from src.claude.commands import refresh_commands_if_needed, resolve_command
 from src.claude.mcp import detect_mcp_candidate, get_mcp_manager
 from src.claude.native_commands import TUI_COMMANDS as _TUI_COMMANDS
 from src.config import Settings
-from src.connections.resolver import build_mcp_servers
+from src.connections.resolver import dispatch_mcp_servers
 from src.event_bus import AgentFinished, AgentStreamingUpdate, EventBus, UserMessageReceived
 from src.utils import ResponseStreamer
 from src.utils.context_hint import CONTEXT_WINDOW
@@ -52,12 +52,12 @@ def _format_error_for_user(error_type: str, raw_content: str) -> str:
 
 
 def mcp_servers_for(store, user_id: int):
-    """Per-user MCP servers for dispatch, or None when connections are disabled
-    or the user has none. Never log the result — it holds decrypted secrets."""
-    if store is None:
-        return None
-    servers = build_mcp_servers(user_id, store)
-    return servers or None
+    """Personal MCP servers for dispatch, or None when there are none.
+
+    The shared knowledge base stays off in Telegram: there is no toggle, and
+    whitelisted sessions without a firewall read external task text.
+    Never log the result: it holds decrypted secrets."""
+    return dispatch_mcp_servers(user_id, store, None, include_shared=False)
 
 
 router = Router(name="messages")
@@ -1044,6 +1044,7 @@ async def process_incoming_text(message: Message, msg_text: str) -> None:
                         session_id=session.session_id,
                         source="telegram",
                         privileged=is_privileged,
+                        kb_search=False,
                     )
                 )
             finally:

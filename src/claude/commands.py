@@ -21,6 +21,8 @@ import structlog
 from aiogram import Bot
 from aiogram.types import BotCommand
 
+from src.child_env import claude_env
+
 logger = structlog.get_logger()
 
 # How often to re-fetch commands from CLI (seconds)
@@ -137,6 +139,7 @@ async def _fetch_cli_slash_commands(timeout: float = 15.0) -> list[str]:
             "--dangerously-skip-permissions",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL,
+            env=claude_env(),
         )
 
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
@@ -282,6 +285,7 @@ async def fetch_cli_commands_for_project(project_path: str | None) -> list[str]:
             cwd=project_path or None,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL,
+            env=claude_env(),
         )
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15.0)
         for line in stdout.decode("utf-8", errors="replace").splitlines():

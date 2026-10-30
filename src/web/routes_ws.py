@@ -515,6 +515,8 @@ def make_ws_router(
                                 readonly=readonly,
                                 privileged=privileged,
                                 confine_root=confine_root,
+                                # Строго булево: "true", 1 и прочее не включают.
+                                kb_search=msg.get("kb_search") is True,
                             )
                         )
                     )

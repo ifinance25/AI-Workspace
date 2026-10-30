@@ -57,7 +57,7 @@ class _FakeSettings:
         self.require_user_key = require_user_key
 
 
-def _make_event(*, privileged: bool, user_id: int = 42) -> UserMessageReceived:
+def _make_event(*, privileged: bool, user_id: int = 42, kb_search: bool = False) -> UserMessageReceived:
     return UserMessageReceived(
         request_id="req-1",
         chat_id=111,
@@ -68,6 +68,7 @@ def _make_event(*, privileged: bool, user_id: int = 42) -> UserMessageReceived:
         text="hello",
         session_id="existing-session",
         privileged=privileged,
+        kb_search=kb_search,
     )
 
 
@@ -227,3 +228,71 @@ async def test_no_store_no_settings_keeps_owner_mode() -> None:
     assert len(bridge.calls) == 1
     assert bridge.calls[0]["anthropic_api_key"] is None
     assert finished and finished[-1].error is None
+
+
+# --------------------------------------------------------------------------- #
+# Общий сервер базы знаний ФАКТ: приходит в сессию у всех, без личных подключений.
+# --------------------------------------------------------------------------- #
+class _KbSettings(_FakeSettings):
+    def __init__(self, url: str = "https://kb.example.test/mcp", key: str = "test-key-123") -> None:
+        super().__init__(require_user_key=False)
+        self._url = url
+        self._key = key
+
+    def get_kb_mcp_url(self) -> str:
+        return self._url
+
+    def get_kb_mcp_key(self) -> str:
+        return self._key
+
+
+class _FakeConnections:
+    """Минимальный ConnectionsStore: у пользователя нет подключений."""
+
+    def list_service_ids(self, user_id: int) -> list[str]:
+        return []
+
+
+async def test_shared_kb_reaches_bridge_without_connections_store() -> None:
+    bus = EventBus()
+    bridge = _FakeBridge()
+    ClaudeEventRelay(bus=bus, claude_bridge=bridge, settings=_KbSettings())
+
+    await bus.publish(_make_event(privileged=False, kb_search=True))
+
+    assert set(bridge.calls[0]["mcp_servers"]) == {"fakt_kb"}
+
+
+async def test_shared_kb_reaches_bridge_for_user_without_connections() -> None:
+    bus = EventBus()
+    bridge = _FakeBridge()
+    ClaudeEventRelay(
+        bus=bus,
+        claude_bridge=bridge,
+        connections_store=_FakeConnections(),
+        settings=_KbSettings(),
+    )
+
+    await bus.publish(_make_event(privileged=False, kb_search=True))
+
+    assert set(bridge.calls[0]["mcp_servers"]) == {"fakt_kb"}
+
+
+async def test_shared_kb_disabled_keeps_mcp_servers_none() -> None:
+    bus = EventBus()
+    bridge = _FakeBridge()
+    ClaudeEventRelay(bus=bus, claude_bridge=bridge, settings=_KbSettings(key=""))
+
+    await bus.publish(_make_event(privileged=False))
+
+    assert bridge.calls[0]["mcp_servers"] is None
+
+
+async def test_no_store_no_settings_passes_no_mcp_servers() -> None:
+    bus = EventBus()
+    bridge = _FakeBridge()
+    ClaudeEventRelay(bus=bus, claude_bridge=bridge)
+
+    await bus.publish(_make_event(privileged=False))
+
+    assert bridge.calls[0]["mcp_servers"] is None

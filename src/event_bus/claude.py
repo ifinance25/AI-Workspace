@@ -8,7 +8,7 @@ import structlog
 
 from src.apikeys.policy import NeedsApiKeyError, resolve_session_auth
 from src.claude.bridge import ClaudeEventType
-from src.connections.resolver import build_mcp_servers
+from src.connections.resolver import dispatch_mcp_servers
 from src.event_bus.bus import EventBus
 from src.event_bus.events import AgentFinished, AgentStarted, AgentStreamingUpdate, UserMessageReceived
 
@@ -126,10 +126,13 @@ class ClaudeEventRelay:
                 await self._publish_update(event, "thinking", content=pending_thinking)
                 pending_thinking = ""
 
-        # Per-user MCP servers (decrypted secrets injected). NEVER log this.
-        mcp_servers = None
-        if self._connections_store is not None:
-            mcp_servers = build_mcp_servers(event.user_id, self._connections_store) or None
+        # Per-user MCP servers plus the shared KB (secrets injected). NEVER log this.
+        mcp_servers = dispatch_mcp_servers(
+            event.user_id,
+            self._connections_store,
+            self.settings,
+            include_shared=event.kb_search,
+        )
 
         try:
             async for claude_event in self.claude_bridge.send_message(

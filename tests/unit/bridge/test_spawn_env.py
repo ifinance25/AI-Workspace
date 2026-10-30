@@ -61,8 +61,8 @@ def test_spawn_env_no_injection_without_key(monkeypatch) -> None:
     env = _bridge()._spawn_env(confined=True, confine_root="/srv/project")
 
     assert "AI_WORKSPACE_JAIL_NO_OWNER_CREDS" not in env
-    # Без пользовательского ключа owner-ключ вычищается как раньше.
-    assert "ANTHROPIC_API_KEY" not in env
+    # Без пользовательского ключа owner-ключ обнуляется: SDK подмешивает os.environ.
+    assert env["ANTHROPIC_API_KEY"] == ""
 
 
 def test_spawn_env_injection_isolated_from_clean_env(monkeypatch) -> None:

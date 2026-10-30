@@ -16,12 +16,14 @@ import structlog
 
 from src.apikeys.policy import NeedsApiKeyError, resolve_session_auth
 from src.bot import onboarding
+from src.bot.handlers.messages import mcp_servers_for, router as messages_router
 from src.bot.keyboards import create_project_keyboard
 from src.bot.permissions import is_bot_privileged
 from src.claude import ClaudeBridge, ClaudeEventType, ClaudeImageAttachment, SessionManager
 from src.config import Settings
 from src.event_bus import AgentFinished, AgentStreamingUpdate, EventBus, UserMessageReceived
 from src.utils import ResponseStreamer
+from src.child_env import child_env
 from src.utils.url_safety import is_path_within_root
 
 logger = structlog.get_logger()
@@ -514,6 +516,7 @@ async def _process_prompt(
                         session_id=session.session_id,
                         attachments=attachments or [],
                         privileged=is_privileged,
+                        kb_search=False,
                     )
                 )
             finally:
@@ -560,12 +563,16 @@ async def _process_prompt(
                 )
                 return
 
+            mcp_servers = mcp_servers_for(
+                getattr(messages_router, "connections_store", None), auth_user_id
+            )
             async for event in claude_bridge.send_message(
                 message=prompt,
                 topic_id=topic_id,
                 project_path=session.project_path,
                 session_id=session.session_id,
                 attachments=attachments,
+                mcp_servers=mcp_servers,
                 anthropic_api_key=auth_decision.api_key,
             ):
                 if event.type == ClaudeEventType.LOG:
@@ -639,6 +646,7 @@ async def _transcribe_voice_message(voice_path: Path) -> str:
         str(voice_path.parent),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        env=child_env(),
     )
     stdout, stderr = await process.communicate()
 

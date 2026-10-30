@@ -318,6 +318,8 @@ class Settings(BaseSettings):
     web_jwt_secret_env: str = Field(default="", alias="WEB_JWT_SECRET")
     web_dev_bearer_token_env: str = Field(default="", alias="WEB_DEV_BEARER_TOKEN")
     connections_secret_key_env: str = Field(default="", alias="CONNECTIONS_SECRET_KEY")
+    kb_mcp_url_env: str = Field(default="", alias="KB_MCP_URL")
+    kb_mcp_key_env: str = Field(default="", alias="KB_MCP_KEY")
     telegram_bot_username_env: str = Field(default="", alias="TELEGRAM_BOT_USERNAME")
     admin_login_env: str = Field(default="", alias="ADMIN_LOGIN")
     admin_password_env: str = Field(default="", alias="ADMIN_PASSWORD")
@@ -451,6 +453,14 @@ class Settings(BaseSettings):
     def get_connections_secret_key(self) -> str:
         """Fernet master key for per-user connection secrets (env only)."""
         return self.connections_secret_key_env or ""
+
+    def get_kb_mcp_url(self) -> str:
+        """URL общего MCP-сервера базы знаний ФАКТ (env only, пусто = выключен)."""
+        return self.kb_mcp_url_env or ""
+
+    def get_kb_mcp_key(self) -> str:
+        """Ключ общего MCP-сервера базы знаний ФАКТ (env only, пусто = выключен)."""
+        return self.kb_mcp_key_env or ""
 
     def get_scratch_dir(self) -> Path:
         """Каталог для сессий без проекта («чистый Claude»).
