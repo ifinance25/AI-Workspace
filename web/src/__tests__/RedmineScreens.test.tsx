@@ -32,6 +32,7 @@ vi.mock("@/auth/AuthContext", () => ({
 vi.mock("@/components/SettingsModal", () => ({ default: () => null }));
 
 import RedminePage from "@/routes/RedminePage";
+import RedmineScreens from "@/components/redmine/RedmineScreens";
 
 function renderAt(path: string) {
   return render(
@@ -281,6 +282,34 @@ describe("Экраны зеркала Redmine", () => {
       7,
       15,
       expect.objectContaining({ description: "ещё не подтверждено" }),
+    );
+  });
+
+  it("с контекстом префилла модалка не открывается", async () => {
+    mockRedmine.loadProject.mockResolvedValue(view());
+    mockRedmine.createIssue.mockResolvedValueOnce({
+      updated: true,
+      issue: issue({ id: 88, subject: "Из созвона", description: "решение" }),
+    });
+    render(
+      <MemoryRouter initialEntries={["/office/7/redmine"]}>
+        <Routes>
+          <Route
+            path="/office/:id/redmine"
+            element={<RedmineScreens projectId={7} createPrefill={{
+              subject: "Из созвона",
+              description: "решение",
+            }} />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Создать задачу" }));
+    expect(screen.queryByRole("dialog", { name: "Новая задача" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "#88" })).toBeInTheDocument();
+    expect(mockRedmine.createIssue).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({ subject: "Из созвона", description: "решение" }),
     );
   });
 

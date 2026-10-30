@@ -1,16 +1,22 @@
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import AppShell from "@/components/AppShell";
-import RedmineScreens from "@/components/redmine/RedmineScreens";
+import RedmineScreens, { type RedmineCreatePrefill } from "@/components/redmine/RedmineScreens";
 import type { Session } from "@/lib/types";
 
 function parseProjectId(id: string): number | null {
   return /^\d+$/.test(id) ? Number(id) : null;
 }
 
+type RedmineLocationState = {
+  redmineCreate?: RedmineCreatePrefill;
+};
+
 export default function RedminePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
   const projectId = id === undefined ? null : parseProjectId(id);
+  const createPrefill = (location.state as RedmineLocationState | null)?.redmineCreate;
 
   const onSelectSession = (s: Session | null) => {
     if (s) navigate("/");
@@ -27,7 +33,7 @@ export default function RedminePage() {
         {projectId === null ? (
           <p>Проект не найден</p>
         ) : (
-          <RedmineScreens projectId={projectId} />
+          <RedmineScreens projectId={projectId} createPrefill={createPrefill} />
         )}
       </div>
     </AppShell>

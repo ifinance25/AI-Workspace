@@ -144,6 +144,33 @@ function emptyDraft(): Draft {
   };
 }
 
+/** Контекст для создания без модалки: транскрипт, цитата, другое скрытое префилл. */
+export type RedmineCreatePrefill = {
+  subject: string;
+  description?: string;
+  statusId?: string;
+  assigneeId?: string;
+  start?: string;
+  due?: string;
+  notes?: string;
+};
+
+function draftFromPrefill(prefill: RedmineCreatePrefill): Draft {
+  return {
+    subject: prefill.subject,
+    description: prefill.description ?? "",
+    statusId: prefill.statusId ?? "",
+    assigneeId: prefill.assigneeId ?? "",
+    start: prefill.start ?? "",
+    due: prefill.due ?? "",
+    notes: prefill.notes ?? "",
+  };
+}
+
+function canCreateSilently(prefill?: RedmineCreatePrefill | null): prefill is RedmineCreatePrefill {
+  return Boolean(prefill?.subject?.trim());
+}
+
 const CREATE_STUB: RedmineIssue = {
   id: 0,
   subject: "",
@@ -160,7 +187,14 @@ const CREATE_STUB: RedmineIssue = {
   cycle_hours: null,
 };
 
-export default function RedmineScreens({ projectId }: { projectId: number }) {
+export default function RedmineScreens({
+  projectId,
+  createPrefill,
+}: {
+  projectId: number;
+  /** Если тема уже задана снаружи, «Создать задачу» идёт в Redmine без модалки. */
+  createPrefill?: RedmineCreatePrefill | null;
+}) {
   const [view, setView] = useState<RedmineView | null>(null);
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState<string | null>(null);
@@ -233,9 +267,8 @@ export default function RedmineScreens({ projectId }: { projectId: number }) {
     setDraft(draftFrom(issue));
   }
 
-  async function submitCreate() {
-    if (!createDraft) return;
-    if (!createDraft.subject.trim()) {
+  async function submitCreateWithDraft(source: Draft) {
+    if (!source.subject.trim()) {
       setError("Укажите тему задачи");
       return;
     }
@@ -244,16 +277,16 @@ export default function RedmineScreens({ projectId }: { projectId: number }) {
     const body: Parameters<typeof redmineApi.createIssue>[1] = {
       request_key: requestKey(),
       redmine_project: "",
-      subject: createDraft.subject.trim(),
-      description: createDraft.description,
-      start_date: createDraft.start || null,
-      due_date: createDraft.due || null,
+      subject: source.subject.trim(),
+      description: source.description,
+      start_date: source.start || null,
+      due_date: source.due || null,
     };
-    if (createDraft.statusId) body.status_id = createDraft.statusId;
-    if (/^\d+$/.test(createDraft.assigneeId)) {
-      body.assigned_to_id = Number(createDraft.assigneeId);
+    if (source.statusId) body.status_id = source.statusId;
+    if (/^\d+$/.test(source.assigneeId)) {
+      body.assigned_to_id = Number(source.assigneeId);
     }
-    if (createDraft.notes.trim()) body.notes = createDraft.notes.trim();
+    if (source.notes.trim()) body.notes = source.notes.trim();
     try {
       const result = await redmineApi.createIssue(projectId, body);
       setCreateOpen(false);
@@ -264,6 +297,19 @@ export default function RedmineScreens({ projectId }: { projectId: number }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function submitCreate() {
+    if (!createDraft) return;
+    await submitCreateWithDraft(createDraft);
+  }
+
+  function onCreateClick() {
+    if (canCreateSilently(createPrefill)) {
+      void submitCreateWithDraft(draftFromPrefill(createPrefill));
+      return;
+    }
+    openCreateModal();
   }
 
   function openCreateModal() {
@@ -324,7 +370,7 @@ export default function RedmineScreens({ projectId }: { projectId: number }) {
         <h1 className="text-xl font-semibold sm:text-2xl">Задачи</h1>
         <button
           type="button"
-          onClick={openCreateModal}
+          onClick={onCreateClick}
           disabled={busy}
           className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-[var(--accent-fg)] hover:opacity-90 disabled:opacity-50"
         >
