@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
 import { SparklesIcon } from "@/components/icons";
+import { COMPANY_NAME, LOGIN_PROMPT, PRODUCT_NAME } from "@/lib/branding";
 
 declare global {
   interface Window {
@@ -157,11 +158,10 @@ export default function LoginPage() {
           <SparklesIcon size={40} />
         </div>
         <h1 className="font-display text-3xl font-normal tracking-tight text-[var(--fg-primary)] sm:text-4xl">
-          AI-Panel
+          {PRODUCT_NAME}
         </h1>
-        <p className="mt-2 text-base text-[var(--fg-muted)]">
-          Войдите, чтобы продолжить
-        </p>
+        <p className="mt-2 text-base text-[var(--fg-muted)]">{COMPANY_NAME}</p>
+        <p className="mt-1 text-sm text-[var(--fg-muted)]">{LOGIN_PROMPT}</p>
 
         {/* Вход по логину/паролю (локальные аккаунты от админа) */}
         <form onSubmit={submitLogin} className="mt-10 space-y-3 text-left">

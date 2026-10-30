@@ -1,4 +1,5 @@
 import { ClaudeLogo } from "@/components/icons";
+import { PRODUCT_NAME } from "@/lib/branding";
 
 export default function Logo() {
   return (
@@ -8,7 +9,7 @@ export default function Logo() {
         <ClaudeLogo size={20} />
       </div>
       <span className="font-display text-[1.35rem] font-normal tracking-tight text-[var(--fg-primary)]">
-        AI-Panel
+        {PRODUCT_NAME}
       </span>
     </div>
   );
