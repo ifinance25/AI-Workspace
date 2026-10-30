@@ -1,0 +1,12 @@
+[Unit]
+Description=Nightly AI-Panel SQLite backup
+Documentation=file:///opt/ai-workspace/scripts/backup_sessions_db.sh
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+Persistent=true
+RandomizedDelaySec=900
+Unit=ai-workspace-db-backup.service
+
+[Install]
+WantedBy=timers.target

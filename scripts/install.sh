@@ -1552,6 +1552,24 @@ install_systemd_unit() {
     log_ok "Installed $UNIT_PATH"
 }
 
+install_db_backup_timer() {
+    step "SQLite backup"
+    local script="${INSTALL_DIR}/scripts/backup_sessions_db.sh"
+    local unit_svc="${INSTALL_DIR}/scripts/ai-workspace-db-backup.service"
+    local unit_tmr="${INSTALL_DIR}/scripts/ai-workspace-db-backup.timer"
+    if [[ ! -f "$script" || ! -f "$unit_svc" || ! -f "$unit_tmr" ]]; then
+        log_warn "Файлы backup_sessions_db / ai-workspace-db-backup.* не найдены — таймер не ставим"
+        return 0
+    fi
+    chmod 755 "$script"
+    install -m 0644 "$unit_svc" /etc/systemd/system/ai-workspace-db-backup.service
+    install -m 0644 "$unit_tmr" /etc/systemd/system/ai-workspace-db-backup.timer
+    systemctl daemon-reload
+    systemctl enable ai-workspace-db-backup.timer
+    systemctl start ai-workspace-db-backup.timer
+    log_ok "Nightly SQLite backup: 03:15 UTC, /var/backups/ai-workspace/db, retention 14d"
+}
+
 ensure_caddy() {
     step "Caddy (reverse proxy)"
     if command -v caddy >/dev/null 2>&1; then
@@ -1789,6 +1807,7 @@ main() {
         ensure_data_dir
     fi
     install_systemd_unit
+    install_db_backup_timer
     open_firewall_port
     # H-7: ПОСЛЕ всех записей в INSTALL_DIR (код/venv/фронт/.env/config) и ПОСЛЕ
     # ensure_data_dir — закрепляем root-владение на всё, кроме data/. Должно идти
