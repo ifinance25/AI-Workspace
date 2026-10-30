@@ -375,6 +375,8 @@ render_web_config() {
     local public_origin=${1:-}
     local host=${2:-127.0.0.1}
     local port=${3:-8765}
+    # У43-01: true только когда проба bwrap от сервис-юзера прошла (jail_probe_ok).
+    local require_jail=${4:-false}
     cat <<EOF
 # Сгенерировано install.sh — локальные настройки (вне git, не трогается update).
 web:
@@ -383,11 +385,28 @@ web:
   port: ${port}
   public_origin: "${public_origin}"
 
+# Джейл bwrap для сессий с ограниченным доступом (У43-01): true, если проба bwrap
+# от сервис-юзера прошла при установке. Без bwrap такие сессии только читают.
+claude:
+  require_jail: ${require_jail}
+
 # Webhook-приёмник (RCE-вектор) держим выключенным явно — defense-in-depth.
 webhooks:
   enabled: false
   host: "127.0.0.1"
 EOF
+}
+
+jail_probe_ok() {
+    # Проба bwrap от имени сервис-юзера: unprivileged userns должны работать именно
+    # для него (root проходит всегда, это ничего не доказывает).
+    command -v bwrap >/dev/null 2>&1 || return 1
+    local user=${SERVICE_USER:-}
+    if [[ -n "$user" ]] && command -v runuser >/dev/null 2>&1; then
+        runuser -u "$user" -- bwrap --unshare-user --ro-bind / / true >/dev/null 2>&1
+    else
+        bwrap --unshare-user --ro-bind / / true >/dev/null 2>&1
+    fi
 }
 
 gen_jwt_secret() {
@@ -1218,7 +1237,14 @@ write_web_config() {
     step "Web config"
     local cfg_file="$INSTALL_DIR/config/config.local.yaml"
     mkdir -p "$INSTALL_DIR/config"
-    render_web_config "$CFG_PUBLIC_ORIGIN" "$CFG_WEB_HOST" "$CFG_WEB_PORT" >"$cfg_file"
+    local require_jail=false
+    if jail_probe_ok; then
+        require_jail=true
+        log_ok "bwrap работает от сервис-юзера: claude.require_jail: true"
+    else
+        log_warn "bwrap недоступен сервис-юзеру: сессии с ограниченным доступом будут только читать (claude.require_jail: false)"
+    fi
+    render_web_config "$CFG_PUBLIC_ORIGIN" "$CFG_WEB_HOST" "$CFG_WEB_PORT" "$require_jail" >"$cfg_file"
     # H-7: config принадлежит root, сервис-юзер только читает (0640). Конфиг
     # статичен (читается на старте), записи сервис-юзеру не требуется.
     chown root:"${SERVICE_GROUP:-$SERVICE_USER}" "$cfg_file"
@@ -1785,7 +1811,7 @@ main() {
     # (ensure_python311) — system python3 на Ubuntu 22.04 = 3.10 и ломает pip.
     apt_install_missing curl git python3 python3-venv python3-pip bubblewrap
     if ! command -v bwrap >/dev/null 2>&1; then
-        log_warn "bubblewrap (bwrap) не установлен — OS-джейл confined-сессий недоступен; держите claude.require_jail выключенным."
+        log_warn "bubblewrap (bwrap) не установлен — OS-джейл confined-сессий недоступен; такие сессии будут работать только в режиме чтения."
     fi
     ensure_node_runtime
     create_service_user_if_needed

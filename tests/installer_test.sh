@@ -213,6 +213,10 @@ assert_contains "$ip_cfg" 'public_origin: "http://1.2.3.4:8765"' "web config ip 
 assert_contains "$ip_cfg" 'port: 8765' "web config explicit port"
 # По умолчанию внутренний порт 8765 (наружу :80/:443 — Caddy).
 assert_contains "$web_cfg" 'port: 8765' "web config default internal port 8765"
+# У43-01: без пробы bwrap require_jail: false; с пробой true.
+assert_contains "$web_cfg" 'require_jail: false' "web config jail off by default"
+jail_cfg="$(render_web_config 'https://claude.example.com' '127.0.0.1' '8765' 'true')"
+assert_contains "$jail_cfg" 'require_jail: true' "web config jail on when probe passed"
 
 echo "== render_systemd_unit =="
 unit="$(SERVICE_USER=alice SERVICE_GROUP=alice SERVICE_HOME=/home/alice INSTALL_DIR=/opt/ai-workspace SERVICE_NAME=ai-workspace render_systemd_unit)"

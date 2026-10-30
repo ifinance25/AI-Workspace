@@ -21,6 +21,15 @@ NEEDS_API_KEY_MESSAGE = (
     "чтобы отправлять сообщения"
 )
 
+# У43-01: ограниченная сессия (confine_root) без джейла bwrap обходила файрвол
+# двумя шагами (Write скрипта в проект, Bash python3 файл.py). Пока джейла нет,
+# такая сессия работает только в режиме чтения: без Bash, Write, Edit.
+JAIL_FALLBACK_READONLY_MESSAGE = (
+    "Джейл bwrap недоступен на этом сервере: сессия с ограниченным доступом "
+    "работает только в режиме чтения (без Bash, Write, Edit). Администратору: "
+    "установите bubblewrap или включите claude.require_jail."
+)
+
 # Сколько символов текста копить, прежде чем толкнуть один streaming_update.
 # Реальный посимвольный стрим SDK (text_delta) даёт сотни мелких событий на
 # длинный ответ и переполнял бы WS-очередь форвардера (maxsize). Коалесцируем
@@ -59,6 +68,23 @@ class ClaudeEventRelay:
     def close(self) -> None:
         """Detach the relay from the bus."""
         self._unsubscribe()
+
+    def _jail_missing_best_effort(self) -> bool:
+        """True, когда мост запустит ограниченную сессию без джейла и не откажет сам.
+
+        При ``require_jail`` мост отказывает сам (fail-closed), здесь ничего не меняем.
+        Мост без пробы джейла (тестовые заглушки) читается как «джейл есть».
+        """
+        bridge = self.claude_bridge
+        if getattr(bridge, "require_jail", False):
+            return False
+        probe = getattr(bridge, "_jail_available", None)
+        if not callable(probe):
+            return False
+        try:
+            return not bool(probe())
+        except Exception:  # noqa: BLE001 - сломанная проба читается как «джейла нет»
+            return True
 
     async def _handle_user_message(self, event: UserMessageReceived) -> None:
         await self.bus.publish(
@@ -134,6 +160,17 @@ class ClaudeEventRelay:
             include_shared=event.kb_search,
         )
 
+        readonly = bool(getattr(event, "readonly", False))
+        confine_root = getattr(event, "confine_root", None)
+        if confine_root and not readonly and self._jail_missing_best_effort():
+            readonly = True
+            logger.warning(
+                "jail_unavailable_confined_session_readonly", topic_id=event.topic_id
+            )
+            await self._publish_update(
+                event, "log", content=JAIL_FALLBACK_READONLY_MESSAGE
+            )
+
         try:
             async for claude_event in self.claude_bridge.send_message(
                 message=event.text,
@@ -141,8 +178,8 @@ class ClaudeEventRelay:
                 project_path=event.project_path,
                 session_id=event.session_id,
                 attachments=event.attachments,
-                readonly=getattr(event, "readonly", False),
-                confine_root=getattr(event, "confine_root", None),
+                readonly=readonly,
+                confine_root=confine_root,
                 mcp_servers=mcp_servers,
                 anthropic_api_key=api_key_to_inject,
             ):

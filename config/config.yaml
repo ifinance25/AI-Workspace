@@ -36,6 +36,13 @@ claude:
   # Maximum silence before considering stream stalled (increase if Claude is slow)
   idle_timeout_seconds: 300
 
+  # OS-джейл bwrap для сессий с ограниченным доступом (не админ, не белый список).
+  # false: без bwrap такая сессия работает только в режиме чтения (без Bash, Write,
+  # Edit), с bwrap получает полный доступ к своему проекту. true: без bwrap такая
+  # сессия не стартует вовсе. На проде с рабочим bwrap ставить true: установщик
+  # пишет это в config/config.local.yaml, когда проба bwrap проходит.
+  require_jail: false
+
   # Require per-user Anthropic API keys for non-privileged users (SP2).
   # МЯГКИЙ СТАРТ по умолчанию (false): ключи можно задать и они работают, но НЕ
   # обязательны — никто не блокируется, юзеры без ключа едут на подписке владельца.
