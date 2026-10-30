@@ -182,6 +182,30 @@ copy_dump() {
     fi
 }
 
+# В43-3: сырые ответы общей базы знаний ФАКТ (строки tool_use сервера fakt_kb) на
+# стенд не едут: в них настоящие имена и пункты документов. Дамп-источник не меняем.
+scrub_kb_history() {
+    local db="$1"
+    command -v python3 >/dev/null 2>&1 || return 0
+    python3 - "$db" <<'PYSCRUB'
+import sqlite3
+import sys
+
+db = sys.argv[1]
+with sqlite3.connect(db) as conn:
+    has = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'messages'"
+    ).fetchone()
+    if has:
+        cur = conn.execute(
+            "DELETE FROM messages WHERE kind = 'tool_use' "
+            "AND metadata_json LIKE '%\"name\": \"mcp__fakt_kb__%'"
+        )
+        if cur.rowcount:
+            print(f"Из истории стенда убрано строк базы знаний: {cur.rowcount}")
+PYSCRUB
+}
+
 # Пути проектов в дампе прода (часто /var/lib/ai-workspace/projects/...)
 # переписываем на локальный PROJECTS_DIR; имя папки сохраняем.
 # Идемпотентно: уже локальные пути не трогаем. Дамп-источник не меняем.
@@ -325,6 +349,14 @@ fi
 
 stop_stand
 copy_dump "$DUMP" "$TARGET"
+scrub_kb_history "$TARGET"
 echo "Восстановлено: $DUMP -> $TARGET"
 remap_project_paths "$TARGET" "$PROJECTS_DIR"
 align_stand_admin "$TARGET"
+
+seed_redmine_kanban_lookups() {
+    local db="$1"
+    PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}" python3 "$ROOT/scripts/seed_redmine_lookups.py" --db "$db"
+}
+
+seed_redmine_kanban_lookups "$TARGET"

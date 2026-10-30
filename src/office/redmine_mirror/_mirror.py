@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from src.office import tenancy
+from src.office.redmine_mirror._lookups import filters_for_api
 from src.office.redmine_mirror._rules import cycle_hours, ftt_section
 
 SYNC_INTERVAL_MINUTES = 15
@@ -231,13 +232,17 @@ def _schedule(last_ok_at: str | None) -> dict:
 
 def _view(store: Any, project_id: int, *, updated: bool, message: str) -> dict:
     row = _row(store, project_id)
-    return {
+    body: dict[str, Any] = {
         "connected": bool(row and row["connected"]),
         "updated": updated,
         "message": message,
         "issues": _issues(store, project_id),
         **_schedule(row["last_ok_at"] if row else None),
     }
+    lookups = filters_for_api(store)
+    if lookups is not None:
+        body["lookups"] = lookups
+    return body
 
 
 def _mark(

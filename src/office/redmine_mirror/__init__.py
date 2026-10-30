@@ -16,6 +16,7 @@ from src.office.redmine_mirror._account import (
 )
 from src.office.redmine_mirror._http import open_client
 from src.office.redmine_mirror._demo_seed import create_demo_issue, seed_demo_mirror
+from src.office.redmine_mirror._lookups import load_lookups, seed_lookups
 from src.office.redmine_mirror._mirror import (
     SYNC_INTERVAL_MINUTES,
     MirrorError,
@@ -45,6 +46,8 @@ __all__ = [
     "run_due",
     "save_account",
     "seed_demo_mirror",
+    "seed_lookups",
+    "load_lookups",
     "create_demo_issue",
     "update_issue",
     "url_allowed",

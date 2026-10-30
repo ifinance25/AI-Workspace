@@ -38,6 +38,17 @@ export interface RedmineView {
   interval_minutes: number;
   synced_at: string | null;
   next_sync_at: string | null;
+  lookups?: RedmineLookups;
+}
+
+export interface RedmineLookups {
+  types: string[];
+  environments: string[];
+  ftt_sections: string[];
+  statuses: Array<{ id: string; name: string }>;
+  authors: string[];
+  assignees: string[];
+  people_by_name?: Record<string, number>;
 }
 
 export interface RedmineIssueResult {

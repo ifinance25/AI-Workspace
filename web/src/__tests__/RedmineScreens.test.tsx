@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import type { RedmineIssue, RedmineView } from "@/components/redmine/redmineApi";
@@ -311,6 +311,29 @@ describe("Экраны зеркала Redmine", () => {
       7,
       expect.objectContaining({ subject: "Из созвона", description: "решение" }),
     );
+  });
+
+  it("справочники из БД видны в модалке без задач", async () => {
+    mockRedmine.loadProject.mockResolvedValue(view({
+      lookups: {
+        types: ["Frontend"],
+        environments: ["Десктоп"],
+        ftt_sections: ["База знаний"],
+        statuses: [
+          { id: "1", name: "Новая" },
+          { id: "2", name: "В работе" },
+        ],
+        authors: ["Иван"],
+        assignees: ["Анна Петрова"],
+        people_by_name: { "Анна Петрова": 42 },
+      },
+    }));
+    renderAt("/office/7/redmine");
+    fireEvent.click(await screen.findByRole("button", { name: "Создать задачу" }));
+    const dialog = await screen.findByRole("dialog", { name: "Новая задача" });
+    fireEvent.change(within(dialog).getByLabelText("Статус"), { target: { value: "2" } });
+    expect(within(dialog).getByRole("option", { name: "В работе" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("option", { name: "Анна Петрова" })).toBeInTheDocument();
   });
 
   it("создание: модалка, тема и вызов зеркала по токену сервера", async () => {

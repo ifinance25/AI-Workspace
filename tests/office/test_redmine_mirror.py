@@ -146,6 +146,37 @@ def test_seed_demo_mirror_served_without_api_key(tmp_path) -> None:
     assert len(loaded["issues"]) == count
 
 
+def test_kanban_lookups_returned_in_mirror_view(tmp_path) -> None:
+    from src.office.redmine_mirror._lookups import default_fixture_path, seed_lookups
+
+    sm, store, pid, ivan = _office(tmp_path)
+    fixture = default_fixture_path()
+    if not fixture.is_file():
+        import pytest
+
+        pytest.skip(f"нет фикстуры {fixture}")
+    seed_lookups(store, fixture_path=fixture)
+    redmine_mirror.seed_demo_mirror(store, pid)
+
+    class _NoKey:
+        def list_issues(self, project: str) -> list:
+            raise redmine_mirror.MirrorError("no_key", "Ключ Redmine не задан")
+
+    loaded = redmine_mirror.load_project(
+        store,
+        pid,
+        actor_id=ivan,
+        is_admin=False,
+        client=_NoKey(),
+        users=sm,
+        redmine_project="demo",
+    )
+    lookups = loaded.get("lookups")
+    assert lookups is not None
+    assert any(item.get("name") == "Новая" for item in lookups.get("statuses", []))
+    assert "Frontend" in lookups.get("types", [])
+
+
 def test_create_demo_issue_without_redmine_key(tmp_path) -> None:
     sm, store, pid, ivan = _office(tmp_path)
     redmine_mirror.seed_demo_mirror(store, pid)

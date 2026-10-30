@@ -74,6 +74,9 @@ data/*
 !data/dumps/
 data/dumps/*
 !data/dumps/README.md
+!data/fixtures/
+data/fixtures/*
+!data/fixtures/redmine_kanban_lookups.json
 
 # Telegram uploads
 .telegram-uploads/

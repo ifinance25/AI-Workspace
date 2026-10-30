@@ -6,6 +6,7 @@ import { ApiError } from "@/api/client";
 import {
   redmineApi,
   type RedmineIssue,
+  type RedmineLookups,
   type RedminePerson,
   type RedmineView,
 } from "@/components/redmine/redmineApi";
@@ -241,6 +242,19 @@ export default function RedmineScreens({
   }, [projectId]);
 
   const issues = view?.issues ?? [];
+  const lookups = view?.lookups;
+  const statusChoices = useMemo(
+    () => mergeStatusOptions(issues, lookups),
+    [issues, lookups],
+  );
+  const assigneeChoices = useMemo(
+    () => mergePeopleOptions(issues, lookups, "assignee"),
+    [issues, lookups],
+  );
+  const peopleChoices = useMemo(
+    () => mergePeopleOptions(issues, lookups, "all"),
+    [issues, lookups],
+  );
   const filtered = useMemo(() => {
     const now = Date.now();
     return issues.filter((issue) => {
@@ -386,6 +400,7 @@ export default function RedmineScreens({
       {connected && (
         <Filters
           issues={issues}
+          lookups={lookups}
           filters={filters}
           onChange={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
         />
@@ -423,8 +438,8 @@ export default function RedmineScreens({
           <IssueCard
             issue={open}
             draft={draft}
-            people={peopleOptions(issues)}
-            statuses={statusOptions(issues)}
+            people={peopleChoices}
+            statuses={statusChoices}
             busy={busy}
             onChange={setDraft}
             onClose={() => setOpen(null)}
@@ -458,8 +473,8 @@ export default function RedmineScreens({
             <IssueCard
               issue={CREATE_STUB}
               draft={createDraft}
-              people={peopleOptions(issues)}
-              statuses={statusOptions(issues)}
+              people={assigneeChoices}
+              statuses={statusChoices}
               busy={busy}
               creating
               onChange={setCreateDraft}
@@ -488,10 +503,12 @@ function Header({ projectId }: { projectId: number }) {
 
 function Filters({
   issues,
+  lookups,
   filters,
   onChange,
 }: {
   issues: RedmineIssue[];
+  lookups?: RedmineLookups;
   filters: {
     type: string;
     environment: string;
@@ -504,12 +521,30 @@ function Filters({
   onChange: (key: string, value: string) => void;
 }) {
   const fields: Array<[string, string, string[]]> = [
-    ["type", "Тип", unique(issues.map(issueType))],
-    ["environment", "Окружение", unique(issues.map(issueEnvironment))],
-    ["section", "Раздел функциональных требований", unique(issues.map((issue) => issue.ftt_section || UNSET))],
-    ["status", "Статус", unique(issues.map(statusName))],
-    ["author", "Автор", unique(issues.map((issue) => personName(issue.author, "Без автора")))],
-    ["assignee", "Исполнитель", unique(issues.map((issue) => personName(issue.assignee, "Не назначен")))],
+    ["type", "Тип", mergeStrings(unique(issues.map(issueType)), lookups?.types)],
+    ["environment", "Окружение", mergeStrings(unique(issues.map(issueEnvironment)), lookups?.environments)],
+    [
+      "section",
+      "Раздел функциональных требований",
+      mergeStrings(unique(issues.map((issue) => issue.ftt_section || UNSET)), lookups?.ftt_sections),
+    ],
+    [
+      "status",
+      "Статус",
+      mergeStrings(
+        unique(issues.map(statusName)),
+        lookups?.statuses?.map((item) => item.name),
+      ),
+    ],
+    ["author", "Автор", mergeStrings(unique(issues.map((issue) => personName(issue.author, "Без автора"))), lookups?.authors)],
+    [
+      "assignee",
+      "Исполнитель",
+      mergeStrings(
+        unique(issues.map((issue) => personName(issue.assignee, "Не назначен"))),
+        lookups?.assignees,
+      ),
+    ],
   ];
   return (
     <div className="mb-4 flex flex-wrap gap-3">
@@ -718,22 +753,50 @@ function Forecasts({
   );
 }
 
-function peopleOptions(issues: RedmineIssue[]): Array<{ value: string; label: string }> {
+function mergeStrings(fromIssues: string[], extra?: string[]): string[] {
+  return unique([...fromIssues, ...(extra ?? [])]);
+}
+
+function mergeStatusOptions(
+  issues: RedmineIssue[],
+  lookups?: RedmineLookups,
+): Array<{ value: string; label: string }> {
   const map = new Map<string, string>();
+  for (const item of lookups?.statuses ?? []) {
+    if (item.id) map.set(item.id, item.name || item.id);
+  }
+  for (const issue of issues) {
+    if (issue.status?.id) map.set(issue.status.id, issue.status.name || issue.status.id);
+  }
+  return [...map.entries()].map(([value, label]) => ({ value, label }));
+}
+
+function mergePeopleOptions(
+  issues: RedmineIssue[],
+  lookups?: RedmineLookups,
+  role: "assignee" | "all" = "all",
+): Array<{ value: string; label: string }> {
+  const map = new Map<string, string>();
+  const byName = lookups?.people_by_name ?? {};
+  if (lookups?.assignees && (role === "assignee" || role === "all")) {
+    for (const name of lookups.assignees) {
+      const remoteId = byName[name];
+      map.set(remoteId != null ? String(remoteId) : `name:${name}`, name);
+    }
+  }
+  if (lookups?.authors && role === "all") {
+    for (const name of lookups.authors) {
+      const remoteId = byName[name];
+      const value = remoteId != null ? String(remoteId) : `name:${name}`;
+      if (!map.has(value)) map.set(value, name);
+    }
+  }
   for (const issue of issues) {
     for (const person of [issue.author, issue.assignee]) {
       if (!person?.name) continue;
       const value = person.user_id != null ? String(person.user_id) : `name:${person.name}`;
       map.set(value, person.name);
     }
-  }
-  return [...map.entries()].map(([value, label]) => ({ value, label }));
-}
-
-function statusOptions(issues: RedmineIssue[]): Array<{ value: string; label: string }> {
-  const map = new Map<string, string>();
-  for (const issue of issues) {
-    if (issue.status?.id) map.set(issue.status.id, issue.status.name || issue.status.id);
   }
   return [...map.entries()].map(([value, label]) => ({ value, label }));
 }
