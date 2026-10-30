@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from src.office import tenancy
+from src.office.redmine_mirror._rules import cycle_hours, ftt_section
 
 SYNC_INTERVAL_MINUTES = 15
 CUSTOMER_ROLES = frozenset({"customer_representative", "customer_signatory"})
@@ -174,6 +175,8 @@ def _issue_from_redmine(client: Any, raw: dict, users: Any, cache: dict) -> dict
         "comments": _comments(client, journals, users, cache),
         "status_history": _history(journals, "status_id"),
         "assignee_history": _history(journals, "assigned_to_id"),
+        "ftt_section": ftt_section(raw.get("subject") or "", raw.get("description") or ""),
+        "cycle_hours": cycle_hours(raw),
     }
 
 

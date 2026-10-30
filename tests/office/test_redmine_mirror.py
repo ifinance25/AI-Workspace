@@ -440,3 +440,101 @@ async def test_app_start_runs_the_fifteen_minute_sync(server, monkeypatch) -> No
                 break
             await asyncio.sleep(0.01)
     assert seen.get("ran") is True
+
+
+def _journal(journal_id: int, at: str, new_status: str, old_status: str = "1") -> dict:
+    return {
+        "id": journal_id,
+        "created_on": at,
+        "notes": "",
+        "user": {"id": 3, "name": "Иван Петров"},
+        "details": [{
+            "property": "attr",
+            "name": "status_id",
+            "old_value": old_status,
+            "new_value": new_status,
+        }],
+    }
+
+
+def test_section_and_cycle_hours_follow_the_dashboard_rules(tmp_path) -> None:
+    """Раздел по словам сборки, часы по календарю РФ. Числа разобраны вручную.
+
+    Пятница 30.10 17:00 до понедельника 02.11 10:00: час до 18:00 и час с 09:00,
+    выходные пустые, вместе 2. Короткий день 30.04 кончается в 17:00, с 16:00
+    до 17:30 это 1 час. Праздник 01.05 даёт 0. С 09:00 до 15:00 обед вычитается,
+    остаётся 5. Открытая задача часов цикла не имеет.
+    """
+    sm, store, pid, ivan = _office(tmp_path)
+    client = _Redmine()
+    client.issues = [
+        {
+            "id": 31,
+            "subject": "Статья про сотрудника",
+            "description": "",
+            "status": {"id": 5, "name": "Закрыта"},
+            "author": {"id": 3, "name": "Иван Петров"},
+            "journals": [
+                _journal(1, "2026-10-30T17:00:00+03:00", "2"),
+                _journal(2, "2026-11-02T10:00:00+03:00", "5", "2"),
+            ],
+        },
+        {
+            "id": 32,
+            "subject": "спасибо",
+            "description": "",
+            "status": {"id": 6, "name": "Отклонена"},
+            "author": {"id": 3, "name": "Иван Петров"},
+            "journals": [
+                _journal(1, "2026-04-30T16:00:00+03:00", "2"),
+                _journal(2, "2026-04-30T17:30:00+03:00", "6", "2"),
+            ],
+        },
+        {
+            "id": 33,
+            "subject": "база знаний",
+            "description": "",
+            "status": {"id": 5, "name": "Закрыта"},
+            "author": {"id": 3, "name": "Иван Петров"},
+            "created_on": "2026-05-01T07:00:00Z",
+            "journals": [
+                _journal(1, "2026-05-01T10:00:00+03:00", "2"),
+                _journal(2, "2026-05-01T16:00:00+03:00", "5", "2"),
+            ],
+        },
+        {
+            "id": 34,
+            "subject": "идея сообщества",
+            "description": "",
+            "status": {"id": 5, "name": "Закрыта"},
+            "author": {"id": 3, "name": "Иван Петров"},
+            "start_date": "2026-10-30",
+            "created_on": "2026-10-30T06:00:00Z",
+            "journals": [_journal(1, "2026-10-30T15:00:00+03:00", "5")],
+        },
+        {
+            "id": 35,
+            "subject": "курс",
+            "description": "",
+            "status": {"id": 2, "name": "В работе"},
+            "author": {"id": 3, "name": "Иван Петров"},
+            "journals": [_journal(1, "2026-10-26T10:00:00+03:00", "2")],
+        },
+    ]
+    loaded = redmine_mirror.load_project(
+        store, pid, actor_id=ivan, is_admin=False, client=client, users=sm,
+        redmine_project="fact",
+    )
+    by_id = {item["id"]: item for item in loaded["issues"]}
+    assert by_id[31]["ftt_section"] == "База знаний"
+    assert by_id[31]["cycle_hours"] == 2
+    assert by_id[32]["ftt_section"] == "Спасибо"
+    assert by_id[32]["cycle_hours"] == 1
+    assert by_id[33]["ftt_section"] == "Не определён"
+    assert by_id[33]["cycle_hours"] == 0
+    assert by_id[34]["ftt_section"] == "Общение единомышленников"
+    assert by_id[34]["cycle_hours"] == 5
+    assert by_id[35]["ftt_section"] == "Управление электронным обучением"
+    assert by_id[35]["cycle_hours"] is None
+    store.close()
+    sm.close_sync()
