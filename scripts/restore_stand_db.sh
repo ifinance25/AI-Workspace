@@ -356,7 +356,13 @@ align_stand_admin "$TARGET"
 
 seed_redmine_kanban_lookups() {
     local db="$1"
-    PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}" python3 "$ROOT/scripts/seed_redmine_lookups.py" --db "$db"
+    local py="python3"
+    if [[ -x "$ROOT/.venv/bin/python" ]]; then
+        py="$ROOT/.venv/bin/python"
+    elif [[ -x "$ROOT/.venv/Scripts/python.exe" ]]; then
+        py="$ROOT/.venv/Scripts/python.exe"
+    fi
+    PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}" "$py" "$ROOT/scripts/seed_redmine_lookups.py" --db "$db"
 }
 
 seed_redmine_kanban_lookups "$TARGET"
