@@ -102,6 +102,15 @@ export interface ApiUser {
   is_admin?: boolean;
   telegram_bot_username?: string;
   can_continue_in_telegram?: boolean;
+  /** Подключена ли общая база знаний (только флаг, адрес и ключ не отдаются). */
+  kb_search_enabled?: boolean;
+  /** Детализация токенов под ответами в чате (глобально, из display.show_token_usage). */
+  show_token_usage?: boolean;
+}
+
+export interface DisplaySettingsAdmin {
+  show_token_usage: boolean;
+  show_context_usage: boolean;
 }
 
 export interface AdminUser {

@@ -885,6 +885,7 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
       case "subagent_finish":
         return <SubagentEvent kind={b.kind} content={b.content} />;
       case "usage":
+        if (user?.show_token_usage === false) return null;
         return <UsageEvent usage={b.metadata || {}} modelId={info?.current} />;
       case "error":
         return <ErrorEvent error={b.content} />;

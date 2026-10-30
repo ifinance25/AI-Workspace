@@ -17,7 +17,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from src.config.settings import WebSettings
+from src.config.settings import DisplaySettings, WebSettings
 from src.office.storage import OfficeStore
 from src.web.magic_link import MagicLinkStore
 from src.web.origin_check import build_allowed_origins, is_allowed_origin
@@ -28,6 +28,7 @@ from src.web.routes_providers import make_providers_router
 from src.web.routes_connections import make_connections_router
 from src.web.routes_docs import make_docs_router
 from src.web.routes_files import make_files_router
+from src.web.routes_kb_proxy import make_kb_proxy_router
 from src.web.routes_members import make_members_router
 from src.web.routes_model import make_model_router
 from src.web.routes_office import make_office_router
@@ -99,8 +100,15 @@ class WebServer:
         api_key_store: Any = None,
         ssh_store: Any = None,
         projects_dir: str | Path | None = None,
+        kb_search_enabled: bool = False,
+        display_settings: DisplaySettings | None = None,
     ) -> None:
         self.settings = settings
+        # Общий объект с Telegram-ботом: in-memory тумблеры display.*.
+        self.display_settings = display_settings or DisplaySettings()
+        # Только булев флаг «общая база знаний подключена» для /api/me: адрес и
+        # ключ сервера до веб-слоя не доходят.
+        self.kb_search_enabled = bool(kb_search_enabled)
         self.allowed_user_ids = allowed_user_ids
         self.bot_username = bot_username
         self.session_manager = session_manager
@@ -267,6 +275,8 @@ class WebServer:
                 dev_login_enabled=self.settings.dev_login_enabled,
                 magic_link_store=self.magic_link_store,
                 session_manager=self.session_manager,
+                kb_search_enabled=self.kb_search_enabled,
+                display_settings=self.display_settings,
             )
         )
         # H-6: громкое предупреждение, если статический dev-bearer активен на
@@ -411,6 +421,7 @@ class WebServer:
                     allowed_user_ids=self.allowed_user_ids,
                     api_key_store=self.api_key_store,
                     projects_dir=self.projects_dir,
+                    display_settings=self.display_settings,
                 )
             )
             # Self-service шеринг проекта: участники управляются владельцем
@@ -438,6 +449,8 @@ class WebServer:
                         allowed_user_ids=self.allowed_user_ids,
                     )
                 )
+
+        self.app.include_router(make_kb_proxy_router())
 
         # Статика фронта монтируется ПОСЛЕ всех /api-роутеров (SPA-fallback
         # перехватывает только не-API пути). No-op, если web/dist нет (dev).

@@ -4,8 +4,8 @@ interface Props {
 }
 
 /** Компактный бейдж в шапке: суммарные за сессию токены + расход.
- * Контекст %, время и побюджетные данные перенесены в подвал каждого
- * сообщения (UsageEvent) по просьбе пользователя. */
+ * Подробная строка под ответом (UsageEvent) включается глобально в админке
+ * («Интерфейс» → display.show_token_usage). */
 export default function UsageBadge({ tokens, costUsd }: Props) {
   if (tokens === 0 && costUsd === 0) return null;
   const human = tokens >= 1000 ? `${(tokens / 1000).toFixed(1)}k` : String(tokens);

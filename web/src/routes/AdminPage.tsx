@@ -5,15 +5,16 @@ import { useAuth } from "@/auth/AuthContext";
 import UserTab from "@/components/admin/UserTab";
 import ProjectsTab from "@/components/admin/ProjectsTab";
 import AccessesTab from "@/components/admin/AccessesTab";
+import DisplayTab from "@/components/admin/DisplayTab";
 
-type TabType = "users" | "projects" | "accesses";
+type TabType = "users" | "projects" | "accesses" | "display";
 
 const TAB_STORAGE_KEY = "admin-last-tab";
 
 function loadInitialTab(): TabType {
   try {
     const saved = localStorage.getItem(TAB_STORAGE_KEY);
-    if (saved === "users" || saved === "projects" || saved === "accesses") {
+    if (saved === "users" || saved === "projects" || saved === "accesses" || saved === "display") {
       return saved;
     }
   } catch {
@@ -40,6 +41,7 @@ export default function AdminPage() {
     { id: "users", label: "Пользователи" },
     { id: "projects", label: "Проекты" },
     { id: "accesses", label: "Доступы" },
+    { id: "display", label: "Интерфейс" },
   ];
 
   return (
@@ -89,6 +91,7 @@ export default function AdminPage() {
               {tab === "users" && <UserTab />}
               {tab === "projects" && <ProjectsTab />}
               {tab === "accesses" && <AccessesTab />}
+              {tab === "display" && <DisplayTab />}
             </motion.div>
           </AnimatePresence>
         </div>

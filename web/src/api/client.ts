@@ -7,6 +7,7 @@ import type {
   ArtifactsResponse,
   Attachment,
   ConnectionsInfo,
+  DisplaySettingsAdmin,
   DocFile,
   FileContent,
   FileEntry,
@@ -135,6 +136,12 @@ export const api = {
     return req<{ ok: boolean }>("POST", `/api/admin/users/${userId}/admin`, {
       is_admin,
     });
+  },
+  adminGetDisplay() {
+    return req<DisplaySettingsAdmin>("GET", "/api/admin/display");
+  },
+  adminPatchDisplay(patch: Partial<DisplaySettingsAdmin>) {
+    return req<DisplaySettingsAdmin>("PATCH", "/api/admin/display", patch);
   },
   logout() {
     return req<void>("POST", "/api/auth/logout");

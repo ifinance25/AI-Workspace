@@ -55,6 +55,7 @@ async def _serve(host: str | None, port: int | None) -> int:
     from src.apikeys.service import build_api_key_store
     from src.claude.bridge import ClaudeBridge
     from src.claude.session import SessionManager
+    from src.connections.resolver import build_shared_mcp_servers
     from src.connections.service import build_connections_store
     from src.event_bus import ClaudeEventRelay, EventBus
     from src.ssh.service import build_ssh_store
@@ -124,6 +125,9 @@ async def _serve(host: str | None, port: int | None) -> int:
         api_key_store=api_key_store,
         ssh_store=ssh_store,
         projects_dir=settings.get_projects_directory(),
+        # Пилот включён, если резолвер собирает общий сервер (как в src/bot/core.py).
+        kb_search_enabled=bool(build_shared_mcp_servers(settings)),
+        display_settings=settings.display,
     )
 
     await persister.start()

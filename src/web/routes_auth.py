@@ -14,6 +14,7 @@ from src.web.dependencies import get_current_user_factory
 from src.web.magic_link import MagicLinkStore
 from src.web.passwords import hash_password, verify_password
 from src.web.rate_limit import LoginRateLimiter, client_key
+from src.config.settings import DisplaySettings
 
 logger = structlog.get_logger()
 
@@ -40,8 +41,11 @@ def make_auth_router(
     dev_login_enabled: bool = True,
     magic_link_store: MagicLinkStore | None = None,
     session_manager=None,
+    kb_search_enabled: bool = False,
+    display_settings: DisplaySettings | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api", tags=["auth"])
+    display = display_settings or DisplaySettings()
     get_current_user = get_current_user_factory(
         jwt_secret, session_manager, set(allowed_user_ids or [])
     )
@@ -347,6 +351,9 @@ def make_auth_router(
             "is_admin": bool(user.get("is_admin", False)),
             "telegram_bot_username": bot_username,
             "can_continue_in_telegram": can_continue,
+            # Только булево: адрес и ключ сервера базы знаний наружу не отдаём.
+            "kb_search_enabled": kb_search_enabled,
+            "show_token_usage": display.show_token_usage,
         }
 
     return router

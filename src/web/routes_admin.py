@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from src.web.dependencies import require_admin_factory
 from src.web.passwords import hash_password
+from src.config.settings import DisplaySettings
 
 # M-3: каталоги, которые НЕЛЬЗЯ делать корнем проекта — иначе readonly-грант на
 # такой «проект» открыл бы чтение всей ФС (/etc/shadow, чужие .env, ключи).
@@ -98,6 +99,16 @@ class _AdminFlag(BaseModel):
     is_admin: bool
 
 
+class DisplaySettingsOut(BaseModel):
+    show_token_usage: bool
+    show_context_usage: bool
+
+
+class DisplaySettingsPatch(BaseModel):
+    show_token_usage: bool | None = None
+    show_context_usage: bool | None = None
+
+
 class _AccessIn(BaseModel):
     project_path: str
     access_level: AccessLevel = "full"
@@ -150,12 +161,35 @@ def make_admin_router(
     allowed_user_ids: list[int] | None = None,
     api_key_store=None,
     projects_dir: Path | None = None,
+    display_settings: DisplaySettings | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/admin", tags=["admin"])
+    display = display_settings or DisplaySettings()
     require_admin = require_admin_factory(
         jwt_secret, session_manager, set(allowed_user_ids or [])
     )
     projects_root = Path(projects_dir or "/var/lib/ai-workspace/projects")
+
+    @router.get("/display", response_model=DisplaySettingsOut)
+    async def get_display(_: dict = Depends(require_admin)) -> DisplaySettingsOut:
+        return DisplaySettingsOut(
+            show_token_usage=display.show_token_usage,
+            show_context_usage=display.show_context_usage,
+        )
+
+    @router.patch("/display", response_model=DisplaySettingsOut)
+    async def patch_display(
+        payload: DisplaySettingsPatch,
+        _: dict = Depends(require_admin),
+    ) -> DisplaySettingsOut:
+        if payload.show_token_usage is not None:
+            display.show_token_usage = payload.show_token_usage
+        if payload.show_context_usage is not None:
+            display.show_context_usage = payload.show_context_usage
+        return DisplaySettingsOut(
+            show_token_usage=display.show_token_usage,
+            show_context_usage=display.show_context_usage,
+        )
 
     @router.get("/users")
     async def list_users(_: dict = Depends(require_admin)) -> list[dict]:

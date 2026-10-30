@@ -26,6 +26,7 @@ from src.bot.handlers import (
 from src.bot.middleware import AuthMiddleware, SecurityMiddleware
 from src.claude import ClaudeBridge, SessionManager, SessionStatus, sync_commands
 from src.config import Settings
+from src.connections.resolver import build_shared_mcp_servers
 from src.event_bus import ClaudeEventRelay, EventBus, WebhookEventHandler, WebhookTriggered
 from src.scheduler import CronScheduler
 from src.utils import ResponseStreamer
@@ -185,6 +186,9 @@ class TelegramClaudeBot:
             api_key_store=self.api_key_store,
             ssh_store=self.ssh_store,
             projects_dir=settings.get_projects_directory(),
+            # Пилот включён, если резолвер собирает общий сервер (URL и ключ непусты).
+            kb_search_enabled=bool(build_shared_mcp_servers(settings)),
+            display_settings=settings.display,
         )
 
         # Setup middleware
