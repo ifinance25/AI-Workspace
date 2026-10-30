@@ -56,7 +56,17 @@ export const redmineApi = {
   },
   createIssue(
     projectId: number,
-    body: { request_key: string; redmine_project: string; subject: string; description?: string },
+    body: {
+      request_key: string;
+      redmine_project: string;
+      subject: string;
+      description?: string;
+      status_id?: string;
+      assigned_to_id?: number;
+      start_date?: string | null;
+      due_date?: string | null;
+      notes?: string;
+    },
   ) {
     return officeRequest<RedmineIssueResult>(
       "POST",

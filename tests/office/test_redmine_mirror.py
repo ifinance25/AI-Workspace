@@ -146,6 +146,36 @@ def test_seed_demo_mirror_served_without_api_key(tmp_path) -> None:
     assert len(loaded["issues"]) == count
 
 
+def test_create_demo_issue_without_redmine_key(tmp_path) -> None:
+    sm, store, pid, ivan = _office(tmp_path)
+    redmine_mirror.seed_demo_mirror(store, pid)
+
+    class _NoKey:
+        def create_issue(self, project: str, fields: dict) -> dict:
+            raise redmine_mirror.MirrorError("no_key", "Ключ Redmine не задан")
+
+        def get_issue(self, issue_id: int) -> dict:
+            raise AssertionError("не должен читать Redmine")
+
+        def update_issue(self, issue_id: int, fields: dict) -> None:
+            raise AssertionError("не должен обновлять Redmine")
+
+    created = redmine_mirror.create_issue(
+        store,
+        pid,
+        actor_id=ivan,
+        is_admin=False,
+        client=_NoKey(),
+        users=sm,
+        request_key="demo-create-1",
+        redmine_project="demo-local",
+        subject="Локальная задача",
+        description="текст",
+    )
+    assert created["issue"]["subject"] == "Локальная задача"
+    assert created["issue"]["id"] > 110
+
+
 def test_load_copies_description_histories_comments_and_matches_login(tmp_path) -> None:
     sm, store, pid, ivan = _office(tmp_path)
     before = {row["username"] for row in sm.list_users()}

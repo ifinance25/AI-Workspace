@@ -284,17 +284,25 @@ describe("Экраны зеркала Redmine", () => {
     );
   });
 
-  it("создание показывает номер из ответа, отказ не рисует номер", async () => {
+  it("создание: модалка, тема и вызов зеркала по токену сервера", async () => {
     mockRedmine.loadProject.mockResolvedValue(view());
     mockRedmine.createIssue.mockResolvedValueOnce({
       updated: true,
-      issue: issue({ id: 77, subject: "Новая задача", description: "" }),
+      issue: issue({ id: 77, subject: "Моя задача", description: "описание" }),
     });
     renderAt("/office/7/redmine");
     fireEvent.click(await screen.findByRole("button", { name: "Создать задачу" }));
+    expect(await screen.findByRole("dialog", { name: "Новая задача" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Тема"), { target: { value: "Моя задача" } });
+    fireEvent.change(screen.getByLabelText("Описание"), { target: { value: "описание" } });
+    fireEvent.click(screen.getByRole("button", { name: "Создать" }));
     expect(await screen.findByRole("heading", { name: "#77" })).toBeInTheDocument();
     const body = mockRedmine.createIssue.mock.calls[0][1] as Record<string, unknown>;
-    expect(body).toMatchObject({ subject: "Новая задача", redmine_project: "" });
+    expect(body).toMatchObject({
+      subject: "Моя задача",
+      description: "описание",
+      redmine_project: "",
+    });
     expect(body).not.toHaveProperty("api_key");
 
     mockRedmine.createIssue.mockRejectedValueOnce(
@@ -302,6 +310,8 @@ describe("Экраны зеркала Redmine", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Закрыть карточку" }));
     fireEvent.click(screen.getByRole("button", { name: "Создать задачу" }));
+    fireEvent.change(await screen.findByLabelText("Тема"), { target: { value: "Ещё одна" } });
+    fireEvent.click(screen.getByRole("button", { name: "Создать" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Redmine не вернул номер задачи");
     expect(screen.queryByRole("heading", { name: "#78" })).not.toBeInTheDocument();
   });

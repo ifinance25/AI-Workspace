@@ -9,6 +9,62 @@ from src.office.redmine_mirror._mirror import _ensure, _mark, _save
 
 _DEMO_REDMINE_PROJECT = "demo-local"
 
+
+def is_demo_mirror(store: Any, project_id: int, redmine_project: str) -> bool:
+    row = store._connection().execute(
+        "SELECT redmine_project, connected FROM office_redmine_mirrors WHERE project_id = ?",
+        (project_id,),
+    ).fetchone()
+    if not row or not row["connected"]:
+        return False
+    project = (redmine_project or row["redmine_project"] or "").strip()
+    return project == _DEMO_REDMINE_PROJECT
+
+
+def _next_issue_id(conn: Any, project_id: int) -> int:
+    found = conn.execute(
+        "SELECT COALESCE(MAX(issue_id), 100) FROM office_redmine_issues WHERE project_id = ?",
+        (project_id,),
+    ).fetchone()
+    return int(found[0]) + 1
+
+
+def create_demo_issue(
+    store: Any,
+    project_id: int,
+    *,
+    subject: str,
+    description: str = "",
+    status_id: str | None = None,
+    status_name: str | None = None,
+    assigned_to_id: int | None = None,
+) -> dict:
+    """Локальное создание задачи для demo-local без Redmine API."""
+    _ensure(store)
+    sid = status_id or "1"
+    sname = status_name or "Новая"
+    assignee = (
+        _person(assigned_to_id, f"user{assigned_to_id}", f"Пользователь {assigned_to_id}")
+        if assigned_to_id
+        else {"user_id": None, "login": "", "name": ""}
+    )
+    with store._lock:
+        conn = store._connection()
+        issue_id = _next_issue_id(conn, project_id)
+        issue = _issue(
+            issue_id,
+            subject.strip() or "Без темы",
+            sname,
+            sid,
+            assignee=assignee,
+            author=_person(3, "ivan", "Иван Петров"),
+        )
+        issue["description"] = description
+        _save(conn, project_id, issue)
+        conn.commit()
+    return issue
+
+
 def _person(user_id: int, login: str, name: str) -> dict:
     return {"user_id": user_id, "login": login, "name": name}
 

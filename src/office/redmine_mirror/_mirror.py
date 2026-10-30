@@ -453,6 +453,23 @@ def create_issue(
     try:
         try:
             created = client.create_issue(redmine_project, card)
+        except MirrorError as exc:
+            from src.office.redmine_mirror._demo_seed import create_demo_issue, is_demo_mirror
+
+            if exc.code == "no_key" and is_demo_mirror(
+                store, project_id, redmine_project or ""
+            ):
+                issue = create_demo_issue(
+                    store,
+                    project_id,
+                    subject=subject,
+                    description=description,
+                    status_id=str(status_id) if status_id is not None else None,
+                    assigned_to_id=assigned_to_id,
+                )
+                _remember(store, project_id, request_key, int(issue["id"]))
+                return {"updated": True, "issue": issue}
+            raise
         except (RedmineUnavailableError, *_DOWN) as exc:
             raise MirrorError("unavailable", "Redmine не ответил") from exc
         raw_issue = created.get("issue") if isinstance(created, dict) else None

@@ -132,6 +132,34 @@ function requestKey(): string {
   return uuid || String(Date.now());
 }
 
+function emptyDraft(): Draft {
+  return {
+    subject: "",
+    description: "",
+    statusId: "",
+    assigneeId: "",
+    start: "",
+    due: "",
+    notes: "",
+  };
+}
+
+const CREATE_STUB: RedmineIssue = {
+  id: 0,
+  subject: "",
+  description: "",
+  status: { id: "1", name: "Новая" },
+  author: null,
+  assignee: null,
+  start_date: null,
+  due_date: null,
+  comments: [],
+  status_history: [],
+  assignee_history: [],
+  ftt_section: "",
+  cycle_hours: null,
+};
+
 export default function RedmineScreens({ projectId }: { projectId: number }) {
   const [view, setView] = useState<RedmineView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -141,6 +169,8 @@ export default function RedmineScreens({ projectId }: { projectId: number }) {
   const [open, setOpen] = useState<RedmineIssue | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createDraft, setCreateDraft] = useState<Draft | null>(null);
   const [filters, setFilters] = useState({
     type: "",
     environment: "",
@@ -203,21 +233,43 @@ export default function RedmineScreens({ projectId }: { projectId: number }) {
     setDraft(draftFrom(issue));
   }
 
-  async function createIssue() {
+  async function submitCreate() {
+    if (!createDraft) return;
+    if (!createDraft.subject.trim()) {
+      setError("Укажите тему задачи");
+      return;
+    }
     setBusy(true);
     setError(null);
+    const body: Parameters<typeof redmineApi.createIssue>[1] = {
+      request_key: requestKey(),
+      redmine_project: "",
+      subject: createDraft.subject.trim(),
+      description: createDraft.description,
+      start_date: createDraft.start || null,
+      due_date: createDraft.due || null,
+    };
+    if (createDraft.statusId) body.status_id = createDraft.statusId;
+    if (/^\d+$/.test(createDraft.assigneeId)) {
+      body.assigned_to_id = Number(createDraft.assigneeId);
+    }
+    if (createDraft.notes.trim()) body.notes = createDraft.notes.trim();
     try {
-      const result = await redmineApi.createIssue(projectId, {
-        request_key: requestKey(),
-        redmine_project: "",
-        subject: "Новая задача",
-      });
+      const result = await redmineApi.createIssue(projectId, body);
+      setCreateOpen(false);
+      setCreateDraft(null);
       remember(result.issue);
     } catch (err) {
       setError(errorText(err) || "Сохранение не удалось");
     } finally {
       setBusy(false);
     }
+  }
+
+  function openCreateModal() {
+    setError(null);
+    setCreateDraft(emptyDraft());
+    setCreateOpen(true);
   }
 
   async function saveCard() {
@@ -272,7 +324,7 @@ export default function RedmineScreens({ projectId }: { projectId: number }) {
         <h1 className="text-xl font-semibold sm:text-2xl">Задачи</h1>
         <button
           type="button"
-          onClick={() => void createIssue()}
+          onClick={openCreateModal}
           disabled={busy}
           className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-[var(--accent-fg)] hover:opacity-90 disabled:opacity-50"
         >
@@ -305,6 +357,7 @@ export default function RedmineScreens({ projectId }: { projectId: number }) {
             onClick={() => {
               setScreen(item.id);
               setOpen(null);
+              setCreateOpen(false);
             }}
             className={`shrink-0 px-4 py-2 text-sm font-medium transition-colors ${
               screen === item.id
@@ -343,6 +396,36 @@ export default function RedmineScreens({ projectId }: { projectId: number }) {
           />
         ) : null}
       </div>
+      {createOpen && createDraft && (
+        <div
+          role="dialog"
+          aria-label="Новая задача"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setCreateOpen(false);
+              setCreateDraft(null);
+            }
+          }}
+        >
+          <div className="w-full max-w-2xl rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-sidebar)] p-4 sm:p-6">
+            <IssueCard
+              issue={CREATE_STUB}
+              draft={createDraft}
+              people={peopleOptions(issues)}
+              statuses={statusOptions(issues)}
+              busy={busy}
+              creating
+              onChange={setCreateDraft}
+              onClose={() => {
+                setCreateOpen(false);
+                setCreateDraft(null);
+              }}
+              onSave={() => void submitCreate()}
+            />
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -615,6 +698,7 @@ function IssueCard({
   people,
   statuses,
   busy,
+  creating = false,
   onChange,
   onClose,
   onSave,
@@ -624,6 +708,7 @@ function IssueCard({
   people: Array<{ value: string; label: string }>;
   statuses: Array<{ value: string; label: string }>;
   busy: boolean;
+  creating?: boolean;
   onChange: (draft: Draft) => void;
   onClose: () => void;
   onSave: () => void;
@@ -638,9 +723,11 @@ function IssueCard({
       }}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-medium text-[var(--fg-primary)]">#{issue.id}</h2>
+        <h2 className="text-base font-medium text-[var(--fg-primary)]">
+          {creating ? "Новая задача" : `#${issue.id}`}
+        </h2>
         <button type="button" onClick={onClose} className="text-sm text-[var(--fg-secondary)]">
-          Закрыть карточку
+          {creating ? "Отмена" : "Закрыть карточку"}
         </button>
       </div>
       <label className="flex flex-col gap-1 text-sm">
@@ -649,6 +736,7 @@ function IssueCard({
           value={draft.subject}
           onChange={(event) => onChange({ ...draft, subject: event.target.value })}
           className={field}
+          autoFocus={creating}
         />
       </label>
       <label className="flex flex-col gap-1 text-sm">
@@ -715,7 +803,7 @@ function IssueCard({
           className={field}
         />
       </label>
-      {issue.comments.length > 0 && (
+      {issue.comments.length > 0 && !creating && (
         <ul className="space-y-2 text-sm text-[var(--fg-secondary)]">
           {issue.comments.map((comment) => (
             <li key={`${comment.id ?? ""}-${comment.at}`}>{comment.text}</li>
@@ -727,7 +815,7 @@ function IssueCard({
         disabled={busy}
         className="w-fit rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-[var(--accent-fg)] disabled:opacity-50"
       >
-        Сохранить
+        {creating ? "Создать" : "Сохранить"}
       </button>
     </form>
   );
