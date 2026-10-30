@@ -767,7 +767,7 @@
 | `graph`, `timeline`, `chain_gaps` | `view` | `graph`: все, заказчик урезанно; `timeline`, `chain_gaps`: команда (14 §7) | Заказчику `timeline` и `chain_gaps` закрыты до ответа В14-06 |
 | `ops` (Дополнение 2026-10-23, A41-A45, 17 §9) | `view`, `view_metrics`, `view_logs`, `trigger_pipeline`, `deploy_stand`, `restart_stand`, `deploy_prod`, `approve_prod`, `restart_prod`, `manage_env_secrets`, `terminal_stand`, `terminal_prod`, `ack_alert` | `view`, `view_metrics`: команда, РПО, наблюдатель проекта сводкой; `view_logs`: Раз, Тест, Тим, ТЛ, Арх, МП; `trigger_pipeline`: Раз, Тест, Тим, ТЛ; `deploy_stand`, `restart_stand`: Тест, Тим, ТЛ (Раз `restart_stand`); `deploy_prod`: ТЛ, Тим; `approve_prod`, `restart_prod`: ТЛ, МП; `manage_env_secrets`: ТЛ, Адм; `terminal_stand`: ТЛ, Тим; `terminal_prod`: выключен, включает Адм; `ack_alert`: получатели, ТЛ, Тим; на маленьком типе МП как ТЛ | Заказчику нет (00 §6); `approve_prod` только не запросивший (И-50); агенту и ассистенту нет `deploy_prod`, `approve_prod`, `terminal_*`, `manage_env_secrets`; `terminal_*` с причиной |
 | `ops.infra` (Дополнение 2026-10-23, A41-A45, 17 §9) | `view`, `manage_servers`, `grant_server`, `manage_alerts`, `view_journal` | Адм всё; РПО и наблюдатель компании «Обзор» без адресов; ТЛ `view_journal` своих серверов | Заказчику нет; агентам нет |
-| `chats` (Дополнение 2026-10-23, A41-A45, 18 §6.4) | `view_customer`, `view_internal`, `view_contractor`, `view_digests`, `view_requests`, `manage`, `draft_replies`, `send_replies`, `approve_commitments` | `manage`: МП; `view_*`: МП, БА, СА, Арх, Тим, ТЛ, РПО (разработчик и тестировщик чат заказчика и подрядчика только участником); `view_digests`: команда по чтению, наблюдатель счётчики; `draft_replies`, `send_replies` от себя: МП, аналитики, Арх, лиды, исполнители свои запросы; `approve_commitments`: МП, РПО | Обеим ролям заказчика раздел закрыт (A21); `approve_commitments` только МП и РПО (Р18-09); участник чата видит его всегда |
+| `chats` (Дополнение 2026-10-23, A41-A45, 18 §6.4) | `view_customer`, `view_internal`, `view_contractor`, `view_digests`, `view_requests`, `manage`, `draft_replies`, `send_replies`, `approve_commitments` | `manage`: МП; `view_*`: МП, БА, СА, Арх, Тим, ТЛ, РПО (разработчик и тестировщик чат заказчика и подрядчика только участником); `view_digests`: команда по чтению, наблюдатель счётчики; `draft_replies`, `send_replies` от себя: МП, аналитики, Арх, лиды, исполнители свои запросы; `approve_commitments`: МП, РПО | Обеим ролям заказчика раздел закрыт (A21), кроме `view_direct`, `post_direct`, `invite_direct` (`40` §13); `approve_commitments` только МП и РПО (Р18-09); участник чата видит его всегда, кроме видов `main` и `customer_direct` |
 
 Порядок проверки `tenancy.can(actor, section, action, scope)`:
 
@@ -923,7 +923,19 @@
 | `chats/view_main` | да | да | да | да | да | да | да | да | да | - | - | з | з | - | - | з |
 | `chats/post_main` | да | о | да | да | да | да | да | да | да | - | - | з | з | - | - | з |
 
-«о» у РПО: только при строке участия в `office_memberships`. Ревизия матрицы, открывающая эти две клетки ролям наблюдателя, `company_admin`, `privacy_officer`, отвечает 422 `role_not_permitted`. Участник с ролью команды проходит клетку этой ролью. Шаг 1 порядка проверки участника чата не создаёт: АдмП входит только явным `admin_as_role`. Для вида `main` правило «участник чата видит его всегда» не применяется.
+«о» у РПО: только при строке участия в `office_memberships`. Значение «да» у РПО в `chats/view_main` закреплено (Р40-20). Ревизия матрицы, открывающая эти две клетки ролям наблюдателя, `company_admin`, `privacy_officer`, отвечает 422 `role_not_permitted`. Участник с ролью команды проходит клетку этой ролью. Шаг 1 порядка проверки участника чата не создаёт: АдмП входит только явным `admin_as_role`. Для вида `main` правило «участник чата видит его всегда» не применяется.
+
+Дополнение 2026-10-30 (`40` §13.6, слово пользователя). Три клетки личного чата МП с заказчиком. Это единственное, что раздел `chats` открывает заказчику.
+
+| Раздел | Действия | Умолчание | Закреплено |
+|---|---|---|---|
+| `chats` (дополнение к строке выше) | `view_direct`, `post_direct`, `invite_direct` | МП только владелец чата, Пр и Подп только участник чата, РПО читает | Все значения закреплены (`lock_reason` A111, Р40-20, Р40-24): ревизия, меняющая любое из них, отвечает 422 `role_not_permitted`. Доступ к строке считает `channels.direct_chat_access` |
+
+| Клетка | МП | РПО | БА | СА | Арх | Раз | Тест | Тим | ТЛ | Наб п | Наб о/к | Пр | Подп | АдмК | ОПД | Аг |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `chats/view_direct` | о | да | - | - | - | - | - | - | - | - | - | о | о | - | - | з |
+| `chats/post_direct` | о | - | - | - | - | - | - | - | - | - | - | о | о | - | - | з |
+| `chats/invite_direct` | - | - | - | - | - | - | - | - | - | - | - | о | - | - | - | з |
 
 ### 4.8. API и события
 
