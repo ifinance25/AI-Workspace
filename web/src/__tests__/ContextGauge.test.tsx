@@ -20,7 +20,7 @@ describe("ContextGauge", () => {
     render(<ContextGauge {...base} pct={42} />);
     const btn = screen.getByRole("button", { name: /контекст/i });
     expect(btn.getAttribute("data-zone")).toBe("green");
-    expect(screen.getByText(/42% контекст/)).toBeTruthy();
+    expect(screen.getByText("42%")).toBeTruthy();
   });
 
   it("клик открывает поповер с токенами/окном", () => {

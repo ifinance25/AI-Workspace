@@ -83,7 +83,7 @@ export default function ContextGauge({
         >
           <span className="h-[11px] w-[11px] rounded-full bg-[var(--bg-input)]" />
         </span>
-        <span>{pct}% контекст</span>
+        <span>{pct}%</span>
       </button>
 
       {open && (

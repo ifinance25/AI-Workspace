@@ -12,7 +12,7 @@ import { TextEvent } from "@/components/events/TextEvent";
 import { ToolUseEvent } from "@/components/events/ToolUseEvent";
 import { UsageEvent } from "@/components/events/UsageEvent";
 import { UserMessageEvent } from "@/components/events/UserMessageEvent";
-import { BookIcon, CloseIcon, FilesIcon, FolderIcon, LightbulbIcon, NotesIcon, PackageIcon, PanelLeftIcon, UsersIcon } from "@/components/icons";
+import { BookIcon, CloseIcon, FilesIcon, FolderIcon, NotesIcon, PackageIcon, PanelLeftIcon, UsersIcon } from "@/components/icons";
 import DocsPanel from "@/components/DocsPanel";
 import FilesPanel from "@/components/files/FilesPanel";
 import ArtifactsPanel from "@/components/artifacts/ArtifactsPanel";
@@ -25,7 +25,12 @@ import MessageInput from "@/components/MessageInput";
 import ThinkingIndicator from "@/components/ThinkingIndicator";
 import UsageBadge from "@/components/UsageBadge";
 import { deriveTitle, sessionTitle } from "@/lib/sessionTitle";
-import { parseUsage, usageBreakdown } from "@/lib/usage";
+import { parseUsage, contextTokensFromUsage } from "@/lib/usage";
+import {
+  activityForVerbose,
+  shouldRenderBubbleKind,
+  toolUseDetailLevel,
+} from "@/lib/verboseDisplay";
 import { useModelInfo } from "@/lib/useModelInfo";
 import ContextGauge from "@/components/ContextGauge";
 import { contextWindowFor } from "@/lib/modelContext";
@@ -155,6 +160,14 @@ function historyToBubbles(
   return bubbles;
 }
 
+function lastUsageMetadata(bubbles: Bubble[]): Record<string, unknown> | undefined {
+  for (let i = bubbles.length - 1; i >= 0; i--) {
+    const b = bubbles[i];
+    if (b.kind === "usage" && b.metadata) return b.metadata;
+  }
+  return undefined;
+}
+
 const NOTES_DEBOUNCE_MS = 500;
 
 export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
@@ -192,8 +205,7 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
   // Считает заполнение окна из usage-меты последнего хода и, при первом
   // пересечении красного порога за сессию, инкрементит триггер авто-подсказки.
   const trackContext = (meta: Record<string, unknown> | null | undefined) => {
-    const b = usageBreakdown(meta);
-    const tokens = b.input + b.cacheRead + b.cacheCreation;
+    const tokens = contextTokensFromUsage(meta);
     if (tokens <= 0) return;
     setCtxTokens(tokens);
     // info?.current здесь читается из замыкания WS-обработчика (захвачено на
@@ -331,7 +343,9 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
       try {
         const history = await api.getMessages(session.session_uuid, 0);
         if (cancelled) return;
-        setBubbles(historyToBubbles(history, usageShownRef.current));
+        const loaded = historyToBubbles(history, usageShownRef.current);
+        setBubbles(loaded);
+        trackContext(lastUsageMetadata(loaded));
         if (history.length) {
           lastEventIdRef.current = history[history.length - 1].event_id;
         }
@@ -476,7 +490,7 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
       armThinkingWatchdog();
       // Обновляем «заголовок» активности из события (глагол + контекст).
       const act = activityFromEvent(msg.kind, msg.content, msg.metadata || {});
-      if (act) setActivity(act);
+      if (act) setActivity(activityForVerbose(act, verbose));
       // Мысли копим в живой буфер (панель), НЕ в ленту баблов.
       if (msg.kind === "thinking") {
         setLiveThinking((prev) => prev + msg.content);
@@ -766,6 +780,12 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
       isGenerating={isGenerating}
       onStop={stopGeneration}
       kbSearchEnabled={user?.kb_search_enabled ?? false}
+      reasoningOn={verbose >= 2}
+      onReasoningToggle={() => {
+        const next = verbose >= 2 ? 1 : 2;
+        setVerbose(next);
+        void api.patchSettings(next as 0 | 1 | 2 | 3).catch(() => {});
+      }}
       leftSlot={
         <ContextGauge
           pct={ctxPct}
@@ -785,7 +805,9 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
   const THINKING_PANEL_ID = "live-thinking-panel";
   const liveStatus = (
     <div className="pointer-events-auto mx-auto max-w-3xl px-6">
-      {panelOpen && <LiveActivityPanel id={THINKING_PANEL_ID} thinking={liveThinking} />}
+      {panelOpen && verbose >= 2 && (
+        <LiveActivityPanel id={THINKING_PANEL_ID} thinking={liveThinking} />
+      )}
       <ThinkingIndicator
         activity={activity}
         elapsedMs={genElapsedMs}
@@ -807,7 +829,7 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
         return (
           <TextEvent
             content={b.content}
-            // Лампочка «Размышления» в шапке: вкл (verbose ≥ 2) → блок виден
+            // Тоггл «Размышления» в композере: verbose ≥ 2 → блок виден
             // (свёрнут, разворачивается кликом); выкл → блока нет вовсе. Даёт
             // мгновенную обратную связь и не «выскакивает» в конце ответа.
             reasoningOn={verbose >= 2}
@@ -835,6 +857,9 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
             />
           );
         }
+        if (!shouldRenderBubbleKind("tool_use", verbose, toolName)) return null;
+        const toolDetail =
+          toolUseDetailLevel(verbose) === "full" ? "full" : "compact";
         const filePath = meta.file_path as string | undefined;
         if (
           (toolName === "Write" ||
@@ -844,7 +869,7 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
         ) {
           return (
             <div>
-              <ToolUseEvent name={b.content} metadata={meta} />
+              <ToolUseEvent name={b.content} metadata={meta} detail={toolDetail} />
               <FileArtifactEvent
                 sessionUuid={session.session_uuid}
                 filePath={filePath}
@@ -863,7 +888,7 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
         if (toolName === "Bash" && Array.isArray(bashOutputs) && bashOutputs.length) {
           return (
             <div>
-              <ToolUseEvent name={b.content} metadata={meta} />
+              <ToolUseEvent name={b.content} metadata={meta} detail={toolDetail} />
               {bashOutputs.map((p) => (
                 <FileArtifactEvent
                   key={p}
@@ -875,14 +900,18 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
             </div>
           );
         }
-        return <ToolUseEvent name={b.content} metadata={meta} />;
+        return (
+          <ToolUseEvent name={b.content} metadata={meta} detail={toolDetail} />
+        );
       }
       case "log":
       case "init":
+        if (!shouldRenderBubbleKind(b.kind, verbose)) return null;
         return <LogEvent content={b.content} />;
       case "subagent_start":
       case "subagent_log":
       case "subagent_finish":
+        if (!shouldRenderBubbleKind(b.kind, verbose)) return null;
         return <SubagentEvent kind={b.kind} content={b.content} />;
       case "usage":
         if (user?.show_token_usage === false) return null;
@@ -1059,30 +1088,6 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
                 <span className="sr-only lg:not-sr-only">Участники</span>
               </button>
             )}
-            <button
-              onClick={() => {
-                const next = verbose >= 2 ? 1 : 2;
-                setVerbose(next);
-                // Сохраняем выбор на сервере — иначе при перезагрузке тоггл
-                // сбрасывался к серверному значению (находка аудита #20).
-                void api.patchSettings(next as 0 | 1 | 2 | 3).catch(() => {});
-              }}
-              className={`icon-btn flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-xl text-sm transition-colors lg:h-9 lg:w-auto lg:px-2.5 ${
-                verbose >= 2
-                  ? "bg-[var(--bg-hover)] text-[var(--fg-primary)]"
-                  : "text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
-              }`}
-              title={
-                verbose >= 2
-                  ? "Размышления показываются — нажмите, чтобы скрыть"
-                  : "Размышления скрыты — нажмите, чтобы показывать"
-              }
-              aria-label="Размышления"
-              aria-pressed={verbose >= 2}
-            >
-              <LightbulbIcon size={18} />
-              <span className="sr-only lg:not-sr-only">Размышления</span>
-            </button>
             <ContinueInTelegram
               botUsername={user?.telegram_bot_username}
               sessionUuid={session.session_uuid}
@@ -1158,7 +1163,6 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
             <div className="py-8">{liveStatus}</div>
           ) : (
             <ChatEmptyState
-              projectName={session.project_name || "Без проекта"}
               modelLabel={info?.known.find((m) => m.id === info?.current)?.label}
               modelId={info?.current}
             />

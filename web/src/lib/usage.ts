@@ -63,6 +63,14 @@ export function usageBreakdown(
   return { input, output, cacheRead, cacheCreation, costUsd };
 }
 
+/** Токены, занимающие контекстное окно (input + cache read + cache create). */
+export function contextTokensFromUsage(
+  meta: Record<string, unknown> | null | undefined,
+): number {
+  const b = usageBreakdown(meta);
+  return b.input + b.cacheRead + b.cacheCreation;
+}
+
 /** Token total + cost, for the header badge accumulator. */
 export function parseUsage(
   meta: Record<string, unknown> | null | undefined

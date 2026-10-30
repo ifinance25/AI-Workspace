@@ -105,7 +105,11 @@ function LineRow({ line }: { line: ParsedLine }) {
   return <div className="text-sm text-[var(--fg-secondary)]">{line.body}</div>;
 }
 
-export function ToolUseEvent({ name, metadata }: Props) {
+export function ToolUseEvent({
+  name,
+  metadata,
+  detail = "full",
+}: Props & { detail?: "compact" | "full" }) {
   const [open, setOpen] = useState(false);
 
   // `name` here is actually the formatted multi-line `content` from
@@ -115,6 +119,19 @@ export function ToolUseEvent({ name, metadata }: Props) {
   const rest = lines.slice(1).map(parseLine);
   const toolName = extractToolName(header, String(metadata?.name ?? ""));
   const { tint } = styleFor(toolName);
+
+  if (detail === "compact") {
+    return (
+      <div className="my-2 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-sidebar)]/60">
+        <div className="flex w-full items-center gap-3 px-4 py-2.5">
+          <span className="inline-block w-4 shrink-0" />
+          <span className={`flex-1 truncate font-mono text-[13px] ${tint}`}>
+            {toolName}
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   const hasDetails = rest.length > 0;
   const previewLine = rest.find((l) => l.kind !== "text") || rest[0];
