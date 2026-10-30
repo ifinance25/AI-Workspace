@@ -12,6 +12,7 @@ import os
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
 
 from src.office.redmine_mirror._account import url_allowed
 from src.office.redmine_mirror._mirror import MirrorError, RedmineUnavailableError
@@ -107,11 +108,42 @@ class HttpRedmine:
         except json.JSONDecodeError as exc:
             raise RedmineUnavailableError("Redmine не ответил") from exc
 
-    def list_issues(self, project: str) -> list[dict]:
+    def list_issues(
+        self,
+        project: str,
+        *,
+        updated_since: datetime | None = None,
+    ) -> list[dict]:
         project_id = self._resolve_project_id(project)
         offset = 0
         limit = 100
         found: list[dict] = []
+        while True:
+            query: dict[str, str | int] = {
+                "project_id": project_id,
+                "status_id": "*",
+                "limit": limit,
+                "offset": offset,
+                "include": "journals",
+            }
+            if updated_since is not None:
+                ts = updated_since.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                query["updated_on"] = f">={ts}"
+            page = self._call("GET", "/issues.json", query)
+            batch = page.get("issues") or []
+            found.extend(batch)
+            total = int(page.get("total_count") or len(found))
+            offset += limit
+            if offset >= total or not batch:
+                break
+        return found
+
+    def list_issue_ids(self, project: str) -> set[int]:
+        """Номера всех задач проекта без journals (для сверки удалённых в Redmine)."""
+        project_id = self._resolve_project_id(project)
+        offset = 0
+        limit = 100
+        ids: set[int] = set()
         while True:
             page = self._call(
                 "GET",
@@ -121,16 +153,19 @@ class HttpRedmine:
                     "status_id": "*",
                     "limit": limit,
                     "offset": offset,
-                    "include": "journals",
                 },
             )
             batch = page.get("issues") or []
-            found.extend(batch)
-            total = int(page.get("total_count") or len(found))
+            for row in batch:
+                try:
+                    ids.add(int(row["id"]))
+                except (KeyError, TypeError, ValueError):
+                    continue
+            total = int(page.get("total_count") or len(batch))
             offset += limit
             if offset >= total or not batch:
                 break
-        return found
+        return ids
 
     def get_issue(self, issue_id: int) -> dict:
         page = self._call("GET", f"/issues/{int(issue_id)}.json", {"include": "journals"})

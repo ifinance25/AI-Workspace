@@ -75,8 +75,11 @@ class _LazyClient:
             self._real = HttpRedmine(self._base_url, self._api_key)
         return self._real
 
-    def list_issues(self, project: str) -> list[dict]:
-        return self._client().list_issues(project)
+    def list_issues(self, project: str, **kwargs) -> list[dict]:
+        return self._client().list_issues(project, **kwargs)
+
+    def list_issue_ids(self, project: str) -> set[int]:
+        return self._client().list_issue_ids(project)
 
     def get_issue(self, issue_id: int) -> dict:
         return self._client().get_issue(issue_id)

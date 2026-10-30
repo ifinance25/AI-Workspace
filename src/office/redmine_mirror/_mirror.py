@@ -14,6 +14,7 @@ from src.office.redmine_mirror._lookups import filters_for_api
 from src.office.redmine_mirror._rules import cycle_hours, ftt_section
 
 SYNC_INTERVAL_MINUTES = 15
+SYNC_OVERLAP_SECONDS = 30
 CUSTOMER_ROLES = frozenset({"customer_representative", "customer_signatory"})
 NOT_CONNECTED = "Redmine ещё не подключён"
 NOT_UPDATED = "данные не обновились"
@@ -287,6 +288,33 @@ def _keep(store: Any, project_id: int, *, redmine_project: str = "", base_url: s
     return _view(store, project_id, updated=False, message=NOT_CONNECTED)
 
 
+def _needs_full_sync(store: Any, project_id: int, row: dict | None) -> bool:
+    if not row or not row.get("last_ok_at"):
+        return True
+    return not _issues(store, project_id)
+
+
+def _sync_watermark(row: dict) -> datetime:
+    last = datetime.fromisoformat(row["last_ok_at"])
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    return last.astimezone(timezone.utc) - timedelta(seconds=SYNC_OVERLAP_SECONDS)
+
+
+def _prune_missing(conn: Any, project_id: int, remote_ids: set[int]) -> None:
+    rows = conn.execute(
+        "SELECT issue_id FROM office_redmine_issues WHERE project_id = ?",
+        (project_id,),
+    ).fetchall()
+    for row in rows:
+        number = int(row["issue_id"])
+        if number not in remote_ids:
+            conn.execute(
+                "DELETE FROM office_redmine_issues WHERE project_id = ? AND issue_id = ?",
+                (project_id, number),
+            )
+
+
 def load_project(
     store: Any,
     project_id: int,
@@ -299,27 +327,45 @@ def load_project(
     base_url: str = "",
     now: datetime | None = None,
 ) -> dict:
-    """Забрать задачи проекта: описание, истории статуса и «Назначена», комментарии."""
+    """Забрать задачи проекта: полный снимок при первой загрузке, дальше инкремент."""
     _ensure(store)
     _guard(store, project_id, actor_id=actor_id, is_admin=is_admin)
     moment = _clock(now)
+    row = _row(store, project_id)
+    full_sync = _needs_full_sync(store, project_id, row)
     try:
-        raw_issues = client.list_issues(redmine_project)
+        if full_sync:
+            raw_issues = client.list_issues(redmine_project)
+        else:
+            assert row is not None
+            raw_issues = client.list_issues(
+                redmine_project, updated_since=_sync_watermark(row)
+            )
     except (RedmineUnavailableError, *_DOWN):
-        # Эта ветка стоит до MirrorError: RedmineUnavailableError его наследует,
-        # иначе недоступность Redmine уходила в общую ветку и копия не сохранялась.
         return _keep(store, project_id, redmine_project=redmine_project, base_url=base_url)
     except MirrorError as exc:
-        if exc.code == "no_key" and _row(store, project_id) and _row(store, project_id)["connected"]:
+        if exc.code == "no_key" and row and row.get("connected"):
             return _view(store, project_id, updated=False, message="")
         raise
     cache: dict = {}
     parsed = [_issue_from_redmine(client, raw, users, cache) for raw in raw_issues]
+    remote_ids: set[int] | None = None
+    if not full_sync:
+        try:
+            remote_ids = client.list_issue_ids(redmine_project)
+        except (RedmineUnavailableError, *_DOWN, MirrorError, AttributeError):
+            remote_ids = None
     with store._lock:
         conn = store._connection()
-        conn.execute("DELETE FROM office_redmine_issues WHERE project_id = ?", (project_id,))
-        for issue in parsed:
-            _save(conn, project_id, issue)
+        if full_sync:
+            conn.execute("DELETE FROM office_redmine_issues WHERE project_id = ?", (project_id,))
+            for issue in parsed:
+                _save(conn, project_id, issue)
+        else:
+            for issue in parsed:
+                _save(conn, project_id, issue)
+            if remote_ids is not None:
+                _prune_missing(conn, project_id, remote_ids)
         _mark(
             conn, project_id, redmine_project=redmine_project, base_url=base_url, moment=moment
         )

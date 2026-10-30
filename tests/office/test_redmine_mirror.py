@@ -28,10 +28,13 @@ class _Redmine:
 
     def __init__(self) -> None:
         self.calls = 0
+        self.id_list_calls = 0
+        self.last_updated_since = None
         self.down = False
         self.updates = 0
         self.reads = 0
         self.saved_description = None
+        self.incremental_issues: list[dict] = []
         self.users = {
             3: {"id": 3, "login": "ivan", "name": "Иван Петров"},
             4: {"id": 4, "login": "anna_redmine", "name": "Анна Смирнова"},
@@ -85,12 +88,22 @@ class _Redmine:
             }
         ]
 
-    def list_issues(self, project: str) -> list[dict]:
+    def list_issues(self, project: str, *, updated_since=None) -> list[dict]:
         self.calls += 1
+        self.last_updated_since = updated_since
         if self.down:
             raise redmine_mirror.RedmineUnavailableError("нет связи")
         assert project == "fact"
+        if updated_since is not None:
+            return list(self.incremental_issues)
         return self.issues
+
+    def list_issue_ids(self, project: str) -> set[int]:
+        self.id_list_calls += 1
+        if self.down:
+            raise redmine_mirror.RedmineUnavailableError("нет связи")
+        assert project == "fact"
+        return {int(row["id"]) for row in self.issues}
 
     def get_user(self, user_id: int) -> dict:
         return self.users[user_id]
@@ -130,7 +143,7 @@ def test_seed_demo_mirror_served_without_api_key(tmp_path) -> None:
     assert count >= 8
 
     class _NoKey:
-        def list_issues(self, project: str) -> list:
+        def list_issues(self, project: str, **kwargs) -> list:
             raise redmine_mirror.MirrorError("no_key", "Ключ Redmine не задан")
 
     loaded = redmine_mirror.load_project(
@@ -159,7 +172,7 @@ def test_kanban_lookups_returned_in_mirror_view(tmp_path) -> None:
     redmine_mirror.seed_demo_mirror(store, pid)
 
     class _NoKey:
-        def list_issues(self, project: str) -> list:
+        def list_issues(self, project: str, **kwargs) -> list:
             raise redmine_mirror.MirrorError("no_key", "Ключ Redmine не задан")
 
     loaded = redmine_mirror.load_project(
@@ -234,6 +247,57 @@ def test_load_copies_description_histories_comments_and_matches_login(tmp_path) 
     assert issue["assignee"]["name"] == "Анна"
     assert {row["username"] for row in sm.list_users()} == before
     assert "password_hash" not in str(loaded)
+    store.close()
+    sm.close_sync()
+
+
+def test_second_load_is_incremental_and_merges(tmp_path) -> None:
+    sm, store, pid, ivan = _office(tmp_path)
+    client = _Redmine()
+    moment = datetime(2026, 10, 30, 12, 0, tzinfo=timezone.utc)
+    first = redmine_mirror.load_project(
+        store,
+        pid,
+        actor_id=ivan,
+        is_admin=False,
+        client=client,
+        users=sm,
+        redmine_project="fact",
+        now=moment,
+    )
+    assert len(first["issues"]) == 1
+    assert client.calls == 1
+    assert client.id_list_calls == 0
+
+    client.incremental_issues = [
+        {
+            "id": 16,
+            "subject": "Новая",
+            "description": "",
+            "status": {"id": 1, "name": "Новая"},
+            "author": {"id": 3, "name": "Иван Петров"},
+            "assigned_to": None,
+            "start_date": None,
+            "due_date": None,
+            "journals": [],
+        }
+    ]
+    client.issues.append(client.incremental_issues[0])
+
+    second = redmine_mirror.load_project(
+        store,
+        pid,
+        actor_id=ivan,
+        is_admin=False,
+        client=client,
+        users=sm,
+        redmine_project="fact",
+        now=moment + timedelta(minutes=1),
+    )
+    assert client.calls == 2
+    assert client.last_updated_since is not None
+    assert client.id_list_calls == 1
+    assert {issue["id"] for issue in second["issues"]} == {15, 16}
     store.close()
     sm.close_sync()
 
@@ -674,8 +738,11 @@ async def test_member_cannot_send_saved_key_to_own_host(server, monkeypatch) -> 
             seen["url"] = base_url
             seen["key"] = api_key
 
-        def list_issues(self, project: str) -> list[dict]:
+        def list_issues(self, project: str, **kwargs) -> list[dict]:
             return []
+
+        def list_issue_ids(self, project: str) -> set[int]:
+            return set()
 
         def get_issue(self, issue_id: int) -> dict:
             return {"id": issue_id, "subject": "x"}
