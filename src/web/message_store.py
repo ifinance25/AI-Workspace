@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import structlog
@@ -18,6 +19,11 @@ from src.event_bus.events import (
 )
 
 logger = structlog.get_logger()
+
+# Имя общего сервера базы знаний в метаданных tool_use: mcp__fakt_kb__<инструмент>.
+KB_TOOL_NAME_PREFIX = "mcp__fakt_kb__"
+# Как часто цикл сброса текста повторяет чистку старых строк базы знаний.
+KB_PURGE_INTERVAL_SECONDS = 3600.0
 
 
 class MessageHistoryPersister:
@@ -39,10 +45,15 @@ class MessageHistoryPersister:
         bus: EventBus,
         session_manager: SessionManager,
         text_flush_interval_ms: int = 200,
+        kb_tool_retention_days: int = 30,
     ) -> None:
         self.bus = bus
         self.session_manager = session_manager
         self.text_flush_interval_ms = text_flush_interval_ms
+        # В43-3: сырые ответы базы знаний ФАКТ (с настоящими ФИО) не лежат в
+        # истории всех чатов вечно. 0 выключает чистку.
+        self.kb_tool_retention_days = max(0, int(kb_tool_retention_days or 0))
+        self._last_kb_purge = 0.0
         self._unsubs: list = []
         self._text_buffers: dict[int, dict[str, Any]] = {}
         self._flusher_task: asyncio.Task | None = None
@@ -74,6 +85,7 @@ class MessageHistoryPersister:
             self.bus.subscribe(AgentFinished, self._on_agent_finished, priority=prio),
         ]
         self._flusher_task = asyncio.create_task(self._flush_loop())
+        await asyncio.to_thread(self.purge_kb_tool_rows)
         logger.info("message_persister_started")
 
     async def stop(self) -> None:
@@ -121,8 +133,36 @@ class MessageHistoryPersister:
                 except asyncio.TimeoutError:
                     pass
                 await self.flush()
+                if time.monotonic() - self._last_kb_purge >= KB_PURGE_INTERVAL_SECONDS:
+                    await asyncio.to_thread(self.purge_kb_tool_rows)
         except asyncio.CancelledError:
             raise
+
+    def purge_kb_tool_rows(self, now: datetime | None = None) -> int:
+        """Удаляет строки tool_use общего сервера базы знаний старше срока хранения.
+
+        Остаются только строки ответов модели: сырой текст сервера (фрагменты с
+        именами и пунктами) из истории уходит. Возвращает число удалённых строк.
+        """
+        self._last_kb_purge = time.monotonic()
+        if self.kb_tool_retention_days <= 0:
+            return 0
+        moment = now or datetime.now(UTC)
+        cutoff = (moment - timedelta(days=self.kb_tool_retention_days)).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+        conn = self.session_manager._get_connection()
+        with self.session_manager._conn_lock:
+            cursor = conn.execute(
+                "DELETE FROM messages WHERE kind = 'tool_use' "
+                "AND metadata_json LIKE ? AND created_at < ?",
+                (f'%"name": "{KB_TOOL_NAME_PREFIX}%', cutoff),
+            )
+            conn.commit()
+        removed = cursor.rowcount or 0
+        if removed:
+            logger.info("kb_tool_rows_purged", removed=removed, cutoff=cutoff)
+        return removed
 
     def _insert(
         self,

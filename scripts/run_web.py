@@ -106,7 +106,11 @@ async def _serve(host: str | None, port: int | None) -> int:
     )
     # Пишет ленту сообщений в БД — без него история чата не переживает
     # перезагрузку страницы.
-    persister = MessageHistoryPersister(bus=bus, session_manager=session_manager)
+    persister = MessageHistoryPersister(
+        bus=bus,
+        session_manager=session_manager,
+        kb_tool_retention_days=settings.persistence.kb_tool_retention_days,
+    )
 
     server = WebServer(
         settings=settings.web,

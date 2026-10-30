@@ -168,6 +168,7 @@ class TelegramClaudeBot:
         self.message_history_persister = MessageHistoryPersister(
             bus=self.event_bus,
             session_manager=self.session_manager,
+            kb_tool_retention_days=settings.persistence.kb_tool_retention_days,
         )
         self.web_server = WebServer(
             settings=settings.web,

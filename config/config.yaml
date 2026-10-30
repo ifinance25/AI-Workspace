@@ -71,6 +71,9 @@ limits:
 persistence:
   # SQLite database used for topic/session persistence
   session_database_path: "data/sessions.db"
+  # Сколько дней хранить в истории чата сырые ответы общей базы знаний ФАКТ
+  # (строки tool_use сервера fakt_kb с именами и пунктами). 0 выключает чистку.
+  kb_tool_retention_days: 30
 
 web:
   # Веб-интерфейс (FastAPI + uvicorn). Основной интерфейс панели:

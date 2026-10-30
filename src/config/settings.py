@@ -228,6 +228,13 @@ class PersistenceSettings(BaseModel):
         default="data/sessions.db",
         description="SQLite database path for persisted topic sessions",
     )
+    kb_tool_retention_days: int = Field(
+        default=30,
+        description=(
+            "Сколько дней хранить в истории чата сырые ответы инструментов общей "
+            "базы знаний (строки tool_use сервера fakt_kb). 0 выключает чистку."
+        ),
+    )
 
 
 class WebSettings(BaseModel):
