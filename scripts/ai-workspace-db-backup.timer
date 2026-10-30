@@ -1,6 +1,6 @@
 [Unit]
-Description=Nightly AI-Panel SQLite backup
-Documentation=file:///opt/ai-workspace/scripts/backup_sessions_db.sh
+Description=Nightly AI-Panel backup (local + S3)
+Documentation=file:///opt/ai-workspace/scripts/backup_ai_workspace.sh
 
 [Timer]
 OnCalendar=*-*-* 03:15:00

@@ -1553,21 +1553,28 @@ install_systemd_unit() {
 }
 
 install_db_backup_timer() {
-    step "SQLite backup"
-    local script="${INSTALL_DIR}/scripts/backup_sessions_db.sh"
+    step "Backup (local + S3)"
+    local orchestrator="${INSTALL_DIR}/scripts/backup_ai_workspace.sh"
     local unit_svc="${INSTALL_DIR}/scripts/ai-workspace-db-backup.service"
     local unit_tmr="${INSTALL_DIR}/scripts/ai-workspace-db-backup.timer"
-    if [[ ! -f "$script" || ! -f "$unit_svc" || ! -f "$unit_tmr" ]]; then
-        log_warn "Файлы backup_sessions_db / ai-workspace-db-backup.* не найдены — таймер не ставим"
+    if [[ ! -f "$orchestrator" || ! -f "$unit_svc" || ! -f "$unit_tmr" ]]; then
+        log_warn "Файлы backup_ai_workspace / ai-workspace-db-backup.* не найдены — таймер не ставим"
         return 0
     fi
-    chmod 755 "$script"
+    for s in backup_ai_workspace.sh backup_sessions_db.sh backup_projects.sh backup_upload_s3.sh; do
+        [[ -f "${INSTALL_DIR}/scripts/$s" ]] && chmod 755 "${INSTALL_DIR}/scripts/$s"
+    done
     install -m 0644 "$unit_svc" /etc/systemd/system/ai-workspace-db-backup.service
     install -m 0644 "$unit_tmr" /etc/systemd/system/ai-workspace-db-backup.timer
+    local env_example="${INSTALL_DIR}/scripts/aws/backup.env.example"
+    if [[ -f "$env_example" && ! -f /etc/default/ai-workspace-backup ]]; then
+        install -m 0640 "$env_example" /etc/default/ai-workspace-backup
+        log_warn "Создан /etc/default/ai-workspace-backup — выполните scripts/aws/setup-s3-backup.sh в CloudShell и IAM на EC2"
+    fi
     systemctl daemon-reload
     systemctl enable ai-workspace-db-backup.timer
     systemctl start ai-workspace-db-backup.timer
-    log_ok "Nightly SQLite backup: 03:15 UTC, /var/backups/ai-workspace/db, retention 14d"
+    log_ok "Nightly backup 03:15 UTC: SQLite + projects → /var/backups/ai-workspace, S3 если bucket и IAM на EC2"
 }
 
 ensure_caddy() {

@@ -1,12 +1,13 @@
 [Unit]
-Description=AI-Panel SQLite sessions.db backup
-Documentation=file:///opt/ai-workspace/scripts/backup_sessions_db.sh
+Description=AI-Panel backup (SQLite, projects, S3)
+Documentation=file:///opt/ai-workspace/scripts/backup_ai_workspace.sh
 After=network-online.target
 
 [Service]
 Type=oneshot
+EnvironmentFile=-/etc/default/ai-workspace-backup
 EnvironmentFile=-/etc/default/ai-workspace-db-backup
-ExecStart=/opt/ai-workspace/scripts/backup_sessions_db.sh
+ExecStart=/opt/ai-workspace/scripts/backup_ai_workspace.sh
 Nice=10
 IOSchedulingClass=best-effort
 IOSchedulingPriority=7
