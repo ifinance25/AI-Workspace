@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { CompressIcon } from "@/components/icons";
 import { contextZone, type CtxZone } from "@/lib/contextGauge";
 
 interface Props {
@@ -91,26 +92,40 @@ export default function ContextGauge({
           role="dialog"
           className="absolute bottom-full left-0 z-20 mb-2 w-64 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3 text-xs text-[var(--fg-secondary)] shadow-lg"
         >
-          <div className="mb-1 font-semibold text-[var(--fg-primary)]">Контекст {pct}%</div>
-          <div className="tabular-nums">
-            {contextTokens.toLocaleString()} / {window.toLocaleString()} токенов
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold text-[var(--fg-primary)]">Контекст {pct}%</div>
+              <div className="mt-1 tabular-nums">
+                {contextTokens.toLocaleString()} / {window.toLocaleString()} токенов
+              </div>
+              <div className="mt-0.5 text-[var(--fg-muted)]">
+                до заполнения ~{humanTokens(remaining)}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onCompact();
+              }}
+              className="icon-btn shrink-0 rounded-lg p-1.5 text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
+              title="Сжать контекст (/compact)"
+              aria-label="Сжать контекст"
+            >
+              <CompressIcon size={18} />
+            </button>
           </div>
-          <div className="mt-0.5 text-[var(--fg-muted)]">до заполнения ~{humanTokens(remaining)}</div>
           {zone === "red" && (
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3">
               <button
                 type="button"
-                onClick={() => { setOpen(false); onNewChat(); }}
-                className="rounded-lg bg-[var(--accent)] px-3 py-1.5 font-medium text-[var(--bg-canvas)] hover:opacity-90"
+                onClick={() => {
+                  setOpen(false);
+                  onNewChat();
+                }}
+                className="w-full rounded-lg bg-[var(--accent)] px-3 py-1.5 font-medium text-[var(--bg-canvas)] hover:opacity-90"
               >
                 Новый чат
-              </button>
-              <button
-                type="button"
-                onClick={() => { setOpen(false); onCompact(); }}
-                className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-hover)] px-3 py-1.5 text-[var(--fg-primary)] hover:bg-[var(--bg-canvas)]"
-              >
-                Сжать
               </button>
             </div>
           )}

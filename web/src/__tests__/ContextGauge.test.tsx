@@ -38,7 +38,15 @@ describe("ContextGauge", () => {
     // (иначе toggle закрыл бы его). Красная зона → появляются кнопки действий.
     rerender(<ContextGauge {...base} pct={91} contextTokens={182_000} />);
     expect(screen.getByRole("button", { name: "Новый чат" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Сжать" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Сжать" })).toBeNull();
+  });
+
+  it("иконка сжатия в поповере вызывает onCompact", () => {
+    const onCompact = vi.fn();
+    render(<ContextGauge {...base} pct={42} onCompact={onCompact} />);
+    fireEvent.click(screen.getByRole("button", { name: /контекст/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Сжать контекст" }));
+    expect(onCompact).toHaveBeenCalledOnce();
   });
 
   it("кнопки зовут колбэки", () => {
@@ -48,11 +56,11 @@ describe("ContextGauge", () => {
       <ContextGauge {...base} pct={91} contextTokens={182_000} onNewChat={onNewChat} onCompact={onCompact} />,
     );
     fireEvent.click(screen.getByRole("button", { name: /контекст/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Сжать контекст" }));
+    expect(onCompact).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: /контекст/i }));
     fireEvent.click(screen.getByRole("button", { name: "Новый чат" }));
     expect(onNewChat).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByRole("button", { name: /контекст/i }));
-    fireEvent.click(screen.getByRole("button", { name: "Сжать" }));
-    expect(onCompact).toHaveBeenCalledOnce();
   });
 
   it("autoOpenTrigger раскрывает поповер без клика", () => {
