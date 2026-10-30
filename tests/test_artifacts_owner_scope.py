@@ -52,3 +52,16 @@ def test_list_tool_artifact_rows_no_owner_backward_compatible(make_mgr) -> None:
     _add_artifact(m, sa.topic_id, "/proj/x.txt")
     rows = m.list_tool_artifact_rows()
     assert any(r["file_path"] == "/proj/x.txt" for r in rows)
+
+
+def test_artifact_survives_session_close(make_mgr) -> None:
+    """Журнал артефактов не зависит от истории сессии: после закрытия сессии
+    (messages уходят каскадом) файл остаётся в списке."""
+    m = make_mgr()
+    a = m.create_local_user(username="a", password_hash="h", is_admin=False)
+    sa = m.create_web_session("/proj", "proj", a)
+    m.list_tool_artifact_rows(owner_chat_id=a)  # разовый backfill отработал
+    m.record_artifact_event(sa.topic_id, {"name": "Write", "file_path": "/proj/keep.md"})
+    assert m.close_session(sa.topic_id)
+    paths = [r["file_path"] for r in m.list_tool_artifact_rows(owner_chat_id=a)]
+    assert paths == ["/proj/keep.md"]

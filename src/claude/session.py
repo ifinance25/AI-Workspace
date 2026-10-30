@@ -519,6 +519,18 @@ class SessionManager:
                     FOREIGN KEY (topic_id) REFERENCES sessions(topic_id) ON DELETE CASCADE
                 );
 
+                -- Журнал файловых действий Claude для панели «Артефакты».
+                -- Без FK на sessions: удаление/пересоздание сессии не стирает
+                -- артефакты (история messages уходит каскадом).
+                CREATE TABLE IF NOT EXISTS artifact_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    chat_id INTEGER NOT NULL,
+                    metadata_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS idx_artifact_events_chat
+                    ON artifact_events(chat_id, id);
+
                 CREATE TABLE IF NOT EXISTS user_project_access (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
@@ -1889,6 +1901,41 @@ class SessionManager:
             ).fetchone()
         return r["abspath"] if r else None
 
+    def _backfill_artifact_events(self, connection: sqlite3.Connection) -> None:
+        """Разово переносит старые tool_use с file_path из messages в журнал."""
+        done = connection.execute(
+            "SELECT 1 FROM app_meta WHERE key = 'artifact_events_backfilled'"
+        ).fetchone()
+        if done:
+            return
+        connection.execute(
+            "INSERT INTO artifact_events (chat_id, metadata_json, created_at) "
+            "SELECT s.chat_id, m.metadata_json, m.created_at "
+            "FROM messages m JOIN sessions s ON m.topic_id = s.topic_id "
+            "WHERE m.kind = 'tool_use' AND m.metadata_json LIKE '%\"file_path\"%' "
+            "ORDER BY m.event_id ASC"
+        )
+        connection.execute(
+            "INSERT OR REPLACE INTO app_meta (key, value) "
+            "VALUES ('artifact_events_backfilled', '1')"
+        )
+        connection.commit()
+
+    def record_artifact_event(self, topic_id: int, metadata: dict) -> None:
+        """Пишет файловое действие Claude в журнал артефактов (переживает сессию)."""
+        with self._conn_lock:
+            connection = self._get_connection()
+            row = connection.execute(
+                "SELECT chat_id FROM sessions WHERE topic_id = ?", (topic_id,)
+            ).fetchone()
+            if row is None or row["chat_id"] is None:
+                return
+            connection.execute(
+                "INSERT INTO artifact_events (chat_id, metadata_json) VALUES (?, ?)",
+                (int(row["chat_id"]), json.dumps(metadata)),
+            )
+            connection.commit()
+
     def list_tool_artifact_rows(
         self, owner_chat_id: int | None = None, limit: int = 5000
     ) -> list[dict]:
@@ -1908,25 +1955,21 @@ class SessionManager:
             connection = self._get_connection()
             # LIKE — лишь префильтр (сокращает скан); корректность гарантирует
             # Python-проверка ниже: json.loads в try + file_path непустая строка.
+            self._backfill_artifact_events(connection)
             if owner_chat_id is not None:
                 rows = connection.execute(
                     "SELECT metadata_json, created_at FROM ("
-                    "  SELECT m.metadata_json AS metadata_json, m.created_at AS created_at, "
-                    "         m.event_id AS event_id "
-                    "  FROM messages m JOIN sessions s ON m.topic_id = s.topic_id "
-                    "  WHERE m.kind = 'tool_use' AND m.metadata_json LIKE '%\"file_path\"%' "
-                    "        AND s.chat_id = ? "
-                    "  ORDER BY m.event_id DESC LIMIT ?"
-                    ") ORDER BY event_id ASC",
+                    "  SELECT metadata_json, created_at, id FROM artifact_events "
+                    "  WHERE chat_id = ? ORDER BY id DESC LIMIT ?"
+                    ") ORDER BY id ASC",
                     (int(owner_chat_id), limit),
                 ).fetchall()
             else:
                 rows = connection.execute(
                     "SELECT metadata_json, created_at FROM ("
-                    "  SELECT metadata_json, created_at, event_id FROM messages "
-                    "  WHERE kind = 'tool_use' AND metadata_json LIKE '%\"file_path\"%' "
-                    "  ORDER BY event_id DESC LIMIT ?"
-                    ") ORDER BY event_id ASC",
+                    "  SELECT metadata_json, created_at, id FROM artifact_events "
+                    "  ORDER BY id DESC LIMIT ?"
+                    ") ORDER BY id ASC",
                     (limit,),
                 ).fetchall()
         out: list[dict] = []

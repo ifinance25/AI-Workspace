@@ -145,6 +145,8 @@ class MessageHistoryPersister:
                 (topic_id, request_id, type_, kind, content, meta_json),
             )
             conn.commit()
+        if kind == "tool_use" and metadata and metadata.get("file_path"):
+            self.session_manager.record_artifact_event(topic_id, metadata)
 
     async def _on_user_message(self, event: UserMessageReceived) -> None:
         await self._flush_topic(event.topic_id)
