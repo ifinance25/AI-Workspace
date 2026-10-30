@@ -48,6 +48,34 @@
   @keyframes uikit-spin {
     to { transform: rotate(360deg); }
   }
+
+  /* UIKit: верхняя полоска как у Google (indeterminate). */
+  .uikit-top-progress {
+    position: fixed;
+    top: env(safe-area-inset-top, 0px);
+    left: 0;
+    right: 0;
+    height: 3px;
+    z-index: 10000;
+    pointer-events: none;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--accent-brand) 14%, transparent);
+  }
+  .uikit-top-progress__bar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 36%;
+    border-radius: 0 2px 2px 0;
+    background: var(--accent-brand);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--accent-brand) 45%, transparent);
+    animation: uikit-top-progress-slide 1.35s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+  @keyframes uikit-top-progress-slide {
+    0% { left: -36%; }
+    50% { left: 38%; }
+    100% { left: 100%; }
+  }
 }
 
 html, body, #root {
