@@ -178,6 +178,8 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
     tokens: 0,
     costUsd: 0,
   });
+  // Счётчик для авто-обновления панели Артефакты при записи файлов Claude.
+  const [artifactRefreshToken, setArtifactRefreshToken] = useState(0);
   // Уровень детализации (verbose). На 2 показываем размышления Claude.
   const [verbose, setVerbose] = useState<number>(1);
   const { info } = useModelInfo(true);
@@ -538,6 +540,12 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
           requestId: msg.request_id,
         },
       ]);
+      if (
+        msg.kind === "tool_use" &&
+        (msg.metadata?.file_path || (msg.metadata?.bash_outputs as unknown[])?.length)
+      ) {
+        setArtifactRefreshToken((t) => t + 1);
+      }
       return;
     }
     if (msg.type === "finished") {
@@ -1200,6 +1208,7 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
           projectPath={session.project_path}
           sessionUuid={session.session_uuid}
           onClose={() => setArtifactsOpen(false)}
+          refreshToken={artifactRefreshToken}
         />
       )}
       {/* Модалка «Участники» — тот же framer-motion оверлей, что и SettingsModal:

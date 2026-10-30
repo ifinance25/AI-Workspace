@@ -56,14 +56,27 @@ function ArtifactRow({
       </div>
       <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 text-xs">
         {a.exists && !confirming && (
-          <a
-            href={api.sessionFileUrl(sessionUuid, a.rel)}
-            download={a.is_dir ? `${a.name}.zip` : a.name}
-            className="rounded-lg bg-[var(--accent)] px-2.5 py-1 font-medium text-[var(--bg-canvas)] hover:opacity-90"
-            title={a.is_dir ? "Скачать папку (zip)" : "Скачать файл"}
-          >
-            {a.is_dir ? "Скачать zip" : "Скачать"}
-          </a>
+          <>
+            {!a.is_dir && (
+              <a
+                href={api.sessionFileInlineUrl(sessionUuid, a.rel)}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg border border-[var(--border-subtle)] px-2.5 py-1 font-medium text-[var(--fg-secondary)] hover:text-[var(--fg-primary)]"
+                title="Открыть в браузере"
+              >
+                Открыть
+              </a>
+            )}
+            <a
+              href={api.sessionFileUrl(sessionUuid, a.rel)}
+              download={a.is_dir ? `${a.name}.zip` : a.name}
+              className="rounded-lg bg-[var(--accent)] px-2.5 py-1 font-medium text-[var(--bg-canvas)] hover:opacity-90"
+              title={a.is_dir ? "Скачать папку (zip)" : "Скачать файл"}
+            >
+              {a.is_dir ? "Скачать zip" : "Скачать"}
+            </a>
+          </>
         )}
         {!confirming ? (
           <>
@@ -113,10 +126,12 @@ export default function ArtifactsPanel({
   projectPath,
   sessionUuid,
   onClose,
+  refreshToken,
 }: {
   projectPath: string;
   sessionUuid: string;
   onClose: () => void;
+  refreshToken?: number;
 }) {
   const [accessLevel, setAccessLevel] = useState<"full" | "readonly">("readonly");
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
@@ -145,7 +160,7 @@ export default function ArtifactsPanel({
     return () => {
       cancelled = true;
     };
-  }, [projectPath, reloadToken]);
+  }, [projectPath, reloadToken, refreshToken]);
 
   async function hide(rel: string) {
     setError(null);
