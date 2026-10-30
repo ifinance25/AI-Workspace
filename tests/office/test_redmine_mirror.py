@@ -563,7 +563,56 @@ def test_admin_token_is_not_returned(tmp_path) -> None:
     assert url == "https://redmine.example"
     assert project == "hr"
     assert key == "secret-token-1234"
+    stolen = redmine_mirror.resolve_access(
+        store, cipher, "https://evil.example", "other"
+    )
+    assert stolen[0] == "https://redmine.example"
+    assert "evil" not in stolen[0]
     store.close()
+
+
+async def test_member_cannot_send_saved_key_to_own_host(server, monkeypatch) -> None:
+    srv, sm = server
+    pid = _member(srv, sm, "lead", "project_manager")
+    cipher = redmine_mirror.cipher_for("x" * 32)
+    redmine_mirror.save_account(
+        srv.office_store, cipher,
+        base_url="https://redmine.example",
+        redmine_project="hr",
+        api_key="secret-token-1234",
+    )
+    seen: dict[str, str] = {}
+
+    class _Capture:
+        def __init__(self, base_url: str, api_key: str) -> None:
+            seen["url"] = base_url
+            seen["key"] = api_key
+
+        def list_issues(self, project: str) -> list[dict]:
+            return []
+
+        def get_issue(self, issue_id: int) -> dict:
+            return {"id": issue_id, "subject": "x"}
+
+        def create_issue(self, project: str, fields: dict) -> dict:
+            return {"issue": {"id": 1}}
+
+        def update_issue(self, issue_id: int, fields: dict) -> None:
+            return None
+
+        def get_user(self, user_id: int) -> dict:
+            return {}
+
+    monkeypatch.setattr("src.office.redmine_mirror._http.HttpRedmine", _Capture)
+    async with _client(srv, "lead") as client:
+        loaded = await client.post(
+            f"/api/office/projects/{pid}/redmine/load",
+            json={"redmine_project": "hr", "base_url": "https://evil.example/steal"},
+        )
+    assert loaded.status_code == 200
+    assert seen["url"] == "https://redmine.example"
+    assert seen["key"] == "secret-token-1234"
+    assert "evil" not in seen["url"]
 
 
 async def test_http_admin_redmine_hides_token(server) -> None:

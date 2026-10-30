@@ -94,12 +94,13 @@ def make_redmine_mirror_router(
 ) -> APIRouter:
     cipher = redmine_mirror.cipher_for(jwt_secret) if jwt_secret else None
     def _factory(base_url: str):
-        url, _project, key = redmine_mirror.resolve_access(office_store, cipher, base_url, "")
-        if not key:
+        del base_url
+        url, _project, key = redmine_mirror.resolve_access(office_store, cipher, "", "")
+        if not url or not key:
             raise redmine_mirror.MirrorError("no_key", "Ключ Redmine не задан")
         from src.office.redmine_mirror._http import HttpRedmine
 
-        return HttpRedmine(url or base_url, key)
+        return HttpRedmine(url, key)
 
     async def _schedule() -> None:
         while True:
@@ -129,13 +130,12 @@ def make_redmine_mirror_router(
     def _fail(exc: redmine_mirror.MirrorError) -> HTTPException:
         return HTTPException(status_code=_STATUS.get(exc.code, 502), detail=exc.message)
 
-    def _access(project_id: int, base_url: str, redmine_project: str) -> tuple[str, str, str]:
-        saved_url = base_url or redmine_mirror.connection_url(office_store, project_id)
-        return redmine_mirror.resolve_access(office_store, cipher, saved_url, redmine_project)
+    def _access(redmine_project: str) -> tuple[str, str, str]:
+        return redmine_mirror.resolve_access(office_store, cipher, "", redmine_project)
 
     @router.post("/projects/{project_id}/redmine/load")
     async def load_project(body: _SyncIn, ctx: dict = Depends(require_project)) -> dict:
-        url, project, key = _access(ctx["project"]["id"], body.base_url, body.redmine_project)
+        url, project, key = _access(body.redmine_project)
         try:
             return await asyncio.to_thread(
                 redmine_mirror.load_project,
@@ -155,7 +155,7 @@ def make_redmine_mirror_router(
     async def load_issue(
         issue_id: int, body: _UpdateIn, ctx: dict = Depends(require_project)
     ) -> dict:
-        url, _project, key = _access(ctx["project"]["id"], body.base_url, "")
+        url, _project, key = _access("")
         try:
             return await asyncio.to_thread(
                 redmine_mirror.load_issue,
@@ -172,7 +172,7 @@ def make_redmine_mirror_router(
 
     @router.post("/projects/{project_id}/redmine/issues")
     async def create_issue(body: _CreateIn, ctx: dict = Depends(require_project)) -> dict:
-        url, project, key = _access(ctx["project"]["id"], body.base_url, body.redmine_project)
+        url, project, key = _access(body.redmine_project)
         try:
             return await asyncio.to_thread(
                 redmine_mirror.create_issue,
@@ -200,7 +200,7 @@ def make_redmine_mirror_router(
     async def update_issue(
         issue_id: int, body: _UpdateIn, ctx: dict = Depends(require_project)
     ) -> dict:
-        url, _project, key = _access(ctx["project"]["id"], body.base_url, "")
+        url, _project, key = _access("")
         try:
             return await asyncio.to_thread(
                 redmine_mirror.update_issue,

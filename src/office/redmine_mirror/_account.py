@@ -88,12 +88,18 @@ def save_account(
 
 
 def resolve_access(store, cipher: Fernet | None, base_url: str, redmine_project: str) -> tuple[str, str, str]:
-    """Адрес, проект и токен. Пустые поля запроса берутся из сохранённой учётки."""
+    """Адрес, проект и токен.
+
+    Сохранённый ключ уходит только на адрес, который записал администратор.
+    Адрес из запроса участника этот адрес не подменяет: иначе ключ уйдёт
+    на чужой сервер в заголовке ``X-Redmine-API-Key``.
+    """
+    del base_url
     row = _row(store) if cipher is not None else {"base_url": "", "redmine_project": "", "token_encrypted": ""}
     saved = _decrypt(cipher, row["token_encrypted"]) if cipher is not None else ""
     key = saved or os.environ.get("REDMINE_API_KEY", "")
     return (
-        (base_url or row["base_url"] or "").rstrip("/"),
+        (row["base_url"] or "").rstrip("/"),
         redmine_project or row["redmine_project"] or "",
         key,
     )
