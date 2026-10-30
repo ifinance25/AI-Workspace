@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# restore_stand_db.sh — перед локальным стендом восстановить SQLite из дампа.
+# restore_stand_db.sh — восстановить SQLite из дампа (явный сброс или первый запуск).
 #
-# Дамп лежит в data/dumps/ (не в git: сессии и ключи). С прода НЕ ходим:
+# Если рабочая БД уже есть, без --force / STAND_FORCE_RESTORE=1 скрипт выходит 0
+# и файл не трогает. run_stand.sh по умолчанию restore не вызывает в этом случае.
 # если файла нет, выходим с инструкцией. Обновление дампа: только по явной
 # просьбе пользователя, scripts/fetch_stand_dump.sh.
 #
 # Использование (из корня git-клона):
 #   bash scripts/restore_stand_db.sh
-#   STAND_PORT=8600 bash scripts/restore_stand_db.sh
+#   bash scripts/restore_stand_db.sh --force
+#   STAND_FORCE_RESTORE=1 bash scripts/restore_stand_db.sh
 #
 # Переменные:
 #   STAND_ROOT       корень клона (по умолчанию: родитель scripts/)
@@ -21,12 +23,24 @@
 #   STAND_PROJECTS_DIR  локальный PROJECTS_DIR (иначе из .env). После copy
 #                    пути /var/lib/... в рабочей БД переписываются сюда,
 #                    каталоги проектов создаются. Оригинал дампа не трогаем.
+#   STAND_FORCE_RESTORE  1 или флаг --force: подменить рабочую БД из дампа
+#                    даже если файл уже есть (сброс токенов, офиса, сидов).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="${STAND_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 DUMP_DIR="${STAND_DUMP_DIR:-$ROOT/data/dumps}"
 PORT="${STAND_PORT:-8600}"
+FORCE_RESTORE=0
+
+for arg in "$@"; do
+    case "$arg" in
+        --force|--restore) FORCE_RESTORE=1 ;;
+    esac
+done
+if [[ "${STAND_FORCE_RESTORE:-0}" == "1" ]]; then
+    FORCE_RESTORE=1
+fi
 
 die() {
     printf '%s\n' "$*" >&2
@@ -337,8 +351,29 @@ print("Stand admin password aligned from .env")
 PY
 }
 
+for arg in "$@"; do
+    case "$arg" in
+        --stop-only)
+            stop_stand
+            exit 0
+            ;;
+        --print-db-path)
+            read_session_db_path
+            echo "$TARGET"
+            exit 0
+            ;;
+    esac
+done
+
 read_session_db_path
 read_projects_dir
+
+if [[ "$FORCE_RESTORE" != "1" ]] && [[ -s "$TARGET" ]]; then
+    echo "Restore пропущен: сохраняем $TARGET (Redmine, офис, демо-сиды)." >&2
+    echo "Полный сброс из дампа: STAND_FORCE_RESTORE=1 bash scripts/run_stand.sh" >&2
+    exit 0
+fi
+
 if ! resolve_dump || [[ ! -e "$DUMP" ]]; then
     print_missing_dump
     exit 1

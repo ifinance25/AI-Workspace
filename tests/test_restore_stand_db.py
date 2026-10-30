@@ -51,7 +51,7 @@ class RestoreStandDbTests(unittest.TestCase):
             target = root / "data" / "sessions.db"
             proc = _run(
                 {
-                    "STAND_ROOT": str(root),
+                    "STAND_ROOT": str(REPO_ROOT),
                     "STAND_DUMP_DIR": str(dumps),
                     "STAND_DB_PATH": str(target),
                 }
@@ -103,7 +103,7 @@ class RestoreStandDbTests(unittest.TestCase):
             local_root = root / "local-projects"
             target = root / "data" / "sessions.db"
             env = {
-                "STAND_ROOT": str(root),
+                "STAND_ROOT": str(REPO_ROOT),
                 "STAND_DUMP_DIR": str(dumps),
                 "STAND_DB_PATH": str(target),
                 "STAND_PROJECTS_DIR": str(local_root),
@@ -133,6 +133,34 @@ class RestoreStandDbTests(unittest.TestCase):
                     "SELECT abspath FROM projects WHERE id = 7"
                 ).fetchone()[0]
             self.assertEqual(again, str(local_root / "AI_Sales_Assistant"))
+
+    def test_skip_restore_when_working_db_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            dumps = root / "data" / "dumps"
+            dumps.mkdir(parents=True)
+            src = dumps / "sessions.latest.db"
+            with sqlite3.connect(src) as conn:
+                conn.execute("CREATE TABLE ping (id INTEGER PRIMARY KEY)")
+                conn.execute("INSERT INTO ping (id) VALUES (99)")
+                conn.commit()
+            target = root / "data" / "sessions.db"
+            with sqlite3.connect(target) as conn:
+                conn.execute("CREATE TABLE ping (id INTEGER PRIMARY KEY)")
+                conn.execute("INSERT INTO ping (id) VALUES (1)")
+                conn.commit()
+            proc = _run(
+                {
+                    "STAND_ROOT": str(REPO_ROOT),
+                    "STAND_DUMP_DIR": str(dumps),
+                    "STAND_DB_PATH": str(target),
+                }
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr + proc.stdout)
+            self.assertIn("Restore пропущен", proc.stderr)
+            with sqlite3.connect(target) as conn:
+                row = conn.execute("SELECT id FROM ping").fetchone()
+            self.assertEqual(row[0], 1)
 
     def test_fetch_refuses_without_explicit_flag(self) -> None:
         fetch = REPO_ROOT / "scripts" / "fetch_stand_dump.sh"

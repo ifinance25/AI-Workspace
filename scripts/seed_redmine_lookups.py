@@ -45,6 +45,11 @@ def main() -> int:
         default=None,
         help="JSON фикстура (по умолчанию data/fixtures/redmine_kanban_lookups.json)",
     )
+    parser.add_argument(
+        "--if-empty",
+        action="store_true",
+        help="не перезаписывать, если справочники уже в БД",
+    )
     args = parser.parse_args()
     db_path = args.db or _load_env_db()
     if not db_path.is_file():
@@ -53,6 +58,12 @@ def main() -> int:
 
     sm = SessionManager(storage_path=db_path)
     store = OfficeStore(sm.storage_path)
+    if args.if_empty:
+        from src.office.redmine_mirror._lookups import load_lookups
+
+        if load_lookups(store) is not None:
+            print(f"Справочники Redmine уже в {db_path}, пропуск (--if-empty)")
+            return 0
     fixture = args.fixture or default_fixture_path()
     payload = seed_lookups(store, fixture_path=fixture)
     filters = payload.get("filters") or {}

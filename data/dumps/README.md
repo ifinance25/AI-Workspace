@@ -4,7 +4,7 @@
 
 В git не класть: `*.db`, `*.sqlite`, WAL/SHM. В файлах сессии, пользователи, ключи API.
 
-## Сборка стенда из дампа
+## Сборка стенда
 
 Из корня git-клона:
 
@@ -12,10 +12,20 @@
 bash scripts/run_stand.sh
 ```
 
-Только подмена БД (стенд на порту 8600 сначала останавливается):
+Обычный запуск: останавливает старый процесс на :8600, при необходимости собирает фронт (`web/src` новее `web/dist`), поднимает веб. **Рабочую `data/sessions.db` не затирает** (токены Redmine, проекты офиса, демо-сиды сохраняются).
+
+Полный сброс из дампа (первый запуск без БД или явная просьба):
 
 ```bash
-bash scripts/restore_stand_db.sh
+bash scripts/run_stand.sh --restore
+# или STAND_FORCE_RESTORE=1 bash scripts/run_stand.sh
+```
+
+Только подмена БД без веба:
+
+```bash
+bash scripts/restore_stand_db.sh          # пропуск, если БД уже есть
+bash scripts/restore_stand_db.sh --force
 ```
 
 Адрес по умолчанию: `http://127.0.0.1:8600`.
@@ -46,6 +56,6 @@ scp user@host:/tmp/sessions-YYYY-MM-DD.db data/dumps/sessions-YYYY-MM-DD.db
 cd data/dumps && ln -sfn sessions-YYYY-MM-DD.db sessions.latest.db
 ```
 
-Затем `bash scripts/run_stand.sh`. Restore после копирования переписывает
+Затем `bash scripts/run_stand.sh --restore` (или `--restore-only`). Restore после копирования переписывает
 `projects.abspath` (и связанные пути) на локальный `PROJECTS_DIR` и создаёт
 пустые каталоги проектов. Файл дампа в `data/dumps/` не меняется.

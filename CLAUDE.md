@@ -64,12 +64,14 @@ python -m venv .venv
 .venv/Scripts/python -m pip install -r requirements.txt   # Linux/macOS: .venv/bin/python
 cd web && npm install && npm run build && cd ..
 cp .env.example .env    # PROJECTS_DIR, WEB_JWT_SECRET, ADMIN_LOGIN, ADMIN_PASSWORD
-bash scripts/run_stand.sh   # restore SQLite из data/dumps/, затем веб на :8600
+bash scripts/run_stand.sh   # веб на :8600; БД не трогаем, фронт при необходимости
 ```
 
 ### Локальный стенд и дампы БД
 
-При сборке и подъёме локального стенда **всегда** восстанавливать SQLite из дампа в git-клоне: `data/dumps/` (указатель `sessions.latest.db` или `sessions-YYYY-MM-DD.db`). Команда: `bash scripts/run_stand.sh` (только БД: `bash scripts/restore_stand_db.sh`). Restore переписывает пути проектов на локальный `PROJECTS_DIR` (файл дампа не меняется). Подмена файла на живом процессе опасна: restore сначала останавливает слушателя на порту 8600.
+`bash scripts/run_stand.sh` по умолчанию **не** подменяет рабочую SQLite: останавливает старый процесс, собирает фронт если `web/src` новее `web/dist`, поднимает веб на :8600. Токены, офис и локальные сиды сохраняются.
+
+Restore из дампа в `data/dumps/` (`sessions.latest.db` или `sessions-YYYY-MM-DD.db`) только если рабочей БД ещё нет, или явно: `bash scripts/run_stand.sh --restore`, `STAND_FORCE_RESTORE=1`, `bash scripts/restore_stand_db.sh --force`. Restore переписывает пути проектов на локальный `PROJECTS_DIR` (файл дампа не меняется). Перед подменой БД restore останавливает слушателя на порту 8600.
 
 Дампы в git **не** коммитить (сессии, пользователи, ключи). Канон одной папки: `AI-Workspace/data/dumps/`, не vault `artifacts/`.
 
@@ -264,7 +266,7 @@ Claude Code на своём сервере, в браузере: личная р
 |---------|------------|
 | `.venv/bin/python -m pip install -r requirements.txt` | Установить зависимости Python |
 | `cd web && npm install && npm run build` | Собрать фронт |
-| `bash scripts/run_stand.sh` | Поднять локальный стенд на порту 8600 |
+| `bash scripts/run_stand.sh` | Локальный стенд :8600; БД по умолчанию не трогаем |
 | `.venv/bin/python -m pytest tests -q` | Прогнать тесты бэкенда |
 | `cd web && npx vitest run` | Прогнать тесты фронта |
 
@@ -276,4 +278,8 @@ Claude Code на своём сервере, в браузере: личная р
 
 Если работа продолжается — скажи «продолжи автопилот»: состояние поднимется
 из `.autopilot/state.js`, переспрашивать ничего не нужно.
+
+## Graphify (агенты в Cursor)
+
+Каждая сессия: `graphify query "<тема>" --budget 2000` из корня этого репозитория до Read/Grep по коду. После правок: `graphify update .`. Vault: `.cursor/rules/graphify-ai-workspace.mdc` в Obsidian-проекте AI-Workspace.
 <!-- autopilot:end -->
