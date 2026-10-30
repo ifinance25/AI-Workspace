@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Awaitable, Callable
+from functools import partial
 from typing import Any
 
 import structlog
@@ -167,14 +168,18 @@ async def bridge_ssh_websocket(
     remember_host_key: Callable[[str], Any] | None = None,
 ) -> None:
     """Accept is already done. Pump stdin/stdout until either side closes."""
-    connect = open_shell or open_ssh_shell
+    # Ключ сервера запоминает только настоящий open_ssh_shell; подменённый
+    # open_shell (тесты) получает прежние аргументы.
+    if open_shell is not None:
+        connect = open_shell
+    elif remember_host_key is not None:
+        connect = partial(open_ssh_shell, on_host_key=remember_host_key)
+    else:
+        connect = open_ssh_shell
     conn = None
     process = None
-    kwargs: dict[str, Any] = {"cols": DEFAULT_COLS, "rows": DEFAULT_ROWS}
-    if remember_host_key is not None:
-        kwargs["on_host_key"] = remember_host_key
     try:
-        conn, process = await connect(profile, **kwargs)
+        conn, process = await connect(profile, cols=DEFAULT_COLS, rows=DEFAULT_ROWS)
     except SshConnectError as exc:
         await websocket.send_json({"type": "error", "error": str(exc)})
         return
