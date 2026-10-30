@@ -1,0 +1,32 @@
+"""Зеркало Redmine: локальная копия задач подключённого проекта.
+
+Публичные вызовы: загрузить проект, загрузить одну задачу по номеру,
+создать задачу, записать правку по номеру. Ключ API, разбор ответа
+и сопоставление логинов наружу не выходят.
+"""
+
+from src.office.redmine_mirror._http import open_client
+from src.office.redmine_mirror._mirror import (
+    SYNC_INTERVAL_MINUTES,
+    MirrorError,
+    RedmineUnavailableError,
+    connection_url,
+    create_issue,
+    load_issue,
+    load_project,
+    run_due,
+    update_issue,
+)
+
+__all__ = [
+    "SYNC_INTERVAL_MINUTES",
+    "MirrorError",
+    "RedmineUnavailableError",
+    "connection_url",
+    "create_issue",
+    "load_issue",
+    "load_project",
+    "open_client",
+    "run_due",
+    "update_issue",
+]
