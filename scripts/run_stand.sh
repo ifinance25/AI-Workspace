@@ -25,7 +25,7 @@ for arg in "$@"; do
 Локальный стенд AI-Workspace.
 
   bash scripts/run_stand.sh                 поднять веб, БД не трогать
-  bash scripts/run_stand.sh --restore       сначала сброс БД из дампа, затем веб
+  bash scripts/run_stand.sh --restore       сброс БД из дампа (нужен STAND_CONFIRM_RESTORE=1), затем веб
   bash scripts/run_stand.sh --restore-only  только restore (или STAND_FORCE_RESTORE=1)
 
 По умолчанию: http://127.0.0.1:8600
@@ -44,6 +44,12 @@ done
 
 if [[ "${STAND_FORCE_RESTORE:-0}" == "1" ]]; then
     FORCE_RESTORE=1
+fi
+
+if [[ "$FORCE_RESTORE" == "1" ]] && [[ "${STAND_CONFIRM_RESTORE:-0}" != "1" ]]; then
+    echo "Сброс БД уничтожит локальные настройки (Redmine, офис, чаты)." >&2
+    echo "Подтвердите: STAND_CONFIRM_RESTORE=1 bash scripts/run_stand.sh --restore" >&2
+    exit 2
 fi
 
 export STAND_ROOT="$ROOT"

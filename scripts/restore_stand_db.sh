@@ -180,6 +180,25 @@ stop_stand() {
     done
 }
 
+require_restore_confirm() {
+    [[ "$FORCE_RESTORE" != "1" ]] && return 0
+    if [[ "${STAND_CONFIRM_RESTORE:-0}" != "1" ]]; then
+        read_session_db_path
+        die "Сброс затирает локальную БД ($TARGET): токены, офис, чаты. Подтвердите: STAND_CONFIRM_RESTORE=1 bash scripts/restore_stand_db.sh --force"
+    fi
+}
+
+seed_redmine_kanban_lookups() {
+    local db="$1"
+    local py="python3"
+    if [[ -x "$ROOT/.venv/bin/python" ]]; then
+        py="$ROOT/.venv/bin/python"
+    elif [[ -x "$ROOT/.venv/Scripts/python.exe" ]]; then
+        py="$ROOT/.venv/Scripts/python.exe"
+    fi
+    PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}" "$py" "$ROOT/scripts/seed_redmine_lookups.py" --db "$db" --if-empty
+}
+
 copy_dump() {
     local src="$1"
     local dst="$2"
@@ -370,7 +389,7 @@ read_projects_dir
 
 if [[ "$FORCE_RESTORE" != "1" ]] && [[ -s "$TARGET" ]]; then
     echo "Restore пропущен: сохраняем $TARGET (Redmine, офис, демо-сиды)." >&2
-    echo "Полный сброс из дампа: STAND_FORCE_RESTORE=1 bash scripts/run_stand.sh" >&2
+    echo "Полный сброс из дампа: STAND_CONFIRM_RESTORE=1 bash scripts/run_stand.sh --restore" >&2
     exit 0
 fi
 
@@ -382,22 +401,13 @@ if [[ ! -s "$DUMP" ]]; then
     die "Дамп пустой: $DUMP"
 fi
 
+require_restore_confirm
+
 stop_stand
 copy_dump "$DUMP" "$TARGET"
 scrub_kb_history "$TARGET"
 echo "Восстановлено: $DUMP -> $TARGET"
 remap_project_paths "$TARGET" "$PROJECTS_DIR"
 align_stand_admin "$TARGET"
-
-seed_redmine_kanban_lookups() {
-    local db="$1"
-    local py="python3"
-    if [[ -x "$ROOT/.venv/bin/python" ]]; then
-        py="$ROOT/.venv/bin/python"
-    elif [[ -x "$ROOT/.venv/Scripts/python.exe" ]]; then
-        py="$ROOT/.venv/Scripts/python.exe"
-    fi
-    PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}" "$py" "$ROOT/scripts/seed_redmine_lookups.py" --db "$db"
-}
 
 seed_redmine_kanban_lookups "$TARGET"

@@ -71,7 +71,7 @@ bash scripts/run_stand.sh   # веб на :8600; БД не трогаем, фр�
 
 `bash scripts/run_stand.sh` по умолчанию **не** подменяет рабочую SQLite: останавливает старый процесс, собирает фронт если `web/src` новее `web/dist`, поднимает веб на :8600. Токены, офис и локальные сиды сохраняются.
 
-Restore из дампа в `data/dumps/` (`sessions.latest.db` или `sessions-YYYY-MM-DD.db`) только если рабочей БД ещё нет, или явно: `bash scripts/run_stand.sh --restore`, `STAND_FORCE_RESTORE=1`, `bash scripts/restore_stand_db.sh --force`. Restore переписывает пути проектов на локальный `PROJECTS_DIR` (файл дампа не меняется). Перед подменой БД restore останавливает слушателя на порту 8600.
+Restore из дампа в `data/dumps/` (`sessions.latest.db` или `sessions-YYYY-MM-DD.db`) только если рабочей БД ещё нет, или явно с подтверждением: `STAND_CONFIRM_RESTORE=1 bash scripts/run_stand.sh --restore`, `STAND_CONFIRM_RESTORE=1 bash scripts/restore_stand_db.sh --force`. Подробно: `docs/local-stand-rebuild.md`.
 
 Дампы в git **не** коммитить (сессии, пользователи, ключи). Канон одной папки: `AI-Workspace/data/dumps/`, не vault `artifacts/`.
 

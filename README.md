@@ -155,7 +155,7 @@ python -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt   # Windows: .venv/Scripts/python
 cd web && npm install && npm run build && cd ..
 cp .env.example .env        # заполнить PROJECTS_DIR, WEB_JWT_SECRET, ADMIN_LOGIN, ADMIN_PASSWORD
-bash scripts/run_stand.sh            # restore БД из data/dumps/, веб на 127.0.0.1:8600
+bash scripts/run_stand.sh            # веб на 127.0.0.1:8600, БД не трогаем (см. docs/local-stand-rebuild.md)
 python scripts/run_web.py --port 8600   # только веб, без restore из дампа
 ```
 

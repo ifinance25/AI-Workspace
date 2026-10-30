@@ -1,5 +1,7 @@
 # Дампы SQLite локального стенда
 
+Контракт пересборки без потери данных: [docs/local-stand-rebuild.md](../docs/local-stand-rebuild.md).
+
 Канон: эта папка, `AI-Workspace/data/dumps/` в git-клоне. Vault `artifacts/` для дампов не используем.
 
 В git не класть: `*.db`, `*.sqlite`, WAL/SHM. В файлах сессии, пользователи, ключи API.
@@ -18,14 +20,14 @@ bash scripts/run_stand.sh
 
 ```bash
 bash scripts/run_stand.sh --restore
-# или STAND_FORCE_RESTORE=1 bash scripts/run_stand.sh
+# или STAND_CONFIRM_RESTORE=1 STAND_FORCE_RESTORE=1 bash scripts/run_stand.sh
 ```
 
 Только подмена БД без веба:
 
 ```bash
 bash scripts/restore_stand_db.sh          # пропуск, если БД уже есть
-bash scripts/restore_stand_db.sh --force
+bash scripts/restore_stand_db.sh --force   # нужен STAND_CONFIRM_RESTORE=1
 ```
 
 Адрес по умолчанию: `http://127.0.0.1:8600`.

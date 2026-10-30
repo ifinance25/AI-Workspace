@@ -1897,8 +1897,8 @@ class SessionManager:
         """Отдельный файл журнала артефактов рядом с sessions.db.
 
         Журнал не лежит в sessions.db: сессии и messages удаляются каскадом, а
-        локальный стенд (run_stand.sh) целиком подменяет sessions.db дампом.
-        Отдельный файл переживает и то и другое.
+        явный restore (`run_stand.sh --restore`) подменяет sessions.db дампом.
+        Обычный `run_stand.sh` БД не трогает. Отдельный файл переживает и то и другое.
         """
         conn = sqlite3.connect(self._artifact_db_path, timeout=30.0)
         conn.row_factory = sqlite3.Row

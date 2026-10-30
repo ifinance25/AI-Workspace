@@ -54,4 +54,4 @@ scp "$STAND_DUMP_SSH:$REMOTE_TMP" "$DUMP_DIR/$LOCAL_NAME"
 
 echo "Дамп сохранён: $DUMP_DIR/$LOCAL_NAME"
 echo "Актуальный указатель: $DUMP_DIR/sessions.latest.db"
-echo "Дальше: bash scripts/run_stand.sh"
+echo "Дальше (сброс локальной БД только если нужен): STAND_CONFIRM_RESTORE=1 bash scripts/run_stand.sh --restore"

@@ -162,6 +162,41 @@ class RestoreStandDbTests(unittest.TestCase):
                 row = conn.execute("SELECT id FROM ping").fetchone()
             self.assertEqual(row[0], 1)
 
+    def test_force_restore_requires_confirm(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            dumps = root / "data" / "dumps"
+            dumps.mkdir(parents=True)
+            src = dumps / "sessions.latest.db"
+            with sqlite3.connect(src) as conn:
+                conn.execute("CREATE TABLE ping (id INTEGER PRIMARY KEY)")
+                conn.execute("INSERT INTO ping (id) VALUES (7)")
+                conn.commit()
+            target = root / "data" / "sessions.db"
+            with sqlite3.connect(target) as conn:
+                conn.execute("CREATE TABLE ping (id INTEGER PRIMARY KEY)")
+                conn.execute("INSERT INTO ping (id) VALUES (1)")
+                conn.commit()
+            proc = subprocess.run(
+                ["bash", str(RESTORE), "--force"],
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                cwd=REPO_ROOT,
+                env={
+                    **os.environ,
+                    "STAND_SKIP_STOP": "1",
+                    "STAND_ROOT": str(REPO_ROOT),
+                    "STAND_DUMP_DIR": str(dumps),
+                    "STAND_DB_PATH": str(target),
+                },
+            )
+            self.assertEqual(proc.returncode, 1, proc.stderr)
+            self.assertIn("STAND_CONFIRM_RESTORE=1", proc.stderr)
+            with sqlite3.connect(target) as conn:
+                row = conn.execute("SELECT id FROM ping").fetchone()
+            self.assertEqual(row[0], 1)
+
     def test_fetch_refuses_without_explicit_flag(self) -> None:
         fetch = REPO_ROOT / "scripts" / "fetch_stand_dump.sh"
         proc = subprocess.run(
