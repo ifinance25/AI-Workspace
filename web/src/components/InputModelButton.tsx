@@ -63,12 +63,11 @@ export default function InputModelButton({ onChange }: Props) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         disabled={busy}
-        className="flex items-center gap-2 rounded-full bg-[var(--bg-hover)] px-3 py-1.5 text-sm text-[var(--fg-primary)] hover:opacity-90 disabled:opacity-60"
+        className="flex items-center gap-1.5 rounded-full bg-[var(--bg-hover)] px-3 py-1.5 text-sm text-[var(--fg-primary)] hover:opacity-90 disabled:opacity-60"
         title="Сменить модель Claude"
       >
-        {providerLogo(current, 16)}
         <span
-          className="hidden max-w-[160px] truncate sm:inline"
+          className="max-w-[140px] truncate"
           title={knownItem?.label ?? current}
         >
           {shortLabel}
@@ -82,7 +81,7 @@ export default function InputModelButton({ onChange }: Props) {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 8, scale: 0.98 }}
           transition={{ duration: 0.16, ease: "easeOut" }}
-          className="absolute bottom-full left-0 z-30 mb-2 w-[min(20rem,calc(100vw-1.5rem))] origin-bottom overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] shadow-xl"
+          className="absolute bottom-full right-0 z-30 mb-2 w-[min(20rem,calc(100vw-1.5rem))] origin-bottom overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] shadow-xl"
         >
           <div className="px-4 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--fg-muted)]">
             Модель Claude

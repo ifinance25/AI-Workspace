@@ -16,23 +16,19 @@ function extractToolName(firstLine: string, fallback?: string): string {
   return fallback || "tool";
 }
 
-/** Choose a tint + label for known tool kinds. Falls back to neutral. */
-function styleFor(tool: string): {
-  tint: string;
-  badge: string;
-  label: string;
-} {
+/** Цвет имени инструмента. Имя показывается один раз, без второй метки. */
+function styleFor(tool: string): { tint: string } {
   const t = tool.toLowerCase();
-  if (t === "bash") return { tint: "text-emerald-400", badge: "bg-emerald-500/10", label: "bash" };
-  if (t === "read") return { tint: "text-sky-400", badge: "bg-sky-500/10", label: "read" };
-  if (t === "write") return { tint: "text-violet-400", badge: "bg-violet-500/10", label: "write" };
-  if (t === "edit" || t === "multiedit") return { tint: "text-amber-400", badge: "bg-amber-500/10", label: "edit" };
-  if (t === "grep") return { tint: "text-fuchsia-400", badge: "bg-fuchsia-500/10", label: "grep" };
-  if (t === "glob") return { tint: "text-pink-400", badge: "bg-pink-500/10", label: "glob" };
-  if (t === "webfetch" || t === "fetch") return { tint: "text-cyan-400", badge: "bg-cyan-500/10", label: "fetch" };
-  if (t === "websearch") return { tint: "text-cyan-400", badge: "bg-cyan-500/10", label: "search" };
-  if (t === "task" || t === "agent") return { tint: "text-orange-400", badge: "bg-orange-500/10", label: "agent" };
-  return { tint: "text-[var(--fg-secondary)]", badge: "bg-[var(--bg-hover)]", label: tool.toLowerCase() };
+  if (t === "bash") return { tint: "text-emerald-400" };
+  if (t === "read") return { tint: "text-sky-400" };
+  if (t === "write") return { tint: "text-violet-400" };
+  if (t === "edit" || t === "multiedit") return { tint: "text-amber-400" };
+  if (t === "grep") return { tint: "text-fuchsia-400" };
+  if (t === "glob") return { tint: "text-pink-400" };
+  if (t === "webfetch" || t === "fetch") return { tint: "text-cyan-400" };
+  if (t === "websearch") return { tint: "text-cyan-400" };
+  if (t === "task" || t === "agent") return { tint: "text-orange-400" };
+  return { tint: "text-[var(--fg-secondary)]" };
 }
 
 interface ParsedLine {
@@ -118,7 +114,7 @@ export function ToolUseEvent({ name, metadata }: Props) {
   const header = lines[0] || "";
   const rest = lines.slice(1).map(parseLine);
   const toolName = extractToolName(header, String(metadata?.name ?? ""));
-  const { tint, badge, label } = styleFor(toolName);
+  const { tint } = styleFor(toolName);
 
   const hasDetails = rest.length > 0;
   const previewLine = rest.find((l) => l.kind !== "text") || rest[0];
@@ -140,9 +136,6 @@ export function ToolUseEvent({ name, metadata }: Props) {
         ) : (
           <span className="inline-block w-4" />
         )}
-        <span className={`rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${badge} ${tint}`}>
-          {label}
-        </span>
         <span className={`flex-1 truncate font-mono text-[13px] ${tint}`}>
           {toolName}
         </span>
