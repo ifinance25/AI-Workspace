@@ -15,6 +15,7 @@ import structlog
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 
+from src.claude.sandbox_files import resolve_sandbox_path, sandbox_display_rel
 from src.utils.url_safety import is_path_within_root
 from src.web.dependencies import get_current_user_factory
 from src.web.doc_preview import (
@@ -49,6 +50,18 @@ class NotFound(Exception):
 
 class Conflict(Exception):
     """409 — рассинхрон mtime / дубликат / непустая папка."""
+
+
+def _locate_artifact(root: Path, rel: str) -> Path:
+    """Файл проекта или файл в песочнице Claude этого проекта."""
+    root_resolved = Path(root).resolve()
+    try:
+        return _safe_candidate(root_resolved, rel)
+    except PathError:
+        cand = resolve_sandbox_path(root_resolved, rel)
+        if cand is None:
+            raise
+        return cand
 
 
 def _safe_candidate(root: Path, rel: str) -> Path:
@@ -250,7 +263,7 @@ def save_uploaded_file(root: Path, dir_rel: str, filename: str, data: bytes) -> 
 def delete_entry(root: Path, rel: str) -> None:
     """Удалить файл или ПУСТУЮ папку. Непустая папка → Conflict (безопасность)."""
     root_resolved = Path(root).resolve()
-    candidate = _safe_candidate(root_resolved, rel)
+    candidate = _locate_artifact(root_resolved, rel)
     if candidate == root_resolved:
         raise PathError("cannot delete project root")
     if candidate.is_dir():
@@ -339,8 +352,8 @@ def aggregate_artifacts(
     """Свернуть tool_use-записи в дедуплицированный список артефактов.
 
     ``tool_rows`` — строки вида ``{"tool", "file_path", "created_at"}`` из всех
-    tool_use-сообщений. Оставляем только файлы внутри ``root`` (анти-traversal
-    через _safe_candidate); дедуп по resolved абсолютному пути; ``action`` =
+    tool_use-сообщений. Оставляем файлы внутри ``root`` и в песочнице Claude
+    этого проекта (анти-traversal); дедуп по resolved абсолютному пути; ``action`` =
     "created", если по этому пути был хоть один Write, иначе "edited". На каждый
     артефакт — статус с диска (exists/size). Сортировка: last_ts по убыванию.
 
@@ -357,9 +370,9 @@ def aggregate_artifacts(
         if not isinstance(fp, str) or not fp:
             continue
         try:
-            cand = _safe_candidate(root_resolved, fp)
+            cand = _locate_artifact(root_resolved, fp)
         except PathError:
-            continue  # вне корня проекта — не наш артефакт
+            continue  # вне проекта и вне его песочницы Claude
         if cand == root_resolved:
             continue
         key = cand.as_posix()
@@ -371,7 +384,11 @@ def aggregate_artifacts(
             agg[key] = {
                 "rel": key,
                 "name": cand.name,
-                "display": cand.relative_to(root_resolved).as_posix(),
+                "display": (
+                    cand.relative_to(root_resolved).as_posix()
+                    if is_path_within_root(root_resolved, cand)
+                    else sandbox_display_rel(root_resolved, cand)
+                ),
                 "created": created,
                 "edits": 1,
                 "last_ts": ts,
@@ -444,10 +461,9 @@ def _dir_size_bytes(path: Path, max_files: int = 20000) -> int | None:
 def _normalize_artifact_rel(root: Path, rel: str) -> str:
     """Канонический ключ артефакта (resolved абсолютный путь как posix).
 
-    PathError, если путь выходит за пределы ``root`` — так dismiss нельзя
-    применить к чужому файлу (через ``..`` или абсолютный путь наружу).
+    PathError, если путь выходит за пределы проекта и его песочницы Claude.
     """
-    cand = _safe_candidate(Path(root).resolve(), rel)
+    cand = _locate_artifact(Path(root).resolve(), rel)
     if cand == Path(root).resolve():
         raise PathError("invalid artifact path")
     return cand.as_posix()

@@ -14,6 +14,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import FileResponse
 
+from src.claude.sandbox_files import resolve_sandbox_path
 from src.utils.url_safety import is_path_within_root
 from src.web.dependencies import (
     can_manage_members,
@@ -28,12 +29,24 @@ _ZIP_MAX_BYTES = 200 * 1024 * 1024
 _ZIP_MAX_FILES = 20000
 
 
+def _resolve_in_project_or_sandbox(project_root: Path, rel: str) -> Path:
+    """Путь внутри проекта или в песочнице Claude этого проекта."""
+    root = Path(project_root).resolve()
+    try:
+        candidate = (root / rel).resolve()
+    except (OSError, ValueError) as exc:
+        raise ValueError("path escapes project root") from exc
+    if is_path_within_root(root, candidate):
+        return candidate
+    sandbox = resolve_sandbox_path(root, rel)
+    if sandbox is None:
+        raise ValueError("path escapes project root")
+    return sandbox
+
+
 def resolve_session_file(project_root: Path, rel: str) -> Path:
     """Абсолютный путь к файлу внутри проекта. ValueError при traversal/отсутствии."""
-    root = Path(project_root).resolve()
-    candidate = (root / rel).resolve()
-    if not is_path_within_root(root, candidate):
-        raise ValueError("path escapes project root")
+    candidate = _resolve_in_project_or_sandbox(project_root, rel)
     if not candidate.is_file():
         raise ValueError("file not found")
     return candidate
@@ -41,10 +54,7 @@ def resolve_session_file(project_root: Path, rel: str) -> Path:
 
 def resolve_session_entry(project_root: Path, rel: str) -> Path:
     """Путь к файлу ИЛИ папке внутри проекта (для скачивания папки zip'ом)."""
-    root = Path(project_root).resolve()
-    candidate = (root / rel).resolve()
-    if not is_path_within_root(root, candidate):
-        raise ValueError("path escapes project root")
+    candidate = _resolve_in_project_or_sandbox(project_root, rel)
     if not candidate.exists():
         raise ValueError("not found")
     return candidate
