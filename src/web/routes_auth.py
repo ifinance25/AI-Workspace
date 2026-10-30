@@ -166,6 +166,12 @@ def make_auth_router(
     async def telegram_login(
         payload: dict[str, Any], response: Response
     ) -> dict[str, Any]:
+        # У43-03: без токена бота путь закрыт целиком (404, как dev-login и
+        # magic-link без хранилища): подпись виджета считалась бы от sha256("").
+        if not bot_token:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="telegram login disabled"
+            )
         try:
             user = verify_telegram_login(
                 payload,

@@ -27,6 +27,10 @@ def verify_telegram_login(
     Returns the user dict on success.
     Raises ValueError on tamper/expiry, PermissionError on unknown user.
     """
+    if not bot_token:
+        # У43-03: пустой токен даёт ключ sha256(""), известный всем, и подпись
+        # подделывается любым, кто знает id из белого списка.
+        raise ValueError("telegram login disabled: bot token is not configured")
     if "hash" not in payload:
         raise ValueError("missing hash")
 
