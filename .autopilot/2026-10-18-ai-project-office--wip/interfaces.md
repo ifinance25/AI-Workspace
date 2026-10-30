@@ -427,3 +427,26 @@
 - Ошибки: 409 `action_exists`. 422 `slot_unknown`, `reason_required`, `stand_required`, `secret_like_value`. Заказчик 404.
 - Действие из неясности зовёт очередь `38`. Новый список входящих не заводится.
 - Таски 173-176: G2. Счёт G2: 12. Инварианты И-177 и И-178: `architecture/03` §7, дополнение 2026-10-30. Предложения IA-02..IA-07 таблиц не имеют.
+
+## Дополнение 2026-10-30: главный чат проекта (A106-A110)
+
+Источник: `architecture/40-glavnyj-chat-proekta.md`. Модулей не прибавилось (15), рёбер вызова тоже. Новых таблиц и агентов нет. Отвечает профиль `assistant`.
+
+| Модуль | Новые таблицы и поля (единственный писатель) | Новые операции | Срез |
+|---|---|---|---|
+| `channels` | `office_project_chats`: `platform` плюс `office`, `kind` плюс `main`. `office_chat_messages`: `run_id?`, `audience_sha?`, `cited_refs?`, `data_classes?`, `scope_tags?`, `card_kind?`, `card_period?`, `card_refs?`. `office_calls`: `protocol_accepted_version_n?`, `protocol_accepted_by?`, `protocol_accepted_at?`, `protocol_viewed?` | `post_main_message`, `post_agent_reply`, `post_card`, `read_main_chat`, `read_card`, `accept_protocol` | G2 |
+| `cycle` | нет | `link_promise_task` (единственный писатель `office_promises.task_id`) | G2 |
+| `plan` | `office_gantt_settings.shift_threshold_days` | нет | G2 |
+| `agents` | нет | `reply_in_main_chat`, `build_summary_card` (задание без модели) | G2 |
+| `insight` | метрика `task_stalled` | `summary_card_refs`, `summary_card_view` (только чтение) | G2 |
+| `tenancy` | аудитория `main_chat` | `main_chat_readers` | G2 |
+| `project` | `office_projects.settings.summary_card` | `add_member` принимает `via = main_chat`. Роли стороны исполнителя только у учётки `side = executor` этой компании, с `via` и без него | G2 |
+| `ui` | нет | Кнопка «ИИ-помощник», правило открытия диалога | E2 |
+
+- Клетки матрицы (одна таблица `architecture/13` §4.7): `chats/view_main`, `chats/post_main`. Период карточки держит `chats/manage`. Заказчику и агенту клетки закреплённо закрыты. РПО читает без участия, пишет только участником.
+- Экран: `/office/:id/chat` главный чат, `/office/:id` ведёт на него при наличии клетки, `/office/:id/summary/:message_id` списки карточки. Сегменты `chat` и `summary` статические, выше `/office/:id`.
+- API: `/api/office/projects/{pid}/main-chat/messages`, `/api/office/main-chat/messages/{id}`, `/api/office/projects/{pid}/summary-card`, `/api/office/projects/{pid}/summary/{message_id}`, `/api/office/calls/{id}/protocol/accept`, прежний `/api/office/chat-items/{candidate_id}/to-task`. Пути `architecture/18` §6.2 на строку `main` отвечают 404.
+- События: `summary_card.posted`, `main_chat.reply_posted`, `call.protocol_accepted`. Только ключи, с пометкой WS и `audience = team`. Сообщения людей идут `channel_message.received` с `chat_kind = main`, нагрузка только ключи. Уведомление об упоминании это существующий `chat.mention`.
+- Ошибки: 409 `protocol_missing`, `protocol_already_accepted`, `not_viewed`; 422 `role_not_allowed_in_main_chat`, `user_required`, `period_unknown`; заказчик, наблюдатель и снятый доступ 404; запись агентом 403. Предел чата не отклоняет сообщение: 201 с полем `reply_skipped`.
+- Запись ответа агента только `channels.post_agent_reply` по вызову `agents.reply_in_main_chat`. Операции нет в MCP.
+- Таски 177-180: G2. Счёт G2: 16. Таск 181: E2. Счёт E2: 11. Инварианты И-179..И-182: `architecture/03` §7, дополнение 2026-10-30.
