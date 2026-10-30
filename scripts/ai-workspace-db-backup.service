@@ -7,6 +7,7 @@ After=network-online.target
 Type=oneshot
 EnvironmentFile=-/etc/default/ai-workspace-backup
 EnvironmentFile=-/etc/default/ai-workspace-db-backup
+EnvironmentFile=-/etc/ai-workspace/s3-backup-credentials.env
 ExecStart=/opt/ai-workspace/scripts/backup_ai_workspace.sh
 Nice=10
 IOSchedulingClass=best-effort

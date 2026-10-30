@@ -7,6 +7,7 @@ PREFIX="${AI_WORKSPACE_S3_PREFIX:-ai-panel}"
 SSE="${AI_WORKSPACE_S3_SSE:-AES256}"
 DB_BACKUP_DIR="${AI_WORKSPACE_BACKUP_DIR:-/var/backups/ai-workspace/db}"
 PROJECTS_BACKUP_DIR="${AI_WORKSPACE_PROJECTS_BACKUP_DIR:-/var/backups/ai-workspace/projects}"
+APP_STATE_BACKUP_DIR="${AI_WORKSPACE_APP_BACKUP_DIR:-/var/backups/ai-workspace/app-state}"
 HOST="$(hostname -s 2>/dev/null || hostname)"
 
 if [[ -z "$BUCKET" ]]; then
@@ -20,7 +21,7 @@ if ! command -v aws >/dev/null 2>&1; then
 fi
 
 if ! aws sts get-caller-identity >/dev/null 2>&1; then
-    echo "AWS credentials unavailable (attach IAM instance profile to EC2)" >&2
+    echo "AWS credentials unavailable (IAM instance profile or /etc/ai-workspace/s3-backup-credentials.env)" >&2
     exit 1
 fi
 
@@ -28,6 +29,7 @@ DATE="$(date +%Y-%m-%d)"
 DEST="s3://${BUCKET}/${PREFIX%/}/${DATE}/"
 DB_FILE="$DB_BACKUP_DIR/sessions-${DATE}.db"
 PROJECTS_FILE="$PROJECTS_BACKUP_DIR/projects-${DATE}.tar.gz"
+APP_STATE_FILE="$APP_STATE_BACKUP_DIR/app-state-${DATE}.tar.gz"
 
 [[ -f "$DB_FILE" ]] || { echo "missing db backup: $DB_FILE" >&2; exit 1; }
 
@@ -45,6 +47,10 @@ if [[ "${AI_WORKSPACE_BACKUP_PROJECTS:-1}" == "1" && -f "$PROJECTS_FILE" ]]; the
     upload_one "$PROJECTS_FILE" "projects.tar.gz"
 fi
 
+if [[ "${AI_WORKSPACE_BACKUP_APP_STATE:-1}" == "1" && -f "$APP_STATE_FILE" ]]; then
+    upload_one "$APP_STATE_FILE" "app-state.tar.gz"
+fi
+
 MANIFEST="$(mktemp)"
 trap 'rm -f "$MANIFEST"' EXIT
 {
@@ -55,6 +61,9 @@ trap 'rm -f "$MANIFEST"' EXIT
     echo "  \"sessions_db_bytes\": $(stat -c%s "$DB_FILE" 2>/dev/null || stat -f%z "$DB_FILE"),"
     if [[ -f "$PROJECTS_FILE" ]]; then
         echo "  \"projects_tar_bytes\": $(stat -c%s "$PROJECTS_FILE" 2>/dev/null || stat -f%z "$PROJECTS_FILE"),"
+    fi
+    if [[ -f "$APP_STATE_FILE" ]]; then
+        echo "  \"app_state_tar_bytes\": $(stat -c%s "$APP_STATE_FILE" 2>/dev/null || stat -f%z "$APP_STATE_FILE"),"
     fi
     echo "  \"prefix\": \"${PREFIX%/}/${DATE}/\""
     echo '}'

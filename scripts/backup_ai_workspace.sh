@@ -6,6 +6,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 "$SCRIPT_DIR/backup_sessions_db.sh"
+if [[ "${AI_WORKSPACE_BACKUP_APP_STATE:-1}" == "1" ]]; then
+    "$SCRIPT_DIR/backup_app_state.sh"
+fi
 if [[ "${AI_WORKSPACE_BACKUP_PROJECTS:-1}" == "1" ]]; then
     "$SCRIPT_DIR/backup_projects.sh"
 fi
