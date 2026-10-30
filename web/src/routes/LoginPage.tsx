@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
-import { SparklesIcon } from "@/components/icons";
-import { COMPANY_NAME, LOGIN_PROMPT, PRODUCT_NAME } from "@/lib/branding";
+import { COMPANY_NAME, LOGIN_PROMPT, LOGO_MARK_SRC, PRODUCT_NAME } from "@/lib/branding";
 
 declare global {
   interface Window {
@@ -154,8 +153,15 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-dvh items-center justify-center bg-[var(--bg-canvas)] px-4 py-8 sm:px-6">
       <div className="w-full max-w-md animate-riseIn text-center">
-        <div className="mx-auto mb-8 flex h-20 w-20 animate-iconPop items-center justify-center rounded-full bg-[var(--bg-hover)] text-[var(--fg-primary)]">
-          <SparklesIcon size={40} />
+        <div className="mx-auto mb-8 flex h-20 w-20 animate-iconPop items-center justify-center">
+          <img
+            src={LOGO_MARK_SRC}
+            alt=""
+            width={80}
+            height={80}
+            className="h-20 w-20 object-contain"
+            decoding="async"
+          />
         </div>
         <h1 className="font-display text-3xl font-normal tracking-tight text-[var(--fg-primary)] sm:text-4xl">
           {PRODUCT_NAME}
