@@ -34,6 +34,13 @@ class TypeIn(BaseModel):
     project_type: str
 
 
+class PassportPatchIn(BaseModel):
+    name: str | None = None
+    work_kind: str | None = None
+    nature: str | None = None
+    description: str | None = None
+
+
 def make_office_project_router(*, office_store, require_actor, require_project) -> APIRouter:
     router = APIRouter(tags=["office-project"])
 
@@ -80,6 +87,49 @@ def make_office_project_router(*, office_store, require_actor, require_project) 
     @router.get("/projects/{project_id}")
     async def get_project(ctx: dict[str, Any] = Depends(require_project)) -> dict:
         return ctx["project"]
+
+    @router.put("/projects/{project_id}")
+    async def update_project(
+        body: PassportPatchIn,
+        ctx: dict[str, Any] = Depends(require_project),
+    ) -> dict:
+        actor = ctx["actor"]
+        patch = body.model_dump(exclude_unset=True)
+        try:
+            return await asyncio.to_thread(
+                office_project.update_passport,
+                office_store,
+                ctx["project"]["id"],
+                patch,
+                actor_id=actor["user_id"],
+                is_admin=actor["is_admin"],
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail="Недостаточно прав") from exc
+        except LookupError as exc:
+            if str(exc) == "project_not_found":
+                raise HTTPException(status_code=404, detail="Проект не найден") from exc
+            raise
+        except office_project.PassportError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @router.delete("/projects/{project_id}", status_code=204)
+    async def delete_project(ctx: dict[str, Any] = Depends(require_project)) -> None:
+        actor = ctx["actor"]
+        try:
+            await asyncio.to_thread(
+                office_project.delete_project,
+                office_store,
+                ctx["project"]["id"],
+                actor_id=actor["user_id"],
+                is_admin=actor["is_admin"],
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail="Недостаточно прав") from exc
+        except LookupError as exc:
+            if str(exc) == "project_not_found":
+                raise HTTPException(status_code=404, detail="Проект не найден") from exc
+            raise
 
     @router.put("/projects/{project_id}/type")
     async def set_type(

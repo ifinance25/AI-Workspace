@@ -58,3 +58,55 @@ def list_projects(
     """Страница видимых актору проектов: список листается, не отдаётся целиком."""
     visible = tenancy.visible_projects(store, actor_id=actor_id, is_admin=is_admin)
     return visible[offset:offset + limit]
+
+
+def delete_project(
+    store: OfficeStore, project_id: int, *, actor_id: int, is_admin: bool
+) -> None:
+    """Удалить проект офиса; только участник с правом записи или АдмП."""
+    if tenancy.open_project(store, project_id, actor_id=actor_id, is_admin=is_admin) is None:
+        raise LookupError("project_not_found")
+    if not tenancy.can_write(store, project_id, actor_id=actor_id, is_admin=is_admin):
+        raise PermissionError("forbidden")
+    if not store.delete_project(project_id):
+        raise LookupError("project_not_found")
+
+
+def update_passport(
+    store: OfficeStore,
+    project_id: int,
+    patch: dict,
+    *,
+    actor_id: int,
+    is_admin: bool,
+) -> dict:
+    """Обновить поля паспорта; участник с правом записи или АдмП."""
+    if tenancy.open_project(store, project_id, actor_id=actor_id, is_admin=is_admin) is None:
+        raise LookupError("project_not_found")
+    if not tenancy.can_write(store, project_id, actor_id=actor_id, is_admin=is_admin):
+        raise PermissionError("forbidden")
+    fields: dict[str, str] = {}
+    if "name" in patch:
+        name = str(patch.get("name") or "").strip()
+        if not name:
+            raise PassportError("Укажите название проекта")
+        fields["name"] = name
+    if "work_kind" in patch:
+        work_kind = str(patch.get("work_kind") or "")
+        if work_kind not in WORK_KINDS:
+            raise PassportError("Выберите вид работ: сайт, веб-платформа или мобильное приложение")
+        fields["work_kind"] = work_kind
+    if "nature" in patch:
+        nature = str(patch.get("nature") or "")
+        if nature not in NATURES:
+            raise PassportError("Выберите характер: заказ или продукт")
+        fields["nature"] = nature
+    if "description" in patch:
+        fields["description"] = str(patch.get("description") or "").strip()
+    if not fields:
+        project = store.get_project(project_id)
+        assert project is not None
+        return project
+    updated = store.update_project(project_id, **fields)
+    assert updated is not None
+    return updated

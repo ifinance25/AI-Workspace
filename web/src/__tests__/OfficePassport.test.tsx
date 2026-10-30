@@ -14,7 +14,12 @@ vi.mock("@/components/office/passport/passportApi", async (importOriginal) => {
   return { ...actual, passportApi: mockPassport };
 });
 
-const mockOffice = vi.hoisted(() => ({ listProjects: vi.fn(), getProject: vi.fn() }));
+const mockOffice = vi.hoisted(() => ({
+  listProjects: vi.fn(),
+  getProject: vi.fn(),
+  updateProject: vi.fn(),
+  deleteProject: vi.fn(),
+}));
 vi.mock("@/components/office/officeApi", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/components/office/officeApi")>();
   return { ...actual, officeApi: mockOffice };
@@ -147,5 +152,20 @@ describe("Список проектов листается", () => {
     expect(await screen.findByRole("link", { name: "Проект 23" })).toBeInTheDocument();
     expect(mockOffice.listProjects).toHaveBeenLastCalledWith({ offset: 20, limit: 21 });
     expect(screen.queryByRole("button", { name: "Показать ещё" })).not.toBeInTheDocument();
+  });
+
+  it("в строке есть открыть, переименовать и удалить", async () => {
+    mockOffice.listProjects.mockResolvedValue([
+      { ...DRAFT_PROJECT, id: 5, name: "вапвап" },
+    ]);
+    render(
+      <MemoryRouter>
+        <OfficeProjectList />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("link", { name: "вапвап" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Открыть" })).toHaveAttribute("href", "/office/5");
+    expect(screen.getByRole("button", { name: "Переименовать" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Удалить" })).toBeInTheDocument();
   });
 });

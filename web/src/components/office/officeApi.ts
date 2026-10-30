@@ -50,4 +50,13 @@ export const officeApi = {
   getProject(id: number) {
     return officeRequest<OfficeProject>("GET", `/api/office/projects/${id}`);
   },
+  updateProject(
+    id: number,
+    body: Partial<Pick<OfficeProject, "name" | "work_kind" | "nature" | "description">>,
+  ) {
+    return officeRequest<OfficeProject>("PUT", `/api/office/projects/${id}`, body);
+  },
+  deleteProject(id: number) {
+    return officeRequest<void>("DELETE", `/api/office/projects/${id}`);
+  },
 };

@@ -236,3 +236,21 @@ async def test_creator_is_manager_and_foreign_project_is_refused(server) -> None
     assert foreign_put.status_code == 404
     assert member_put.status_code == 403
     assert srv.office_store.get_project(pid)["project_type"] == ""
+
+
+@pytest.mark.asyncio
+async def test_update_and_delete_project(server) -> None:
+    srv, sm = server
+    _user(sm, "pm")
+    _user(sm, "stranger")
+    async with _client_as(srv, "pm") as c:
+        pid = (await c.post("/api/office/projects", json=_PASSPORT)).json()["id"]
+        renamed = await c.put(f"/api/office/projects/{pid}", json={"name": "Новое имя"})
+        assert renamed.status_code == 200
+        assert renamed.json()["name"] == "Новое имя"
+        deleted = await c.delete(f"/api/office/projects/{pid}")
+        assert deleted.status_code == 204
+        assert srv.office_store.get_project(pid) is None
+    async with _client_as(srv, "stranger") as c:
+        foreign = await c.put(f"/api/office/projects/{pid}", json={"name": "X"})
+        assert foreign.status_code == 404

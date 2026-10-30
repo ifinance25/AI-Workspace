@@ -10,7 +10,9 @@ from src.office.project._passport import (
     WORK_KINDS,
     PassportError,
     create_project,
+    delete_project,
     list_projects,
+    update_passport,
 )
 from src.office.project._type import (
     TYPES,
@@ -31,7 +33,9 @@ __all__ = [
     "TypeChangeForbiddenError",
     "TypeLockedError",
     "create_project",
+    "delete_project",
     "list_projects",
+    "update_passport",
     "set_type",
     "suggest_type",
 ]

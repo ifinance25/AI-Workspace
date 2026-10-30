@@ -214,6 +214,23 @@ class OfficeStore:
             conn.commit()
         return self.get_project(project_id)
 
+    def delete_project(self, project_id: int) -> bool:
+        """Удалить проект; участники и документы уходят по ON DELETE CASCADE."""
+        with self._lock:
+            conn = self._connection()
+            for table in (
+                "office_redmine_creates",
+                "office_redmine_issues",
+                "office_redmine_mirrors",
+            ):
+                try:
+                    conn.execute(f"DELETE FROM {table} WHERE project_id = ?", (project_id,))
+                except sqlite3.OperationalError:
+                    pass
+            cur = conn.execute("DELETE FROM office_projects WHERE id = ?", (project_id,))
+            conn.commit()
+            return cur.rowcount > 0
+
     # ------------------------------------------------------------------
     # Участники
     # ------------------------------------------------------------------

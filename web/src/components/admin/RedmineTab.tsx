@@ -69,11 +69,9 @@ export default function RedmineTab() {
           Токен хранится на сервере. После сохранения страница его больше не показывает.
         </p>
       </div>
-      {error && (
-        <div className="rounded-xl bg-red-900/30 px-3 py-2 text-sm text-red-300">{error}</div>
-      )}
+      {error && <div className="alert-error">{error}</div>}
       {saved && (
-        <div className="rounded-xl bg-emerald-900/30 px-3 py-2 text-sm text-emerald-300">
+        <div className="alert-success">
           Сохранено{account?.has_token ? `, ключ оканчивается на ${account.last4}` : ""}.
         </div>
       )}
