@@ -27,8 +27,10 @@ CREATE TABLE IF NOT EXISTS office_projects (
     name TEXT NOT NULL,
     work_kind TEXT NOT NULL DEFAULT '',
     nature TEXT NOT NULL DEFAULT '',
-    project_type TEXT NOT NULL DEFAULT 'small',
-    status TEXT NOT NULL DEFAULT 'active',
+    description TEXT NOT NULL DEFAULT '',
+    project_type TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'draft',
+    create_key TEXT,
     created_by INTEGER NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -61,7 +63,21 @@ CREATE TABLE IF NOT EXISTS office_document_versions (
 """
 
 # Колонки паспорта, которые можно менять через update_project.
-PASSPORT_FIELDS = ("name", "work_kind", "nature", "project_type", "status")
+PASSPORT_FIELDS = ("name", "work_kind", "nature", "description", "project_type", "status")
+
+# Колонки паспорта, добавленные после первой схемы: базе, созданной раньше,
+# их докидывает ALTER TABLE при старте.
+_ADDED_PROJECT_COLUMNS = {
+    "description": "TEXT NOT NULL DEFAULT ''",
+    "create_key": "TEXT",
+}
+
+# Ключ идемпотентности создания: повтор того же ключа тем же автором не
+# создаёт второй проект. NULL в уникальном индексе SQLite не конфликтует.
+_CREATE_KEY_INDEX = (
+    "CREATE UNIQUE INDEX IF NOT EXISTS ux_office_projects_create_key "
+    "ON office_projects (created_by, create_key)"
+)
 
 
 def _now() -> str:
@@ -93,6 +109,11 @@ class OfficeStore:
         with self._lock:
             conn = self._connection()
             conn.executescript(_SCHEMA)
+            have = {r["name"] for r in conn.execute("PRAGMA table_info(office_projects)")}
+            for column, decl in _ADDED_PROJECT_COLUMNS.items():
+                if column not in have:
+                    conn.execute(f"ALTER TABLE office_projects ADD COLUMN {column} {decl}")
+            conn.execute(_CREATE_KEY_INDEX)
             conn.commit()
 
     def close(self) -> None:
@@ -115,19 +136,38 @@ class OfficeStore:
         created_by: int,
         work_kind: str = "",
         nature: str = "",
-        project_type: str = "small",
-        status: str = "active",
+        description: str = "",
+        project_type: str = "",
+        status: str = "draft",
+        create_key: str | None = None,
     ) -> dict:
+        """Тип пустой, а проект черновик, пока человек не выбрал тип (таск 02).
+
+        Повтор ``create_key`` тем же автором возвращает уже созданный проект.
+        """
         now = _now()
         with self._lock:
             conn = self._connection()
-            cur = conn.execute(
-                "INSERT INTO office_projects (name, work_kind, nature, project_type, status, "
-                "created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (name, work_kind, nature, project_type, status, created_by, now, now),
-            )
-            conn.commit()
-            project_id = int(cur.lastrowid)
+            try:
+                cur = conn.execute(
+                    "INSERT INTO office_projects (name, work_kind, nature, description, "
+                    "project_type, status, create_key, created_by, created_at, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (name, work_kind, nature, description, project_type, status, create_key,
+                     created_by, now, now),
+                )
+            except sqlite3.IntegrityError:
+                conn.rollback()
+                row = conn.execute(
+                    "SELECT id FROM office_projects WHERE created_by = ? AND create_key = ?",
+                    (created_by, create_key),
+                ).fetchone()
+                if row is None:
+                    raise
+                project_id = int(row["id"])
+            else:
+                conn.commit()
+                project_id = int(cur.lastrowid)
         project = self.get_project(project_id)
         assert project is not None
         return project

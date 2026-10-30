@@ -374,3 +374,56 @@
 - Портфельный виджет W11 «S-кривые проектов» продолжает каталог `architecture/31` §5.1, строит таск 150.
 - Таски 152-159: C2 152; E2 153, 156, 158; F2 154, 155, 157, 159 (`plan.md`, дополнение сверки 35).
 - Инварианты И-151..И-167: `architecture/03` §7, дополнения 2026-10-28.
+
+## Дополнение 2026-10-29 (сверка 37): двенадцать артефактов в первом выпуске (A92-A103)
+
+Источник: `architecture/36` после сверки `architecture/37-sverka-superarhitektora-posle-36.md`; при расхождении верна 37. Модулей не прибавилось (15), рёбер вызова тоже. Гистограмму и прогноз считает `plan`, читая `tenancy` и `project` вниз по графу. Связь стенда с ИСР ставит `plan` вызовом `project` сверху вниз.
+
+| Модуль | Новые таблицы и поля (единственный писатель) | Новые операции | Срез |
+|---|---|---|---|
+| `tenancy` | `office_absences` (`id`, `company_id`, `user_id`, `start_on`, `end_on`, `reason enum(vacation, business_trip, training, personal)?` класса `personal`, `created_by`); `office_api_tokens.client` плюс `screen`, поля `view_ref`, `show_assignees` | `set_absence`, `busy_intervals(viewer, project, period)` (без причины), `issue_screen_token`, `revoke_screen_token` | F2, E2 |
+| `project` | `office_assigned_resources` (`id`, `project_id`, `wbs_item_id?`, `kind enum(stand, server, environment)`, `title`) | `set_assigned_resource`, `set_resource_wbs` (зовёт только `plan`) | G2 |
+| `cycle` | `office_tasks.risk_score`; `office_risk_task_links` (`risk_id`, `task_id`, `created_by`) | `link_risk_task`, `unlink_risk_task`; пересчёт `risk_score` внутри `cycle` | E2 |
+| `plan` | `office_wbs_items.department_id` (на `office_departments`), `office_wbs_items.estimate_basis` | `roadmap`, `network_view`, `draft_release` (зовёт `cycle.draft_artifact`), `resource_load`, `role_capacity_forecast` (на запрос, без хранения), `link_resource(wbs_item_id, resource_id)` | F2, G2 |
+
+- Клетки матрицы (одна таблица `architecture/13` §4.7, дополнение сверки 37): `plan/view_resource_load`, `project/share_screen`, `project/view_stands`, `project/edit_stands`, `calendar/edit_absence_others`.
+- Виды документов в Git: `plan:release`, `plan:test` (класс `team`, аудитория `internal`); `roadmap:customer`, `plan:release:customer`, `plan:test:customer` (класс `customer`, публикует МП после ручного ревью, правила И-167 и И-171). Виды «Дорожная карта», «Сеть», «Гистограмма», «Прогноз ролей», «Подразделения на ИСР» это экраны, не документы.
+- Путь показа общего экрана: токен во фрагменте адреса, обмен на cookie пути показа; другие API на токен `screen` отвечают 401.
+- События: новых нет. Выпуск и отзыв токена и изменения отсутствий пишутся в аудит без значения токена и без причины.
+- Ошибки: 422 `dimension_forbidden` (прежняя), `reason_owner_only`, `secret_like_value`, `quantity_in_team_text`; скрытое и отозванное 404.
+- Имя `org_unit_id` из первой редакции `36` не вводится: поле `department_id`, как в `office_ops_servers` и `office_pmo_profiles`. `office_customer_org_units` это подразделения заказчика.
+- D06 после раздела 36: табель `office_worklogs`, доли участия `office_allocations`, внешняя занятость `office_busy_blocks`, CPI, EAC, ETC, VAC, TCPI. Фразы «отсутствия людей D06» в `architecture/09` §1.2, §6.5 и `architecture/31` §2.3, §4.4, §6.3, §16 читаются по `36` §8.
+- Таски 160-171: E2 161, 163, 166; F2 160, 162, 165, 167, 168, 169, 170; G2 164, 171. Счёт: E2 10, F2 16 (предел), G2 7.
+- Инварианты И-168..И-174: `architecture/03` §7, дополнения 2026-10-29.
+
+## Дополнение 2026-10-30: очередь задач роли (A104)
+
+Источник: `architecture/38-ochered-zadach-roli.md`. Модулей не прибавилось (15), рёбер вызова тоже. Строку пишет `cycle` в той же транзакции, что перевод предмета в состояние «ждёт менеджера проекта».
+
+| Модуль | Новые таблицы и поля (единственный писатель) | Новые операции | Срез |
+|---|---|---|---|
+| `cycle` | `office_queue_items` (`role`, `category`, `customer_kind?`, `scope enum(project, customer_personal)`, `owner_user_id?`, `subject_type`, `subject_id`, `source`, `status enum(open, done, dismissed)`, `opened_by`, `closed_by?`, `close_reason?`) | `enqueue_queue_item`, `list_queue`, `validate_queue_item`, `export_queue_task`, `dismiss_queue_item`, `move_queue_item`, `edit_queue_cell`, `queue_cell` | G2 |
+
+- Клетки матрицы (одна таблица `architecture/13` §4.7): `queue/view`, `queue/act`. По умолчанию обе у менеджера проекта своих проектов.
+- Экран: `/office/queue` и `/office/:id/queue`, форма «Очередь задач». Шесть вкладок только у `project_manager`. Представления `team`, `table`, `calendar`, `gantt`. Контуры `project` и `customer_personal`. Сегмент `queue` статический, выше `/office/:id`.
+- События: `queue.opened`, `queue.closed`, `queue.exported`. Только ключи. Вид уведомления `queue.opened` по правилам `architecture/25`.
+- Ошибки: 409 `export_before_validation`, `invalid_transition`; 422 `category_unknown`, `reason_required`, `field_not_editable`, `scope_unknown`; заказчик, чужой проект и чужой владелец контура «С заказчиком» 404.
+- Экспорт зовёт уже существующие доску задач и `bridge.push_accepted`. Новый трекер не заводится.
+- Таск 172: G2. Счёт G2: 8. Инварианты И-175 и И-176: `architecture/03` §7, дополнение 2026-10-30. Представления очереди не пишут календарь `11` и Гант плана `09`.
+
+## Дополнение 2026-10-30: реестр интерактивных артефактов (A105)
+
+Источник: `architecture/39-reestr-interaktivnyh-artefaktov.md`. Модулей не прибавилось (15). Паспорт пишет `cycle`. Поиск с датой остаётся у `knowledge`. Последствия читает `insight`.
+
+| Модуль | Новые таблицы и поля (единственный писатель) | Новые операции | Срез |
+|---|---|---|---|
+| `cycle` | `office_functions`, `office_function_slots`, `office_function_witnesses`, `office_function_gap_dismissals`, `office_function_actions`, `office_function_impacts` | `create_function`, `set_function_owners`, `propose_function_slot`, `confirm_function_slot`, `record_function_witness`, `dismiss_function_gap`, `open_function_action`, `function_passport` | G2 |
+| `knowledge` | `office_search_log.sourced`, `office_search_log.duration_ms` | правило ответа: утверждение без ссылки и без даты не входит в ответ | G2 |
+| `insight` | нет своих таблиц паспорта | `function_impact` | G2 |
+
+- Клетки матрицы (одна таблица `architecture/13` §4.7): `ia/view`, `ia/act`. По умолчанию обе у менеджера проекта и системного аналитика своих проектов.
+- Экран: `/office/:id/ia` реестр принятых видов, `/office/:id/functions/:key` паспорт. Сегодня в реестре одна строка, IA-01. Сегмент `ia` статический, выше `/office/:id`.
+- События: `function.created`, `function.witnessed`, `function.action_opened`. Только ключи. Уведомлений нет.
+- Ошибки: 409 `action_exists`. 422 `slot_unknown`, `reason_required`, `stand_required`, `secret_like_value`. Заказчик 404.
+- Действие из неясности зовёт очередь `38`. Новый список входящих не заводится.
+- Таски 173-176: G2. Счёт G2: 12. Инварианты И-177 и И-178: `architecture/03` §7, дополнение 2026-10-30. Предложения IA-02..IA-07 таблиц не имеют.

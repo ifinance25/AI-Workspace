@@ -1,13 +1,91 @@
-"""Паспорт проекта офиса: роутер границы ``project``. Заполняет таск 02.
+"""Паспорт проекта офиса: роутер границы ``project``.
 
-Пути задавать относительно ``/api/office`` (префикс добавляет ``routes_office``),
-например ``/projects`` и ``/projects/{project_id}/passport``.
+Пути относительно ``/api/office`` (префикс добавляет ``routes_office``).
+Список проектов и проект по id живут здесь же, чтобы паспорт был в одном файле.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter
+import asyncio
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+
+from src.office import project as office_project
+
+
+class PassportIn(BaseModel):
+    name: str = ""
+    work_kind: str = ""
+    nature: str = ""
+    description: str = ""
+    project_type: str = ""
+    request_key: str = ""
+
+
+class SuggestIn(BaseModel):
+    work_kind: str = ""
+    nature: str = ""
+    description: str = ""
+
+
+class TypeIn(BaseModel):
+    project_type: str
 
 
 def make_office_project_router(*, office_store, require_actor, require_project) -> APIRouter:
     router = APIRouter(tags=["office-project"])
+
+    @router.get("/projects")
+    async def list_projects(
+        offset: int = Query(0, ge=0),
+        limit: int = Query(50, ge=1, le=office_project.PAGE_LIMIT_MAX),
+        actor: dict[str, Any] = Depends(require_actor),
+    ) -> list[dict]:
+        """Страница проектов, открытых актору; «показать ещё» просит следующую."""
+        return await asyncio.to_thread(
+            office_project.list_projects, office_store,
+            actor_id=actor["user_id"], is_admin=actor["is_admin"],
+            offset=offset, limit=limit,
+        )
+
+    @router.post("/projects", status_code=201)
+    async def create_project(
+        body: PassportIn, actor: dict[str, Any] = Depends(require_actor),
+    ) -> dict:
+        try:
+            return await asyncio.to_thread(
+                office_project.create_project, office_store, body.model_dump(),
+                actor_id=actor["user_id"],
+            )
+        except (office_project.PassportError, office_project.ProjectTypeError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @router.post("/type-suggestion")
+    async def suggest_type(
+        body: SuggestIn, actor: dict[str, Any] = Depends(require_actor),
+    ) -> dict:
+        return office_project.suggest_type(**body.model_dump())
+
+    @router.get("/projects/{project_id}")
+    async def get_project(ctx: dict[str, Any] = Depends(require_project)) -> dict:
+        return ctx["project"]
+
+    @router.put("/projects/{project_id}/type")
+    async def set_type(
+        body: TypeIn, ctx: dict[str, Any] = Depends(require_project),
+    ) -> dict:
+        actor = ctx["actor"]
+        try:
+            return await asyncio.to_thread(
+                office_project.set_type, office_store, ctx["project"]["id"], body.project_type,
+                actor_id=actor["user_id"], is_admin=actor["is_admin"],
+            )
+        except office_project.TypeChangeForbiddenError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except office_project.TypeLockedError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except office_project.ProjectTypeError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     return router

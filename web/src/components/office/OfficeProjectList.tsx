@@ -3,17 +3,31 @@ import { Link, useNavigate } from "react-router-dom";
 import { officeApi, type OfficeProject } from "@/components/office/officeApi";
 import NewProjectButton from "@/components/office/passport/NewProjectButton";
 
+// Страница списка: просим на один больше, чтобы знать, есть ли ещё.
+const PAGE = 20;
+
 // Список проектов офиса (/office): только те, что открыты пользователю.
+// Листается страницами по PAGE, кнопка «Показать ещё» догружает следующую.
 export default function OfficeProjectList() {
   const nav = useNavigate();
   const [projects, setProjects] = useState<OfficeProject[] | null>(null);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function loadPage(offset: number) {
+    return officeApi.listProjects({ offset, limit: PAGE + 1 }).then((list) => {
+      setHasMore(list.length > PAGE);
+      setProjects((prev) => [...(offset ? prev ?? [] : []), ...list.slice(0, PAGE)]);
+    });
+  }
 
   useEffect(() => {
     let alive = true;
-    officeApi.listProjects().then(
+    officeApi.listProjects({ offset: 0, limit: PAGE + 1 }).then(
       (list) => {
-        if (alive) setProjects(list);
+        if (!alive) return;
+        setHasMore(list.length > PAGE);
+        setProjects(list.slice(0, PAGE));
       },
       (e: Error) => {
         if (alive) setError(e.message);
@@ -63,6 +77,15 @@ export default function OfficeProjectList() {
             </li>
           ))}
         </ul>
+      )}
+      {hasMore && projects && (
+        <button
+          type="button"
+          onClick={() => loadPage(projects.length).catch((e: Error) => setError(e.message))}
+          className="mt-3 rounded-lg bg-[var(--bg-hover)] px-3 py-1.5 text-sm"
+        >
+          Показать ещё
+        </button>
       )}
     </>
   );

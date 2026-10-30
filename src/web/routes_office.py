@@ -49,17 +49,6 @@ def make_office_router(
             raise HTTPException(status_code=404, detail="Проект не найден")
         return {"actor": actor, "project": project}
 
-    @router.get("/projects")
-    async def list_projects(actor: dict[str, Any] = Depends(require_actor)) -> list[dict]:
-        return await asyncio.to_thread(
-            tenancy.visible_projects, office_store,
-            actor_id=actor["user_id"], is_admin=actor["is_admin"],
-        )
-
-    @router.get("/projects/{project_id}")
-    async def get_project(ctx: dict[str, Any] = Depends(require_project)) -> dict:
-        return ctx["project"]
-
     for make_sub_router in (
         make_office_project_router, make_office_brief_router, make_office_spec_router,
     ):

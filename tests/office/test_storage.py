@@ -23,8 +23,9 @@ def test_project_passport_fields(store) -> None:
     assert project["work_kind"] == "сайт"
     assert project["nature"] == "разработка"
     # Тип и статус по умолчанию: маленький заказ, проект активен.
-    assert project["project_type"] == "small"
-    assert project["status"] == "active"
+    # Тип пустой и проект черновик, пока человек не выбрал тип (таск 02).
+    assert project["project_type"] == ""
+    assert project["status"] == "draft"
     assert project["created_by"] == 7
 
     updated = store.update_project(project["id"], project_type="large", status="paused")

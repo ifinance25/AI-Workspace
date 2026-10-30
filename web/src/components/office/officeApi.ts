@@ -9,6 +9,7 @@ export interface OfficeProject {
   name: string;
   work_kind: string;
   nature: string;
+  description?: string;
   project_type: string;
   status: string;
   created_by?: number;
@@ -41,8 +42,10 @@ export async function officeRequest<T>(
 }
 
 export const officeApi = {
-  listProjects() {
-    return officeRequest<OfficeProject[]>("GET", "/api/office/projects");
+  // Список листается страницами (таск 02): offset и limit уходят в query.
+  listProjects(page?: { offset: number; limit: number }) {
+    const q = page ? `?offset=${page.offset}&limit=${page.limit}` : "";
+    return officeRequest<OfficeProject[]>("GET", `/api/office/projects${q}`);
   },
   getProject(id: number) {
     return officeRequest<OfficeProject>("GET", `/api/office/projects/${id}`);
