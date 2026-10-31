@@ -7,18 +7,23 @@
 """
 from src.office.tenancy._access import (
     can_create_project,
+    can_decide,
+    can_manage_validation,
     can_write,
     open_project,
     record_creator,
     visible_projects,
 )
-from src.office.tenancy._roles import CUSTOMER_ROLES, MANAGER, ROLES
+from src.office.tenancy._roles import CUSTOMER_ROLES, DECIDE_ROLES, MANAGER, ROLES
 
 __all__ = [
     "CUSTOMER_ROLES",
+    "DECIDE_ROLES",
     "MANAGER",
     "ROLES",
     "can_create_project",
+    "can_decide",
+    "can_manage_validation",
     "can_write",
     "open_project",
     "record_creator",

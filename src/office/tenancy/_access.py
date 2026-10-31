@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from src.office.storage import OfficeStore
-from src.office.tenancy._roles import CUSTOMER_ROLES, MANAGER
+from src.office.tenancy._roles import CUSTOMER_ROLES, DECIDE_ROLES, MANAGER
 
 
 def visible_projects(store: OfficeStore, *, actor_id: int, is_admin: bool) -> list[dict]:
@@ -37,6 +37,26 @@ def can_write(store: OfficeStore, project_id: int, *, actor_id: int, is_admin: b
         return True
     member = store.get_member(project_id, actor_id)
     return member is not None and member["role"] not in CUSTOMER_ROLES
+
+
+def can_decide(store: OfficeStore, project_id: int, *, actor_id: int, is_admin: bool) -> bool:
+    """Ставит статус находке: МП, тестировщик, БА, СА (`10` §16).
+
+    ``can_write`` шире: она пускает наблюдателя и разработчика. Администратор
+    решает только как участник с такой ролью, чтобы журнал хранил его роль.
+    """
+    member = store.get_member(project_id, actor_id)
+    return member is not None and member["role"] in DECIDE_ROLES
+
+
+def can_manage_validation(
+    store: OfficeStore, project_id: int, *, actor_id: int, is_admin: bool
+) -> bool:
+    """Импорт прогона, разрешение вывоза и выгрузка: МП или администратор."""
+    if is_admin:
+        return True
+    member = store.get_member(project_id, actor_id)
+    return member is not None and member["role"] == MANAGER
 
 
 def can_create_project(store: OfficeStore, *, actor_id: int, is_admin: bool) -> bool:

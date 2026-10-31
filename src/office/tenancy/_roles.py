@@ -12,6 +12,9 @@ MANAGER = "project_manager"
 # создают проекты (У43-09; `03` §5.2, §5.3). Полная матрица 12 ролей это срез B.
 CUSTOMER_ROLES = frozenset({"customer_representative", "customer_signatory"})
 
+# Кто ставит статус находке прогона (`10` §16).
+DECIDE_ROLES = frozenset({MANAGER, "tester", "business_analyst", "system_analyst"})
+
 ROLES: dict[str, str] = {
     MANAGER: "Менеджер проекта",
     "pmo_head": "Руководитель проектного офиса",

@@ -11,8 +11,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from src.office import delivery, tenancy
 from src.office import project as office_project
-from src.office import tenancy
 
 
 class PassportIn(BaseModel):
@@ -116,6 +116,12 @@ def make_office_project_router(*, office_store, require_actor, require_project) 
     @router.delete("/projects/{project_id}", status_code=204)
     async def delete_project(ctx: dict[str, Any] = Depends(require_project)) -> None:
         actor = ctx["actor"]
+        project_id = ctx["project"]["id"]
+        has_validation = await asyncio.to_thread(delivery.has_runs, office_store, project_id)
+        if has_validation and not tenancy.can_manage_validation(
+            office_store, project_id, actor_id=actor["user_id"], is_admin=actor["is_admin"]
+        ):
+            raise HTTPException(status_code=403, detail="Недостаточно прав")
         try:
             await asyncio.to_thread(
                 office_project.delete_project,
@@ -130,6 +136,7 @@ def make_office_project_router(*, office_store, require_actor, require_project) 
             if str(exc) == "project_not_found":
                 raise HTTPException(status_code=404, detail="Проект не найден") from exc
             raise
+        await asyncio.to_thread(delivery.purge_project_files, office_store, project_id)
 
     @router.put("/projects/{project_id}/type")
     async def set_type(
