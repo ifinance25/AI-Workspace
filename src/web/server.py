@@ -13,7 +13,7 @@ from typing import Any
 
 import structlog
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -65,6 +65,10 @@ def mount_frontend(app: FastAPI, dist_dir) -> None:
 
     @app.get("/{full_path:path}")
     async def spa(full_path: str) -> FileResponse:
+        # Несуществующий /api/* отдаёт 404, а не страницу фронта с кодом 200:
+        # иначе клиент получает HTML вместо ошибки, а закрытый роутер выглядит живым.
+        if full_path == "api" or full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not Found")
         # full_path недоверенный. Конвертер :path НЕ схлопывает
         # URL-кодированные `..` (%2e%2e%2f), поэтому без проверки границ
         # FileResponse отдал бы любой файл с диска (unauth traversal,
@@ -107,8 +111,12 @@ class WebServer:
         redmine_chat_tools: bool = False,
         display_settings: DisplaySettings | None = None,
         connections_secret_key: str = "",
+        office_only: bool = False,
     ) -> None:
         self.settings = settings
+        # Режим только офиса (сервер валидации с документами заказчика): нет файлов
+        # проектов, загрузок, терминала SSH, чата по WebSocket и привязки Telegram.
+        self.office_only = bool(office_only)
         # Ключ шифрования секретов (подключения, SSH, токен Redmine). Пусто:
         # хранение токена Redmine выключено (У43-07). В ответы не попадает.
         self.connections_secret_key = connections_secret_key or ""
@@ -320,7 +328,7 @@ class WebServer:
             )
         )
 
-        if self._ws_forwarder is not None and self.event_bus is not None:
+        if not self.office_only and self._ws_forwarder is not None and self.event_bus is not None:
             self.app.include_router(
                 make_ws_router(
                     forwarder=self._ws_forwarder,
@@ -352,14 +360,15 @@ class WebServer:
                 allowed_user_ids=self.allowed_user_ids,
             )
         )
-        self.app.include_router(
-            make_files_router(
-                jwt_secret=self.jwt_secret,
-                project_paths_provider=self._effective_project_paths,
-                session_manager=self.session_manager,
-                allowed_user_ids=self.allowed_user_ids,
+        if not self.office_only:
+            self.app.include_router(
+                make_files_router(
+                    jwt_secret=self.jwt_secret,
+                    project_paths_provider=self._effective_project_paths,
+                    session_manager=self.session_manager,
+                    allowed_user_ids=self.allowed_user_ids,
+                )
             )
-        )
         # Подключения к сервисам (MCP) — регистрируем всегда: сам роутер
         # отвечает enabled:false / 503, когда connections_store is None
         # (фича выключена), так что не зависит от session_manager.
@@ -371,16 +380,17 @@ class WebServer:
                 allowed_user_ids=self.allowed_user_ids,
             )
         )
-        self.app.include_router(
-            make_ssh_router(
-                jwt_secret=self.jwt_secret,
-                session_manager=self.session_manager,
-                ssh_store=self.ssh_store,
-                allowed_user_ids=self.allowed_user_ids,
-                allowed_origins=allowed_origins,
-                allow_loopback_origin=allow_loopback_origin,
+        if not self.office_only:
+            self.app.include_router(
+                make_ssh_router(
+                    jwt_secret=self.jwt_secret,
+                    session_manager=self.session_manager,
+                    ssh_store=self.ssh_store,
+                    allowed_user_ids=self.allowed_user_ids,
+                    allowed_origins=allowed_origins,
+                    allow_loopback_origin=allow_loopback_origin,
+                )
             )
-        )
         # Per-user Anthropic API-ключи (SP2) — регистрируем всегда: роутер сам
         # отвечает 501, когда api_key_store is None (фича выключена).
         self.app.include_router(
@@ -426,14 +436,15 @@ class WebServer:
                     allowed_user_ids=self.allowed_user_ids,
                 )
             )
-            self.app.include_router(
-                make_uploads_router(
-                    jwt_secret=self.jwt_secret,
-                    session_manager=self.session_manager,
-                    allowed_project_roots_provider=self._effective_project_paths,
-                    allowed_user_ids=self.allowed_user_ids,
+            if not self.office_only:
+                self.app.include_router(
+                    make_uploads_router(
+                        jwt_secret=self.jwt_secret,
+                        session_manager=self.session_manager,
+                        allowed_project_roots_provider=self._effective_project_paths,
+                        allowed_user_ids=self.allowed_user_ids,
+                    )
                 )
-            )
             self.app.include_router(
                 make_admin_router(
                     jwt_secret=self.jwt_secret,
@@ -488,7 +499,7 @@ class WebServer:
                     )
                 )
 
-        if make_kb_proxy_router is not None:
+        if make_kb_proxy_router is not None and not self.office_only:
             self.app.include_router(make_kb_proxy_router())
 
         # Статика фронта монтируется ПОСЛЕ всех /api-роутеров (SPA-fallback
