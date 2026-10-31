@@ -447,7 +447,7 @@ erDiagram
 
 | Таблица | Поля |
 |---|---|
-| `office_agent_runs` | `agent`, `skill_version_id?`, `trigger enum(assignment, mention, status_change, schedule, event, chat)` (`chat` это ход ассистента офиса, 13 §1.2), `on_behalf_of`, `target json`, `priority`, `state enum(queued, running, paused, succeeded, failed, cancelled, rolled_back)`, `pause_reason?`, `request_key` (уникален: агент, объект, версия объекта, триггер), `reservation_id`, `usage_tokens`, `attempts` |
+| `office_agent_runs` | `agent`, `skill_version_id?`, `trigger enum(assignment, mention, status_change, schedule, event, chat)` (`chat` это ход ассистента офиса, 13 §1.2), `on_behalf_of`, `target json`, `priority`, `state enum(queued, running, verifying, paused, needs_human, succeeded, failed, cancelled, rolled_back)` (`45` §5.1), `pause_reason?`, `request_key` (уникален: агент, объект, версия объекта, триггер), `reservation_id`, `usage_tokens`, `attempts` |
 | `office_agent_run_log` | `run_id`, `seq`, `kind enum(read, tool_call, blocked, created_version, created_branch, created_mr, created_task_draft, created_candidate, error, browser_action, action_proposed)` (`browser_action` 10 §13, `action_proposed` 13 §1.5), `ref`; только добавление |
 | `office_agent_drafts` | `run_id`, `kind`, `ref` (ссылка на объект другой границы, не копия), `state enum(open, accepted, discarded)` |
 | `office_agent_schedules` | `author_id`, `rule json` и выведенный из него `cron` (время сервера), `next_run_at`, `tz` (пояс автора для показа) (09 §9), `prompt`, `include_in_trace` (0, ист. 46), `state enum(draft, enabled, stopped)`, `stop_reason enum(author_removed, limit, manual)?`; интервал не меньше суток; права автора на момент запуска (05 п. 54) |

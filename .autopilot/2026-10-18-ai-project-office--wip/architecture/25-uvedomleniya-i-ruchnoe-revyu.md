@@ -605,6 +605,8 @@
 
 ## 8. Коллегиальный ресёрч
 
+Дополнение 2026-10-31 (`45` §10): режим `mode = red_team` использует этот механизм для проверки проектных планов на прочность.
+
 ### 8.1. Состав и независимость
 
 | Параметр | Правило |
@@ -724,7 +726,7 @@
 | `office_review_assignments` | `cycle` | `request_id`, `reviewer_id`, `as_role`, `state enum(pending, responded, declined, removed)`, `verdict enum(approve, request_changes, comments, no_remarks)?`, `responded_at?`, `reminders_sent`, `last_reminded_at?`, `doc_review_id?` | C2 |
 | `office_comments` (правка `03` §2.7) | `cycle` | плюс `review_request_id?`, `review_item_id?` | C2 |
 | `office_context_packs` | `agents` | `project_id`, `built_for_user_id`, `profile`, `items json [{kind, ref, version?, tokens}]`, `selection json`, `data_classes json`, `scope_tags json`, `tokens`, `pack_sha`, `built_at`; только добавление | E |
-| `office_research_runs` | `agents` | `project_id`, `mode enum(recheck, council)`, `subject_ref`, `review_id?`, `item_ids json`, `question`, `pack_id`, `members json [{label, provider_id, model, effort, tier, run_id, state}]`, `arbiter json?`, `independence enum(high, medium)`, `criteria json`, `estimate_usd`, `estimate_sha`, `cap_usd`, `spent_usd`, `state enum(draft, awaiting_confirmation, running, judging, done, partial, failed, cancelled)`, `confirmed_by?`, `rpo_confirmed_by?`, `verdict json?`, `pm_decision enum(winner, other, synthesis, rejected_all)?`, `pm_choice_label?`, `pm_reason?`, `decided_by?`, `protocol_doc_id?`, `request_key` | E |
+| `office_research_runs` | `agents` | `project_id`, `mode enum(recheck, council, red_team)`, `subject_ref`, `review_id?`, `item_ids json`, `question`, `pack_id`, `members json [{label, provider_id, model, effort, tier, run_id, state}]`, `arbiter json?`, `independence enum(high, medium)`, `criteria json`, `estimate_usd`, `estimate_sha`, `cap_usd`, `spent_usd`, `state enum(draft, awaiting_confirmation, running, judging, done, partial, failed, cancelled)`, `confirmed_by?`, `rpo_confirmed_by?`, `verdict json?`, `pm_decision enum(winner, other, synthesis, rejected_all)?`, `pm_choice_label?`, `pm_reason?`, `decided_by?`, `protocol_doc_id?`, `request_key` | E |
 | `office_research_answers` | `agents` | `run_id`, `label`, `member_run_id`, `answer json`, `checks json {schema_ok, quotes_total, quotes_verified, coverage}`, `disqualified`, `disq_reason?`, `usage json` | E |
 | `office_model_prices` (правка `12` §3.1) | `tenancy` | плюс `tier smallint` (1-4) | E |
 | `office_artifact_templates` (правка `21` §3.2) | `knowledge` | плюс `review_policy enum(manual_items, manual_whole, none)`, `review_owner_role`, `review_sla_days` | C2 |

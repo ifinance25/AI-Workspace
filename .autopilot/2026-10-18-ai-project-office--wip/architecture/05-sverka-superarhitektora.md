@@ -191,6 +191,8 @@
 
 ### 3.4. Статусы
 
+Дополнение 2026-10-31 (`45` §5.1): запуск агента получает состояния `verifying` и `needs_human`, `succeeded` ставит только код.
+
 | Объект | Значения |
 |---|---|
 | Версия | `draft, internal, customer, accepted, returned, signed` |
