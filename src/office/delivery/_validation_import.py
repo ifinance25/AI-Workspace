@@ -80,6 +80,22 @@ def _read_capped(archive: zipfile.ZipFile, info: zipfile.ZipInfo, cap: int) -> b
     return data
 
 
+def _package_sha(archive: zipfile.ZipFile, infos: list[zipfile.ZipInfo]) -> str:
+    """Отпечаток по содержимому, а не по байтам zip: пересборка того же прогона даёт ту же сумму.
+
+    Время файлов и степень сжатия в сумму не входят. Для снимков и PDF берётся CRC32 и
+    размер из каталога архива: этого хватает, чтобы узнать повторную загрузку.
+    """
+    digest = hashlib.sha256()
+    for info in sorted(infos, key=lambda i: i.filename):
+        if info.filename in _ROOT_NAMES:
+            body = hashlib.sha256(_read_capped(archive, info, MAX_JSON_BYTES)).hexdigest()
+        else:
+            body = f"{info.CRC}:{info.file_size}"
+        digest.update(f"{info.filename}\0{body}\n".encode())
+    return digest.hexdigest()
+
+
 def _load_json(archive: zipfile.ZipFile, name: str) -> Any:
     raw = _read_capped(archive, archive.getinfo(name), MAX_JSON_BYTES)
     try:
@@ -221,7 +237,6 @@ def import_package(store: Any, project_id: int, path: Path, *, actor_id: int) ->
     ensure(store)
     if path.stat().st_size > MAX_ARCHIVE_BYTES:
         raise _reject("Архив слишком велик", "too_large")
-    sha = hashlib.sha256(path.read_bytes()).hexdigest()
     try:
         archive = zipfile.ZipFile(path)
     except zipfile.BadZipFile as exc:
@@ -229,6 +244,7 @@ def import_package(store: Any, project_id: int, path: Path, *, actor_id: int) ->
     with archive:
         infos = _members(archive)
         manifest = _manifest(archive)
+        sha = _package_sha(archive, infos)
         found = _existing(store, project_id, manifest["run_key"], sha)
         if found is not None:
             return found

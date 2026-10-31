@@ -96,6 +96,27 @@ def test_import_counts_and_repeat_is_idempotent(store, tmp_path):
     assert len(delivery.list_runs(store, project["id"])) == 1
 
 
+def test_rebuilt_package_with_other_timestamps_is_duplicate(store, tmp_path):
+    project = store.create_project(name="Факт", created_by=1)
+    paths = []
+    for name, stamp in (("old.zip", (2020, 1, 1, 0, 0, 0)), ("new.zip", (2026, 10, 31, 12, 0, 0))):
+        path = tmp_path / name
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+            for member, body in (
+                ("manifest.json", json.dumps({
+                    "schema_version": 1, "adapter": "doc_review_v1", "source_kind": "doc_review",
+                    "run_key": "RUN4", "title": "Прогон 4"})),
+                ("findings.json", json.dumps([_finding()], ensure_ascii=False)),
+                ("img/R4-001_1.png", _PNG),
+                ("docs/FTT1.pdf", _PDF),
+            ):
+                archive.writestr(zipfile.ZipInfo(member, date_time=stamp), body)
+        paths.append(path)
+    first = delivery.import_package(store, project["id"], paths[0], actor_id=1)
+    again = delivery.import_package(store, project["id"], paths[1], actor_id=1)
+    assert again["duplicate"] is True and again["run_id"] == first["run_id"]
+
+
 def test_import_same_key_other_content_is_conflict(store, tmp_path):
     project = store.create_project(name="Факт", created_by=1)
     delivery.import_package(store, project["id"], _package(tmp_path), actor_id=1)
