@@ -28,3 +28,7 @@
 - Ключ Redmine уходит только по `https`, редиректы запрещены; токен шифруется
   `CONNECTIONS_SECRET_KEY`, без ключа админка токен не принимает (`3de6ff4`).
 - `requirements.lock` пересобран (`6ace40b`): mcp 2.3.0, claude-agent-sdk 0.2.175, без alembic.
+
+## Дополнение (тот же день, позже)
+
+- `35bce66`: ваши незакоммиченные `MessageInput.tsx`, `ChatEmptyState.tsx` и `ChatEmptyState.test.tsx` закоммичены за вас как есть. Причина: `Chat.tsx` в `035d39a` уже ссылался на `reasoningOn` и не передавал `projectName`, чистый `main` не проходил `tsc`, и `update.sh` на проде не собрал фронт. Остальные ваши файлы в `web/` не тронуты. Перед следующим коммитом подтяните `develop`.
