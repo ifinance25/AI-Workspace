@@ -5,19 +5,19 @@ from src.claude import models
 def test_valid_model_ids_matches_known():
     ids = models.valid_model_ids()
     assert ids == {m["id"] for m in models.KNOWN_MODELS}
-    assert "claude-opus-5" in ids
+    assert "claude-opus-5-5" in ids
     assert "claude-fable-5-1" in ids
 
 
 def test_normalize_alias_to_pinned_id():
     assert models.normalize_model_id("fable") == "claude-fable-5-1"
-    assert models.normalize_model_id("opus") == "claude-opus-5"
-    assert models.normalize_model_id("sonnet") == "claude-sonnet-5"
-    assert models.normalize_model_id("haiku") == "claude-haiku-4-5-20251001"
+    assert models.normalize_model_id("opus") == "claude-opus-5-5"
+    assert models.normalize_model_id("sonnet") == "claude-sonnet-5-5"
+    assert models.normalize_model_id("haiku") == "claude-haiku-5-5"
 
 
 def test_normalize_pinned_id_unchanged():
-    assert models.normalize_model_id("claude-opus-5") == "claude-opus-5"
+    assert models.normalize_model_id("claude-opus-5-5") == "claude-opus-5-5"
 
 
 def test_normalize_unknown_returned_as_is():
@@ -25,15 +25,15 @@ def test_normalize_unknown_returned_as_is():
 
 
 def test_resolve_input_alias():
-    assert models.resolve_model_input("opus") == "claude-opus-5"
+    assert models.resolve_model_input("opus") == "claude-opus-5-5"
 
 
 def test_resolve_input_known_id():
-    assert models.resolve_model_input("claude-haiku-4-5-20251001") == "claude-haiku-4-5-20251001"
+    assert models.resolve_model_input("claude-haiku-5-5") == "claude-haiku-5-5"
 
 
 def test_resolve_input_strips_whitespace_edges():
-    assert models.resolve_model_input("  opus  ") == "claude-opus-5"
+    assert models.resolve_model_input("  opus  ") == "claude-opus-5-5"
 
 
 def test_resolve_input_unknown_is_none():
@@ -48,7 +48,7 @@ def test_resolve_input_rejects_empty_and_spacey_and_long():
 
 
 def test_model_label_known_and_unknown():
-    assert models.model_label("claude-opus-5") == "Claude Opus 5"
+    assert models.model_label("claude-opus-5-5") == "Claude Opus 5.5"
     # Незнакомая модель больше НЕ показывается сырым id: модели выходят чаще,
     # чем правится KNOWN_MODELS, и в интерфейсе появлялось «claude-fable-5-1».
     assert models.model_label("claude-future-9") == "Claude Future 9"
@@ -57,7 +57,7 @@ def test_model_label_known_and_unknown():
 def test_humanize_model_id():
     """Читаемое имя без сети — на случай, когда живой каталог недоступен."""
     assert models.humanize_model_id("claude-fable-5-1") == "Claude Fable 5.1"
-    assert models.humanize_model_id("claude-opus-5") == "Claude Opus 5"
+    assert models.humanize_model_id("claude-opus-5-5") == "Claude Opus 5.5"
     # Снапшотные хвосты — это версионирование, а не часть имени.
     assert models.humanize_model_id("claude-haiku-4-5-20251001") == "Claude Haiku 4.5"
     assert models.humanize_model_id("claude-opus-4-6-20251101-v1") == "Claude Opus 4.6"
@@ -81,5 +81,5 @@ def test_is_safe_model_id():
 
 
 def test_model_hint_known_and_unknown():
-    assert "силь" in models.model_hint("claude-opus-5").lower()
+    assert "силь" in models.model_hint("claude-opus-5-5").lower()
     assert models.model_hint("claude-future-9") == ""
