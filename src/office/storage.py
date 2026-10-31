@@ -9,8 +9,10 @@
 """
 from __future__ import annotations
 
+import hashlib
 import sqlite3
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -19,6 +21,7 @@ OFFICE_TABLES = (
     "office_members",
     "office_documents",
     "office_document_versions",
+    "office_channel_bindings",
 )
 
 _SCHEMA = """
@@ -60,6 +63,25 @@ CREATE TABLE IF NOT EXISTS office_document_versions (
     created_at TEXT NOT NULL,
     UNIQUE (document_id, number)
 );
+CREATE TABLE IF NOT EXISTS office_channel_bindings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    channel TEXT NOT NULL,
+    external_user_id TEXT,
+    external_username TEXT NOT NULL DEFAULT '',
+    state TEXT NOT NULL DEFAULT 'pending',
+    code_hash TEXT,
+    code_expires_at REAL,
+    confirm_expires_at REAL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_office_channel_bindings_user
+    ON office_channel_bindings (user_id, channel) WHERE state = 'active';
+CREATE UNIQUE INDEX IF NOT EXISTS ux_office_channel_bindings_external
+    ON office_channel_bindings (channel, external_user_id) WHERE state = 'active';
+CREATE INDEX IF NOT EXISTS ix_office_channel_bindings_code
+    ON office_channel_bindings (code_hash);
 """
 
 # Колонки паспорта, которые можно менять через update_project.
@@ -82,6 +104,15 @@ _CREATE_KEY_INDEX = (
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def hash_channel_code(code: str) -> str:
+    """Хэш одноразового кода привязки: сам код в базе не лежит."""
+    return hashlib.sha256(code.encode("utf-8")).hexdigest()
+
+
+class ChannelBindingConflictError(Exception):
+    """Аккаунт мессенджера или учётка уже заняты активной привязкой."""
 
 
 class OfficeStore:
@@ -230,6 +261,126 @@ class OfficeStore:
             cur = conn.execute("DELETE FROM office_projects WHERE id = ?", (project_id,))
             conn.commit()
             return cur.rowcount > 0
+
+    # ------------------------------------------------------------------
+    # Привязка мессенджера (architecture/11 §6.2, architecture/45)
+    # ------------------------------------------------------------------
+
+    def start_channel_binding(
+        self, user_id: int, channel: str, code_hash: str, *, code_expires_at: float
+    ) -> None:
+        """Новый код; незавершённые попытки этой учётки гаснут."""
+        now = _now()
+        with self._lock:
+            conn = self._connection()
+            conn.execute(
+                "UPDATE office_channel_bindings SET state = 'revoked', code_hash = NULL, "
+                "updated_at = ? WHERE user_id = ? AND channel = ? AND state = 'pending'",
+                (now, user_id, channel),
+            )
+            conn.execute(
+                "INSERT INTO office_channel_bindings "
+                "(user_id, channel, code_hash, code_expires_at, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (user_id, channel, code_hash, code_expires_at, now, now),
+            )
+            conn.commit()
+
+    def mark_channel_binding_started(
+        self,
+        code_hash: str,
+        channel: str,
+        external_user_id: str,
+        external_username: str,
+        *,
+        confirm_expires_at: float,
+        now: float | None = None,
+    ) -> bool:
+        """Бот получил код. Один UPDATE гасит код: второй вызов ничего не найдёт."""
+        ts = time.time() if now is None else now
+        with self._lock:
+            conn = self._connection()
+            cur = conn.execute(
+                "UPDATE office_channel_bindings SET code_hash = NULL, "
+                "external_user_id = ?, external_username = ?, confirm_expires_at = ?, "
+                "updated_at = ? "
+                "WHERE code_hash = ? AND channel = ? AND state = 'pending' "
+                "AND code_expires_at >= ?",
+                (external_user_id, external_username, confirm_expires_at, _now(),
+                 code_hash, channel, ts),
+            )
+            conn.commit()
+            return cur.rowcount > 0
+
+    def confirm_channel_binding(
+        self, user_id: int, channel: str, *, now: float | None = None
+    ) -> dict | None:
+        """Владелец подтвердил аккаунт. None: подтверждать нечего или срок вышел."""
+        ts = time.time() if now is None else now
+        with self._lock:
+            conn = self._connection()
+            try:
+                cur = conn.execute(
+                    "UPDATE office_channel_bindings SET state = 'active', "
+                    "confirm_expires_at = NULL, updated_at = ? "
+                    "WHERE user_id = ? AND channel = ? AND state = 'pending' "
+                    "AND external_user_id IS NOT NULL AND confirm_expires_at >= ?",
+                    (_now(), user_id, channel, ts),
+                )
+            except sqlite3.IntegrityError as exc:
+                conn.rollback()
+                raise ChannelBindingConflictError(channel) from exc
+            conn.commit()
+            if cur.rowcount == 0:
+                return None
+        return self.get_channel_binding(user_id, channel)
+
+    def revoke_channel_binding(self, user_id: int, channel: str) -> bool:
+        """Снимает привязку и незавершённую попытку. True: было что снять."""
+        with self._lock:
+            conn = self._connection()
+            cur = conn.execute(
+                "UPDATE office_channel_bindings SET state = 'revoked', code_hash = NULL, "
+                "updated_at = ? WHERE user_id = ? AND channel = ? "
+                "AND state IN ('pending', 'active')",
+                (_now(), user_id, channel),
+            )
+            conn.commit()
+            return cur.rowcount > 0
+
+    def get_channel_binding(self, user_id: int, channel: str) -> dict | None:
+        """Текущая запись учётки: активная, иначе последняя незавершённая."""
+        with self._lock:
+            row = self._connection().execute(
+                "SELECT * FROM office_channel_bindings "
+                "WHERE user_id = ? AND channel = ? AND state IN ('pending', 'active') "
+                "ORDER BY state = 'active' DESC, id DESC LIMIT 1",
+                (user_id, channel),
+            ).fetchone()
+        return dict(row) if row is not None else None
+
+    def has_active_binding(self, user_id: int, channel: str) -> bool:
+        binding = self.get_channel_binding(user_id, channel)
+        return binding is not None and binding["state"] == "active"
+
+    def find_active_binding(self, channel: str, external_user_id: str) -> dict | None:
+        with self._lock:
+            row = self._connection().execute(
+                "SELECT * FROM office_channel_bindings "
+                "WHERE channel = ? AND external_user_id = ? AND state = 'active'",
+                (channel, external_user_id),
+            ).fetchone()
+        return dict(row) if row is not None else None
+
+    def active_binding_names(self, channel: str) -> dict[int, str]:
+        """Учётка → имя аккаунта мессенджера, для списка в админке."""
+        with self._lock:
+            rows = self._connection().execute(
+                "SELECT user_id, external_username FROM office_channel_bindings "
+                "WHERE channel = ? AND state = 'active'",
+                (channel,),
+            ).fetchall()
+        return {int(r["user_id"]): r["external_username"] for r in rows}
 
     # ------------------------------------------------------------------
     # Участники

@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 
 from src.config.settings import DisplaySettings, WebSettings
 from src.office.storage import OfficeStore
+from src.web.routes_telegram_link import make_telegram_link_router
 from src.web.magic_link import MagicLinkStore
 from src.web.origin_check import build_allowed_origins, is_allowed_origin
 from src.web.routes_admin import make_admin_router
@@ -167,8 +168,11 @@ class WebServer:
         self._running_tracker: RunningSessionsTracker | None = (
             RunningSessionsTracker(event_bus) if event_bus is not None else None
         )
-        # Хранилище проектного офиса; создаётся при монтировании роутера.
+        # Хранилище проектного офиса; создаётся при сборке роутеров.
         self.office_store: OfficeStore | None = None
+        # True только там, где бот реально опрашивает Telegram (src/bot/core.py).
+        # run_web.py токен передаёт, но опроса нет: ссылка на бота была бы мёртвой.
+        self.telegram_bot_enabled = False
 
         # Lifespan starts the WSForwarder before the first WS handshake. Tests
         # use TestClient which drives the lifespan automatically.
@@ -281,6 +285,11 @@ class WebServer:
                     ),
                 )
             cookie_secure = False
+        # Офис раньше всех роутеров: вход и админка читают привязки мессенджера.
+        # Нужен путь к базе; у подменённого в тестах менеджера его нет.
+        storage_path = getattr(self.session_manager, "storage_path", None)
+        if isinstance(storage_path, (str, Path)):
+            self.office_store = OfficeStore(storage_path)
         self.app.include_router(
             make_auth_router(
                 bot_token=self.bot_token,
@@ -295,6 +304,7 @@ class WebServer:
                 session_manager=self.session_manager,
                 kb_search_enabled=self.kb_search_enabled,
                 display_settings=self.display_settings,
+                get_office_store=lambda: self.office_store,
             )
         )
         # H-6: громкое предупреждение, если статический dev-bearer активен на
@@ -453,6 +463,7 @@ class WebServer:
                     api_key_store=self.api_key_store,
                     projects_dir=self.projects_dir,
                     display_settings=self.display_settings,
+                    office_store=self.office_store,
                 )
             )
             # Self-service шеринг проекта: участники управляются владельцем
@@ -465,13 +476,22 @@ class WebServer:
                     session_manager=self.session_manager,
                     allowed_user_ids=self.allowed_user_ids,
                     get_project_paths=self._effective_project_paths,
+                    office_store=self.office_store,
                 )
             )
-            # Проектный офис: таблицы office_* в той же SQLite-базе, что и
-            # чаты. Нужен путь к базе; у подменённого в тестах менеджера его нет.
-            storage_path = getattr(self.session_manager, "storage_path", None)
-            if isinstance(storage_path, (str, Path)):
-                self.office_store = OfficeStore(storage_path)
+            # Проектный офис: таблицы office_* в той же SQLite-базе, что и чаты.
+            if self.office_store is not None:
+                if not self.office_only:
+                    self.app.include_router(
+                        make_telegram_link_router(
+                            jwt_secret=self.jwt_secret,
+                            session_manager=self.session_manager,
+                            office_store=self.office_store,
+                            allowed_user_ids=self.allowed_user_ids,
+                            bot_username=self.bot_username,
+                            is_bot_running=lambda: self.telegram_bot_enabled,
+                        )
+                    )
                 if self.redmine_chat_tools:
                     from src.connections import redmine_tools
 

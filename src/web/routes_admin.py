@@ -162,6 +162,7 @@ def make_admin_router(
     api_key_store=None,
     projects_dir: Path | None = None,
     display_settings: DisplaySettings | None = None,
+    office_store=None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/admin", tags=["admin"])
     display = display_settings or DisplaySettings()
@@ -169,6 +170,13 @@ def make_admin_router(
         jwt_secret, session_manager, set(allowed_user_ids or [])
     )
     projects_root = Path(projects_dir or "/var/lib/ai-workspace/projects")
+
+    async def _revoke_telegram(user_id: int) -> bool:
+        if office_store is None:
+            return False
+        return await asyncio.to_thread(
+            office_store.revoke_channel_binding, user_id, "telegram"
+        )
 
     @router.get("/display", response_model=DisplaySettingsOut)
     async def get_display(_: dict = Depends(require_admin)) -> DisplaySettingsOut:
@@ -199,7 +207,14 @@ def make_admin_router(
         # is None (CONNECTIONS_SECRET_KEY не задан) — фича выключена, has_key=false.
         def _build() -> list[dict]:
             users = session_manager.list_users()
+            # Только имя аккаунта: id Telegram в админке не нужен.
+            telegram_names = (
+                office_store.active_binding_names("telegram")
+                if office_store is not None
+                else {}
+            )
             for u in users:
+                u["telegram_username"] = telegram_names.get(int(u["user_id"]))
                 meta = (
                     api_key_store.get_meta(u["user_id"])
                     if api_key_store is not None
@@ -253,6 +268,8 @@ def make_admin_router(
         ok = await asyncio.to_thread(session_manager.delete_user, user_id)
         if not ok:
             raise HTTPException(status_code=404, detail="user not found")
+        # Внешних ключей между хранилищами нет: иначе привязка держала бы telegram id.
+        await _revoke_telegram(user_id)
         return {"ok": True}
 
     @router.post("/users/{user_id}/password")
@@ -268,7 +285,20 @@ def make_admin_router(
         )
         if not ok:
             raise HTTPException(status_code=404, detail="user not found")
+        # Сброс означает, что учётке больше не верят: укравший пароль мог успеть
+        # привязать свой Telegram и вернулся бы через него.
+        await _revoke_telegram(user_id)
         return {"ok": True}
+
+    @router.delete("/users/{user_id}/telegram")
+    async def unbind_telegram(user_id: int, _: dict = Depends(require_admin)) -> dict:
+        was_active = office_store is not None and await asyncio.to_thread(
+            office_store.has_active_binding, user_id, "telegram"
+        )
+        removed = await _revoke_telegram(user_id)
+        if was_active:
+            await asyncio.to_thread(session_manager.bump_token_version, user_id)
+        return {"ok": True, "removed": removed}
 
     @router.post("/users/{user_id}/active")
     async def set_active(
@@ -299,6 +329,10 @@ def make_admin_router(
         )
         if not ok:
             raise HTTPException(status_code=404, detail="user not found")
+        # Сессия, открытая через Telegram, не должна стать админской: админ
+        # через Telegram не входит. Человек войдёт заново паролем.
+        if payload.is_admin and int(admin.get("user_id", 0)) != user_id:
+            await asyncio.to_thread(session_manager.bump_token_version, user_id)
         return {"ok": True}
 
     @router.get("/users/{user_id}/access")

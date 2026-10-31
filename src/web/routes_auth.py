@@ -4,16 +4,17 @@ from __future__ import annotations
 import asyncio
 import hmac as _hmac
 import time
-from typing import Any
+from typing import Any, Callable
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
-from src.web.auth import issue_jwt, verify_telegram_login
+from src.web.auth import issue_jwt, verify_telegram_signature
 from src.web.dependencies import get_current_user_factory
 from src.web.magic_link import MagicLinkStore
 from src.web.passwords import hash_password, verify_password
 from src.web.rate_limit import LoginRateLimiter, client_key
+from src.web.telegram_team import resolve_team_account
 from src.config.settings import DisplaySettings
 
 logger = structlog.get_logger()
@@ -43,6 +44,7 @@ def make_auth_router(
     session_manager=None,
     kb_search_enabled: bool = False,
     display_settings: DisplaySettings | None = None,
+    get_office_store: Callable[[], Any] | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api", tags=["auth"])
     display = display_settings or DisplaySettings()
@@ -110,6 +112,52 @@ def make_auth_router(
             samesite="lax",
         )
 
+    def _start_local_session(user: dict[str, Any], response: Response) -> dict[str, Any]:
+        """Единственная точка выпуска сессии локальной учётки: пароль и Telegram.
+
+        Второй фактор (таск 138) встаёт сюда и закрывает оба пути сразу.
+        """
+        is_admin = bool(user["is_admin"])
+        token = issue_jwt(
+            {
+                "user_id": user["user_id"],
+                "username": user["username"],
+                "is_admin": is_admin,
+                # Снимок версии токена: при смене пароля версия в БД растёт,
+                # старый JWT перестаёт проходить is_account_active (H-3).
+                "tv": int(user.get("token_version") or 0),
+            },
+            secret=jwt_secret,
+            ttl_seconds=jwt_ttl_days * 86400,
+        )
+        _set_session_cookie(response, token)
+        return {
+            "ok": True,
+            "user": {
+                "id": user["user_id"],
+                "username": user["username"],
+                "is_admin": is_admin,
+            },
+        }
+
+    async def _team_account(telegram_id: int) -> dict[str, Any] | None:
+        return await asyncio.to_thread(
+            resolve_team_account,
+            telegram_id,
+            allowed_user_ids=allowed_user_ids,
+            office_store=get_office_store() if get_office_store else None,
+            session_manager=session_manager,
+        )
+
+    @router.get("/auth/config")
+    async def auth_config() -> dict[str, Any]:
+        """Для страницы входа, пользователя ещё нет. Имя бота и так видно в виджете."""
+        enabled = bool(bot_token and bot_username)
+        return {
+            "telegram_enabled": enabled,
+            "telegram_bot_username": bot_username if enabled else "",
+        }
+
     @router.post("/auth/login")
     async def password_login(
         payload: dict[str, Any], response: Response, request: Request
@@ -139,28 +187,7 @@ def make_auth_router(
         if not user.get("is_active", 1):
             raise HTTPException(status_code=403, detail="account disabled")
         _rl_reset(rl_keys)
-        is_admin = bool(user["is_admin"])
-        token = issue_jwt(
-            {
-                "user_id": user["user_id"],
-                "username": user["username"],
-                "is_admin": is_admin,
-                # Снимок версии токена: при смене пароля версия в БД растёт,
-                # старый JWT перестаёт проходить is_account_active (H-3).
-                "tv": int(user.get("token_version") or 0),
-            },
-            secret=jwt_secret,
-            ttl_seconds=jwt_ttl_days * 86400,
-        )
-        _set_session_cookie(response, token)
-        return {
-            "ok": True,
-            "user": {
-                "id": user["user_id"],
-                "username": user["username"],
-                "is_admin": is_admin,
-            },
-        }
+        return _start_local_session(user, response)
 
     @router.post("/auth/telegram")
     async def telegram_login(
@@ -173,23 +200,29 @@ def make_auth_router(
                 status_code=status.HTTP_404_NOT_FOUND, detail="telegram login disabled"
             )
         try:
-            user = verify_telegram_login(
+            user = verify_telegram_signature(
                 payload,
                 bot_token=bot_token,
-                allowed_user_ids=allowed_user_ids,
                 # L-1: окно свежести = минуты (легитимный вход через виджет
                 # происходит за секунды). Бьёт окно реплея даже если in-memory
                 # replay-guard (_tg_seen) обнулится рестартом сервиса.
                 max_age_seconds=300,
             )
-        except PermissionError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-            )
         except ValueError as exc:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)
             )
+
+        # Вне белого списка вход только в свою локальную учётку: её права и
+        # отзыв работают как при входе по паролю.
+        team_account = None
+        if user["id"] not in allowed_user_ids:
+            team_account = await _team_account(user["id"])
+            if team_account is None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="user not in whitelist",
+                )
 
         # L-1: подпись валидна, но не повторный ли это payload?
         if not _tg_check_replay(str(payload.get("hash", ""))):
@@ -197,6 +230,10 @@ def make_auth_router(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="login payload already used",
             )
+
+        if team_account is not None:
+            logger.info("telegram_team_login", user_id=team_account["user_id"])
+            return _start_local_session(team_account, response)
 
         # H-1/M-10: фиксируем строку users (+username), чтобы приглашение этого
         # человека в проект по @username / числовому id резолвилось.
@@ -316,12 +353,20 @@ def make_auth_router(
         # Fail-closed (L-14): принимаем только id, который СЕЙЧАС в whitelist.
         # Раньше при пустом allowed_user_ids проверка пропускалась (fail-open) —
         # валидный, но «ничей» токен проходил. Теперь без whitelist — отказ.
+        # Вне белого списка токен несёт telegram id участника команды, вход
+        # только в его локальную учётку.
+        team_account = None
         if user_id not in set(allowed_user_ids or ()):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="user not in whitelist",
-            )
+            team_account = await _team_account(user_id)
+            if team_account is None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="user not in whitelist",
+                )
         _rl_reset(rl_keys)
+        if team_account is not None:
+            logger.info("telegram_team_login", user_id=team_account["user_id"])
+            return _start_local_session(team_account, response)
 
         # H-1/M-10: magic-link не несёт username, но строку users всё равно
         # фиксируем — тогда приглашение этого юзера по числовому id резолвится

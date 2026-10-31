@@ -14,12 +14,20 @@ from src.web.dependencies import can_manage_grant, require_project_manage_factor
 AccessLevel = Literal["full", "readonly"]
 
 
-def _resolve_identifier(session_manager, identifier: str) -> int | None:
-    """id/username существующего юзера → user_id, иначе None."""
+def _resolve_identifier(session_manager, identifier: str, office_store=None) -> int | None:
+    """id/username существующего юзера → user_id, иначе None.
+
+    Telegram id участника команды ведёт в его локальную учётку: своей строки в
+    ``users`` у него нет, а тот же номер мог бы оказаться id чужой учётки.
+    """
     ident = identifier.strip().lstrip("@")
     if not ident:
         return None
     if ident.isdigit():
+        if office_store is not None:
+            binding = office_store.find_active_binding("telegram", ident)
+            if binding is not None:
+                return int(binding["user_id"])
         row = session_manager.get_user_by_id(int(ident))
         return int(ident) if row is not None else None
     row = session_manager.get_user_by_username(ident)
@@ -44,7 +52,7 @@ class _PatchMemberIn(BaseModel):
 
 def make_members_router(
     *, jwt_secret: str, session_manager=None, allowed_user_ids=None,
-    get_project_paths=None,
+    get_project_paths=None, office_store=None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/projects", tags=["members"])
     require_manage = require_project_manage_factory(
@@ -74,7 +82,7 @@ def make_members_router(
     @router.post("/{project_id}/members")
     async def add_member(payload: _AddMemberIn, ctx: dict = Depends(require_manage)):
         target = await asyncio.to_thread(
-            _resolve_identifier, session_manager, payload.identifier
+            _resolve_identifier, session_manager, payload.identifier, office_store
         )
         if target is None:
             # F4 (осознанно принято): 404 на несуществующего = слабый

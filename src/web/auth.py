@@ -15,17 +15,15 @@ from typing import Any
 import jwt as pyjwt
 
 
-def verify_telegram_login(
+def verify_telegram_signature(
     payload: dict[str, Any],
     *,
     bot_token: str,
-    allowed_user_ids: list[int],
     max_age_seconds: int = 86400,
 ) -> dict[str, Any]:
-    """Verify a Telegram Login Widget payload.
+    """Проверяет подпись и свежесть данных виджета. Кто это, решает вызывающий.
 
-    Returns the user dict on success.
-    Raises ValueError on tamper/expiry, PermissionError on unknown user.
+    Raises ValueError on tamper/expiry.
     """
     if not bot_token:
         # У43-03: пустой токен даёт ключ sha256(""), известный всем, и подпись
@@ -53,16 +51,32 @@ def verify_telegram_login(
     if auth_date <= 0 or now - auth_date > max_age_seconds or auth_date - now > 60:
         raise ValueError("auth_date expired")
 
-    user_id = int(payload["id"])
-    if user_id not in allowed_user_ids:
-        raise PermissionError("user not in whitelist")
-
     return {
-        "id": user_id,
+        "id": int(payload["id"]),
         "first_name": payload.get("first_name", ""),
         "username": payload.get("username", ""),
         "photo_url": payload.get("photo_url", ""),
     }
+
+
+def verify_telegram_login(
+    payload: dict[str, Any],
+    *,
+    bot_token: str,
+    allowed_user_ids: list[int],
+    max_age_seconds: int = 86400,
+) -> dict[str, Any]:
+    """Verify a Telegram Login Widget payload.
+
+    Returns the user dict on success.
+    Raises ValueError on tamper/expiry, PermissionError on unknown user.
+    """
+    user = verify_telegram_signature(
+        payload, bot_token=bot_token, max_age_seconds=max_age_seconds
+    )
+    if user["id"] not in allowed_user_ids:
+        raise PermissionError("user not in whitelist")
+    return user
 
 
 def issue_jwt(claims: dict[str, Any], *, secret: str, ttl_seconds: int) -> str:

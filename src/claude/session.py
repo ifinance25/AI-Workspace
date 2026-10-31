@@ -69,6 +69,9 @@ _STATUS_EMOJI: dict[str, str] = {
 
 metadata = MetaData()
 
+# Новые локальные id выше всех id Telegram (см. create_local_user).
+LOCAL_USER_ID_FLOOR = 1 << 52
+
 
 class Base(DeclarativeBase):
     metadata = metadata
@@ -1437,7 +1440,10 @@ class SessionManager:
     ) -> int:
         """Создаёт локального пользователя, возвращает его user_id.
 
-        Локальные id живут в диапазоне ≥ 1_000_000_001 и выдаются МОНОТОННО
+        Локальные id выдаются выше 2^52: Telegram обещает id не длиннее 52 бит,
+        поэтому новый локальный id не совпадёт с id из белого списка. Старые
+        учётки живут с ≥ 1_000_000_001 и не меняются. Браузер хранит такое
+        число без потерь (меньше 2^53). Выдача МОНОТОННАЯ
         через счётчик ``app_meta.local_user_seq`` (H-8): удаление юзера счётчик
         не сбрасывает, поэтому освободившийся id не переиспользуется и новый
         аккаунт не наследует осиротевшие сессии. Дубликат username → ValueError
@@ -1446,18 +1452,19 @@ class SessionManager:
             connection = self._get_connection()
             connection.execute("BEGIN IMMEDIATE")
             try:
-                # Инициализируем счётчик (минимум 1_000_000_000) и поднимаем его
-                # не ниже текущего максимума id (на случай legacy MAX+1-строк),
-                # затем выдаём следующий — строго больше всех существующих и
-                # всех ранее выданных.
+                # Инициализируем счётчик и поднимаем его не ниже 2^52 и не ниже
+                # текущего максимума id (на случай legacy MAX+1-строк), затем
+                # выдаём следующий — строго больше всех существующих и всех
+                # ранее выданных.
                 connection.execute(
                     "INSERT INTO app_meta(key, value) VALUES('local_user_seq', 1000000000) "
                     "ON CONFLICT(key) DO NOTHING"
                 )
                 connection.execute(
-                    "UPDATE app_meta SET value = MAX(value, "
+                    "UPDATE app_meta SET value = MAX(value, ?, "
                     "(SELECT COALESCE(MAX(user_id), 0) FROM users)) "
-                    "WHERE key = 'local_user_seq'"
+                    "WHERE key = 'local_user_seq'",
+                    (LOCAL_USER_ID_FLOOR,),
                 )
                 connection.execute(
                     "UPDATE app_meta SET value = value + 1 WHERE key = 'local_user_seq'"
@@ -1650,6 +1657,17 @@ class SessionManager:
                 "token_version = token_version + 1, password_changed_at = ? "
                 "WHERE user_id = ?",
                 (password_hash, datetime.now().isoformat(), user_id),
+            )
+            connection.commit()
+        return (cursor.rowcount or 0) > 0
+
+    def bump_token_version(self, user_id: int) -> bool:
+        """Гасит все выданные сессии учётки: JWT несёт старую версию (H-3)."""
+        with self._conn_lock:
+            connection = self._get_connection()
+            cursor = connection.execute(
+                "UPDATE users SET token_version = token_version + 1 WHERE user_id = ?",
+                (user_id,),
             )
             connection.commit()
         return (cursor.rowcount or 0) > 0
