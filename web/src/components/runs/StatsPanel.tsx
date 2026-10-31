@@ -49,17 +49,17 @@ export default function StatsPanel({ stats }: { stats: RunStats }) {
         <Tile
           value={stats.validated}
           label="Валидация пройдена"
-          tone="text-emerald-300"
+          tone="text-[var(--status-success-fg)]"
         />
         <Tile
           value={stats.findings_edits_done}
           label="Правки внесены в документы"
-          tone="text-emerald-200"
+          tone="text-[var(--status-success-fg)]"
         />
         <Tile value={by.new ?? 0} label="Не разобрано" />
-        <Tile value={by.needs_info ?? 0} label="На уточнение" tone="text-amber-300" />
+        <Tile value={by.needs_info ?? 0} label="На уточнение" tone="text-[var(--accent-brand)]" />
         <Tile value={by.confirmed ?? 0} label="Подтверждено" />
-        <Tile value={by.rejected ?? 0} label="Отклонено" tone="text-red-300" />
+        <Tile value={by.rejected ?? 0} label="Отклонено" tone="text-[var(--status-error-fg)]" />
         <Tile
           value={`${stats.edits_applied} из ${stats.edits_total}`}
           label="Правок внесено"
@@ -72,7 +72,7 @@ export default function StatsPanel({ stats }: { stats: RunStats }) {
             <span>{percent}%</span>
           </div>
           <div className="h-2 rounded bg-[var(--bg-hover)]">
-            <div className="h-2 rounded bg-emerald-500" style={{ width: `${percent}%` }} />
+            <div className="h-2 rounded bg-[var(--status-success-fg)]" style={{ width: `${percent}%` }} />
           </div>
         </div>
         <div>
@@ -81,7 +81,7 @@ export default function StatsPanel({ stats }: { stats: RunStats }) {
             <span>{fixedPercent}%</span>
           </div>
           <div className="h-2 rounded bg-[var(--bg-hover)]">
-            <div className="h-2 rounded bg-emerald-300" style={{ width: `${fixedPercent}%` }} />
+            <div className="h-2 rounded bg-[var(--status-success-fg)] opacity-60" style={{ width: `${fixedPercent}%` }} />
           </div>
         </div>
       </div>

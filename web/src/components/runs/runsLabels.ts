@@ -38,10 +38,18 @@ export function displayStatus(f: Pick<FindingRow, "review_status" | "lifecycle">
 }
 
 export function statusTone(f: Pick<FindingRow, "review_status" | "lifecycle">): string {
-  if (f.lifecycle === "fixed") return "bg-emerald-700/40 text-emerald-200";
-  if (f.review_status === "confirmed") return "bg-emerald-900/40 text-emerald-300";
-  if (f.review_status === "rejected") return "bg-red-900/40 text-red-300";
-  if (f.review_status === "needs_info") return "bg-amber-900/40 text-amber-300";
+  if (f.lifecycle === "fixed") {
+    return "bg-[var(--status-success-fg)] text-[var(--bg-canvas)]";
+  }
+  if (f.review_status === "confirmed") {
+    return "bg-[var(--status-success-bg)] text-[var(--status-success-fg)]";
+  }
+  if (f.review_status === "rejected") {
+    return "bg-[var(--status-error-bg)] text-[var(--status-error-fg)]";
+  }
+  if (f.review_status === "needs_info") {
+    return "bg-[color-mix(in_srgb,var(--accent-brand)_18%,transparent)] text-[var(--fg-primary)]";
+  }
   return "bg-[var(--bg-hover)] text-[var(--fg-secondary)]";
 }
 

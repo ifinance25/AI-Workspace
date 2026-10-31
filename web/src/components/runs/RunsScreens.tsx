@@ -206,11 +206,11 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
       </div>
 
       {error && (
-        <div role="alert" className="rounded-xl bg-red-900/30 px-3 py-2 text-sm text-red-300">
+        <div role="alert" className="alert-error">
           {error}
         </div>
       )}
-      {message && <div className="rounded-xl bg-emerald-900/30 px-3 py-2 text-sm">{message}</div>}
+      {message && <div className="alert-success">{message}</div>}
 
       {list?.can_manage && (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-[var(--border-subtle)] p-3 text-sm">

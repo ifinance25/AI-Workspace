@@ -170,7 +170,7 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
         ))}
       </p>
 
-      <section className="rounded-lg border border-red-900/50 bg-red-950/20 p-3">
+      <section className="rounded-lg border border-[var(--status-error-border)] bg-[var(--status-error-bg)] p-3">
         <h3 className="mb-1 text-sm font-medium">Суть несоответствия</h3>
         <p className="whitespace-pre-wrap text-sm">{finding.summary}</p>
       </section>
@@ -191,8 +191,8 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
               {finding.edits.map((edit) => (
                 <tr key={edit.edit_key} className="border-t border-[var(--border-subtle)] align-top">
                   <td className="py-1 pr-3">{edit.place || edit.doc}</td>
-                  <td className="py-1 pr-3 text-red-300 line-through">{edit.old_text || "(пусто)"}</td>
-                  <td className="py-1 pr-3 text-emerald-300">{edit.new_text || "(удалить)"}</td>
+                  <td className="py-1 pr-3 text-[var(--status-error-fg)] line-through">{edit.old_text || "(пусто)"}</td>
+                  <td className="py-1 pr-3 text-[var(--status-success-fg)]">{edit.new_text || "(удалить)"}</td>
                   <td className="py-1">
                     {edit.state}
                     {edit.doc_ref ? ` · ${edit.doc_ref}` : ""}
@@ -302,8 +302,8 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
             </div>
           </div>
         )}
-        {error && <p role="alert" className="mt-2 text-sm text-red-300">{error}</p>}
-        {note && <p className="mt-2 text-sm text-amber-300">{note}</p>}
+        {error && <p role="alert" className="alert-error mt-2">{error}</p>}
+        {note && <p className="alert-success mt-2">{note}</p>}
       </section>
 
       <section>
