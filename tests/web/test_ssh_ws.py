@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from starlette.testclient import TestClient
 
+from src.claude.session import SessionManager
 from src.config.settings import WebSettings
 from src.connections.crypto import SecretBox
 from src.ssh.keys import fingerprint_private_key
@@ -84,8 +85,24 @@ class _FakeConn:
 def _make_store(tmp_path: Path) -> SshStore:
     return SshStore(tmp_path / "ssh.db", SecretBox(Fernet.generate_key().decode()))
 
+def _make_sessions(tmp_path: Path, admins: tuple[int, ...] = (100,), plain: tuple[int, ...] = ()):
+    """Настоящий SessionManager: роль берётся из таблицы users, как в проде."""
+    sm = SessionManager(storage_path=tmp_path / "sessions.db")
+    with sm._conn_lock:
+        conn = sm._get_connection()
+        for uid in admins:
+            conn.execute(
+                "INSERT INTO users (user_id, is_admin, origin) VALUES (?, 1, 'telegram')", (uid,)
+            )
+        for uid in plain:
+            conn.execute(
+                "INSERT INTO users (user_id, is_admin, origin) VALUES (?, 0, 'telegram')", (uid,)
+            )
+        conn.commit()
+    return sm
 
-def _make_server(ssh_store) -> WebServer:
+
+def _make_server(ssh_store, sessions: SessionManager | None = None) -> WebServer:
     settings = WebSettings(
         enabled=True,
         host="127.0.0.1",
@@ -95,9 +112,9 @@ def _make_server(ssh_store) -> WebServer:
     )
     return WebServer(
         settings=settings,
-        allowed_user_ids=[100],
+        allowed_user_ids=[100, 300],
         bot_username="t",
-        session_manager=None,
+        session_manager=sessions,
         event_bus=None,
         bot_token="12345:abc",
         jwt_secret="x" * 32,
@@ -116,7 +133,7 @@ def _login(client: TestClient, user_id: int = 100) -> None:
 
 def test_ws_without_profile_closes(tmp_path):
     store = _make_store(tmp_path)
-    server = _make_server(store)
+    server = _make_server(store, _make_sessions(tmp_path))
     with TestClient(server.app) as client:
         _login(client)
         try:
@@ -149,7 +166,7 @@ def test_ws_echo_with_fake_shell(tmp_path, monkeypatch):
         return fake_conn, fake_proc
 
     monkeypatch.setattr("src.ssh.session.open_ssh_shell", _open)
-    server = _make_server(store)
+    server = _make_server(store, _make_sessions(tmp_path))
     with TestClient(server.app) as client:
         _login(client)
         with client.websocket_connect("/api/ws/ssh") as ws:
@@ -168,3 +185,29 @@ def test_ws_echo_with_fake_shell(tmp_path, monkeypatch):
                 time.sleep(0.05)
             assert fake_proc.stdin.written[0] == b"ls\n"
             assert fake_proc.size == (120, 40)
+
+
+def test_ws_refused_for_non_admin(tmp_path):
+    store = _make_store(tmp_path)
+    pem = _pem()
+    store.save(
+        300,
+        SshProfile(
+            host="example.com",
+            port=22,
+            username="ubuntu",
+            private_key=pem,
+            passphrase=None,
+            fingerprint=fingerprint_private_key(pem),
+        ),
+    )
+    server = _make_server(store, _make_sessions(tmp_path, admins=(100,), plain=(300,)))
+    with TestClient(server.app) as client:
+        _login(client, 300)
+        try:
+            with client.websocket_connect("/api/ws/ssh"):
+                raise AssertionError("non-admin must be refused")
+        except AssertionError:
+            raise
+        except Exception:
+            pass

@@ -12,7 +12,10 @@ from src.ssh.keys import InvalidSshKeyError, fingerprint_private_key
 from src.ssh.session import bridge_ssh_websocket, host_key_fingerprint
 from src.ssh.store import SshProfile, SshStore
 from src.web.auth import decode_jwt
-from src.web.dependencies import get_current_user_factory, is_account_active
+from src.web.dependencies import (
+    is_account_active,
+    require_admin_factory,
+)
 from src.web.origin_check import is_allowed_origin
 
 logger = structlog.get_logger()
@@ -85,12 +88,20 @@ def make_ssh_router(
     allow_loopback_origin: bool = True,
 ) -> APIRouter:
     router = APIRouter(tags=["ssh"])
-    get_current_user = get_current_user_factory(
+    # Терминал открывает оболочку на сервере: только администратор платформы.
+    get_current_user = require_admin_factory(
         jwt_secret, session_manager, set(allowed_user_ids or [])
     )
     whitelist = set(allowed_user_ids or [])
     ws_allowed_origins = allowed_origins or set()
     ws_conn_counts: dict[int, int] = {}
+
+    async def _is_admin(user_id: int, claims: dict) -> bool:
+        # Как в require_admin: строка в БД главнее подсказки из куки.
+        row = await asyncio.to_thread(session_manager.get_user_by_id, user_id)
+        if row is not None:
+            return bool(row.get("is_admin"))
+        return bool(claims.get("is_admin"))
 
     @router.get("/api/ssh")
     async def get_ssh(user: dict = Depends(get_current_user)) -> dict:
@@ -178,6 +189,9 @@ def make_ssh_router(
             return
         user_id = int(user["user_id"])
         if not await is_account_active(session_manager, user, whitelist):
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+        if not await _is_admin(user_id, user):
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
         if ssh_store is None:

@@ -50,6 +50,8 @@ const TABS: { id: Tab; label: string }[] = [
 export default function SettingsModal({ open, onClose, initialTab }: Props) {
   const { user, logout } = useAuth();
   const [tab, setTab] = useState<Tab>("general");
+  // SSH открывает оболочку на сервере: вкладка только для администратора.
+  const visibleTabs = TABS.filter((t) => t.id !== "ssh" || user?.is_admin);
   const [theme, setTheme] = useState<Theme>(getStoredTheme());
   const sendKey = useSendKey();
   const [verbose, setVerbose] = useState<0 | 1 | 2 | 3 | null>(null);
@@ -143,7 +145,7 @@ export default function SettingsModal({ open, onClose, initialTab }: Props) {
             <span>Настройки</span>
           </div>
           <nav className="mt-1 flex gap-1 overflow-x-auto pb-1 md:mt-2 md:flex-col md:space-y-1 md:overflow-visible md:pb-0">
-            {TABS.map((t) => (
+            {visibleTabs.map((t) => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
@@ -297,7 +299,7 @@ export default function SettingsModal({ open, onClose, initialTab }: Props) {
 
             {tab === "connections" && <ConnectionsPanel />}
 
-            {tab === "ssh" && <SshSettingsPanel />}
+            {tab === "ssh" && user?.is_admin && <SshSettingsPanel />}
 
             {tab === "session" && (
               <div className="space-y-6">

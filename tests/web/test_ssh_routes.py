@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from starlette.testclient import TestClient
 
+from src.claude.session import SessionManager
 from src.config.settings import WebSettings
 from src.connections.crypto import SecretBox
 from src.ssh.store import SshStore
@@ -36,8 +37,24 @@ def _pem() -> str:
 def _make_store(tmp_path: Path) -> SshStore:
     return SshStore(tmp_path / "ssh.db", SecretBox(Fernet.generate_key().decode()))
 
+def _make_sessions(tmp_path: Path, admins: tuple[int, ...] = (100,), plain: tuple[int, ...] = ()):
+    """Настоящий SessionManager: роль берётся из таблицы users, как в проде."""
+    sm = SessionManager(storage_path=tmp_path / "sessions.db")
+    with sm._conn_lock:
+        conn = sm._get_connection()
+        for uid in admins:
+            conn.execute(
+                "INSERT INTO users (user_id, is_admin, origin) VALUES (?, 1, 'telegram')", (uid,)
+            )
+        for uid in plain:
+            conn.execute(
+                "INSERT INTO users (user_id, is_admin, origin) VALUES (?, 0, 'telegram')", (uid,)
+            )
+        conn.commit()
+    return sm
 
-def _make_server(ssh_store) -> WebServer:
+
+def _make_server(ssh_store, sessions: SessionManager | None = None) -> WebServer:
     settings = WebSettings(
         enabled=True,
         host="127.0.0.1",
@@ -47,9 +64,9 @@ def _make_server(ssh_store) -> WebServer:
     )
     return WebServer(
         settings=settings,
-        allowed_user_ids=[100, 200],
+        allowed_user_ids=[100, 200, 300],
         bot_username="t",
-        session_manager=None,
+        session_manager=sessions,
         event_bus=None,
         bot_token="12345:abc",
         jwt_secret="x" * 32,
@@ -66,8 +83,8 @@ def _login(client: TestClient, user_id: int = 100) -> None:
     assert resp.status_code == 200, resp.text
 
 
-def test_disabled_store_get_enabled_false():
-    server = _make_server(None)
+def test_disabled_store_get_enabled_false(tmp_path):
+    server = _make_server(None, _make_sessions(tmp_path))
     with TestClient(server.app) as client:
         _login(client)
         resp = client.get("/api/ssh")
@@ -80,7 +97,7 @@ def test_disabled_store_get_enabled_false():
 
 def test_put_get_never_returns_key(tmp_path):
     store = _make_store(tmp_path)
-    server = _make_server(store)
+    server = _make_server(store, _make_sessions(tmp_path, admins=(100, 200)))
     pem = _pem()
     with TestClient(server.app) as client:
         _login(client)
@@ -114,7 +131,7 @@ def test_put_get_never_returns_key(tmp_path):
 
 def test_put_without_key_rejected(tmp_path):
     store = _make_store(tmp_path)
-    server = _make_server(store)
+    server = _make_server(store, _make_sessions(tmp_path, admins=(100, 200)))
     with TestClient(server.app) as client:
         _login(client)
         resp = client.put(
@@ -126,7 +143,7 @@ def test_put_without_key_rejected(tmp_path):
 
 def test_put_garbage_key_rejected(tmp_path):
     store = _make_store(tmp_path)
-    server = _make_server(store)
+    server = _make_server(store, _make_sessions(tmp_path, admins=(100, 200)))
     with TestClient(server.app) as client:
         _login(client)
         resp = client.put(
@@ -143,7 +160,7 @@ def test_put_garbage_key_rejected(tmp_path):
 
 def test_update_host_keeps_existing_key(tmp_path):
     store = _make_store(tmp_path)
-    server = _make_server(store)
+    server = _make_server(store, _make_sessions(tmp_path, admins=(100, 200)))
     pem = _pem()
     with TestClient(server.app) as client:
         _login(client)
@@ -174,7 +191,7 @@ def test_update_host_keeps_existing_key(tmp_path):
 
 def test_profiles_are_per_user(tmp_path):
     store = _make_store(tmp_path)
-    server = _make_server(store)
+    server = _make_server(store, _make_sessions(tmp_path, admins=(100, 200)))
     pem = _pem()
     with TestClient(server.app) as client:
         _login(client, 100)
@@ -194,7 +211,7 @@ def test_profiles_are_per_user(tmp_path):
 
 def test_delete_profile(tmp_path):
     store = _make_store(tmp_path)
-    server = _make_server(store)
+    server = _make_server(store, _make_sessions(tmp_path, admins=(100, 200)))
     pem = _pem()
     with TestClient(server.app) as client:
         _login(client)
@@ -218,3 +235,18 @@ def test_unauthenticated_rejected():
     server = _make_server(None)
     with TestClient(server.app) as client:
         assert client.get("/api/ssh").status_code == 401
+
+
+def test_non_admin_is_forbidden(tmp_path):
+    store = _make_store(tmp_path)
+    server = _make_server(store, _make_sessions(tmp_path, admins=(100,), plain=(300,)))
+    with TestClient(server.app) as client:
+        _login(client, 300)
+        assert client.get("/api/ssh").status_code == 403
+        put = client.put(
+            "/api/ssh",
+            json={"host": "example.com", "port": 22, "username": "u", "private_key": _pem()},
+        )
+        assert put.status_code == 403
+        assert client.delete("/api/ssh").status_code == 403
+        assert store.get(300) is None

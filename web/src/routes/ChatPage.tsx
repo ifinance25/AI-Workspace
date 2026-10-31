@@ -2,6 +2,7 @@ import { useState } from "react";
 import AppShell, { useAppShellControls } from "@/components/AppShell";
 import Chat from "@/components/Chat";
 import TerminalPanel from "@/components/TerminalPanel";
+import { useAuth } from "@/auth/AuthContext";
 import { startNewSession } from "@/lib/newSession";
 import type { Session } from "@/lib/types";
 
@@ -57,6 +58,8 @@ function ChatMain({
 
 export default function ChatPage() {
   const [active, setActive] = useState<Session | null>(null);
+  const { user } = useAuth();
+  const isAdmin = Boolean(user?.is_admin);
   const [view, setView] = useState<"chat" | "terminal">("chat");
 
   const selectSession = (s: Session | null) => {
@@ -68,12 +71,12 @@ export default function ChatPage() {
     <AppShell
       activeSessionUuid={active?.session_uuid ?? null}
       onSelectSession={selectSession}
-      showTerminal
+      showTerminal={isAdmin}
       terminalActive={view === "terminal"}
       onOpenTerminal={() => setView("terminal")}
       mobileHeaderTitle={view === "terminal" ? "Терминал" : "Чаты"}
     >
-      <ChatMain active={active} setActive={setActive} view={view} />
+      <ChatMain active={active} setActive={setActive} view={isAdmin ? view : "chat"} />
     </AppShell>
   );
 }
