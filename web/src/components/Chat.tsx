@@ -12,7 +12,7 @@ import { TextEvent } from "@/components/events/TextEvent";
 import { ToolUseEvent } from "@/components/events/ToolUseEvent";
 import { UsageEvent } from "@/components/events/UsageEvent";
 import { UserMessageEvent } from "@/components/events/UserMessageEvent";
-import { BookIcon, CloseIcon, FilesIcon, FolderIcon, NotesIcon, PackageIcon, PanelLeftIcon, UsersIcon } from "@/components/icons";
+import { BookIcon, CloseIcon, CompressIcon, FilesIcon, FolderIcon, MaximizeIcon, NotesIcon, PackageIcon, PanelLeftIcon, UsersIcon } from "@/components/icons";
 import DocsPanel from "@/components/DocsPanel";
 import FilesPanel from "@/components/files/FilesPanel";
 import ArtifactsPanel from "@/components/artifacts/ArtifactsPanel";
@@ -245,6 +245,26 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
       return false;
     }
   });
+  // Широкий режим: лента и ввод занимают 80% колонки (по 10% с краёв).
+  // Липко в localStorage; на узких экранах и так на всю ширину.
+  const [wide, setWide] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("ai-workspace.chatWide") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleWide = () => {
+    setWide((v) => {
+      const next = !v;
+      try {
+        localStorage.setItem("ai-workspace.chatWide", next ? "1" : "0");
+      } catch {
+        // приватный режим — не критично
+      }
+      return next;
+    });
+  };
   const togglePanel = () => {
     setPanelOpen((v) => {
       const next = !v;
@@ -804,7 +824,7 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
   // контейнер гасит указатель (pointer-events-none).
   const THINKING_PANEL_ID = "live-thinking-panel";
   const liveStatus = (
-    <div className="pointer-events-auto mx-auto max-w-3xl px-6">
+    <div className="pointer-events-auto mx-auto max-w-[var(--chat-w)] px-6">
       {panelOpen && verbose >= 2 && (
         <LiveActivityPanel id={THINKING_PANEL_ID} thinking={liveThinking} />
       )}
@@ -925,7 +945,15 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
 
   return (
     <div className="flex min-w-0 flex-1 overflow-hidden">
-      <main className="flex min-w-0 flex-1 flex-col bg-[var(--bg-canvas)]">
+      <main
+        className="flex min-w-0 flex-1 flex-col bg-[var(--bg-canvas)]"
+        style={
+          {
+            "--chat-w": wide ? "80%" : "48rem",
+            "--chat-w-lg": wide ? "80%" : "56rem",
+          } as React.CSSProperties
+        }
+      >
       {/* Хедер на всю ширину main-колонки (не max-w-4xl) — так подписи кнопок
           помещаются. Ряд действий переносится на 2-ю строку на узком окне
           (flex-wrap), НИКОГДА не обрезается. */}
@@ -966,6 +994,21 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
               выбора --bg-hover. */}
           <div className="flex flex-wrap items-center justify-end gap-1.5">
             <UsageBadge tokens={usage.tokens} costUsd={usage.costUsd} />
+            <button
+              type="button"
+              onClick={toggleWide}
+              className={`icon-btn hidden h-9 shrink-0 items-center justify-center gap-2 rounded-xl px-2.5 text-sm transition-colors lg:flex ${
+                wide
+                  ? "bg-[var(--bg-hover)] text-[var(--fg-primary)]"
+                  : "text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
+              }`}
+              title={wide ? "Обычная ширина чата" : "Расширить чат: по 10% с краёв"}
+              aria-label="Широкий чат"
+              aria-pressed={wide}
+            >
+              {wide ? <CompressIcon size={18} /> : <MaximizeIcon size={18} />}
+              <span>{wide ? "Уже" : "Шире"}</span>
+            </button>
             <button
               onClick={() =>
                 setNotesOpen((v) => {
@@ -1113,7 +1156,7 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
             className="overflow-hidden"
           >
             {notesOpen ? (
-              <div className="mx-auto w-full max-w-4xl px-3 pt-3 sm:px-6 sm:pt-4">
+              <div className="mx-auto w-full max-w-[var(--chat-w-lg)] px-3 pt-3 sm:px-6 sm:pt-4">
                 <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-sidebar)] p-4">
                   <div className="mb-2 flex items-center justify-between text-[12px] font-semibold uppercase tracking-wider text-[var(--fg-muted)]">
                     <span>Заметки</span>
@@ -1141,7 +1184,7 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
       </AnimatePresence>
 
       {error && (
-        <div className="mx-auto mt-3 w-full max-w-4xl animate-slideUpIn px-3 sm:px-6">
+        <div className="mx-auto mt-3 w-full max-w-[var(--chat-w-lg)] animate-slideUpIn px-3 sm:px-6">
           <div className="rounded-xl bg-red-900/30 px-4 py-2.5 text-sm text-red-300">
             {error}
           </div>
@@ -1171,7 +1214,7 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
           <>
             <div
               ref={setBubblesContentRef}
-              className="mx-auto max-w-3xl space-y-2 px-3 py-6 sm:px-6 sm:py-8"
+              className="mx-auto max-w-[var(--chat-w)] space-y-2 px-3 py-6 sm:px-6 sm:py-8"
             >
               {bubbles.map((b) => {
                 const el = renderBubble(b);

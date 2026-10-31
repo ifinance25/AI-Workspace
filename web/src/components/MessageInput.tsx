@@ -209,7 +209,7 @@ export default function MessageInput({
 
   return (
     <div className="px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-2 sm:px-6 sm:pb-8 sm:pt-3">
-      <div className="relative mx-auto w-full max-w-3xl">
+      <div className="relative mx-auto w-full max-w-[var(--chat-w,48rem)]">
         {/* Поповер команд/скиллов, открытый кнопкой. Прячем, когда юзер
             набирает "/" — тогда показывается типизированный поповер ниже,
             и два меню не накладываются. AnimatePresence даёт анимацию и
