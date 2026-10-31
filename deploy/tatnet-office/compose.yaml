@@ -2,7 +2,8 @@
 # Запуск из этого каталога: docker compose --env-file ./release.env up -d --build
 # Снаружи контейнер недоступен: порта нет, сеть runs-net внутренняя, без выхода в интернет.
 # Nginx контура fakt подключается к сети fakt_runs-net (см. docs/deploy-tatnet-office.md).
-name: fakt
+# Свой проект Compose: контейнеры контура fakt (база знаний, MCP) для него «чужие».
+name: fakt-runs
 
 services:
   runs:
@@ -32,4 +33,5 @@ services:
 
 networks:
   runs-net:
+    name: fakt_runs-net
     internal: true
