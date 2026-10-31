@@ -191,8 +191,8 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
               {finding.edits.map((edit) => (
                 <tr key={edit.edit_key} className="border-t border-[var(--border-subtle)] align-top">
                   <td className="py-1 pr-3">{edit.place || edit.doc}</td>
-                  <td className="py-1 pr-3 text-red-300 line-through">{edit.old_text || "— пусто —"}</td>
-                  <td className="py-1 pr-3 text-emerald-300">{edit.new_text || "— удалить —"}</td>
+                  <td className="py-1 pr-3 text-red-300 line-through">{edit.old_text || "(пусто)"}</td>
+                  <td className="py-1 pr-3 text-emerald-300">{edit.new_text || "(удалить)"}</td>
                   <td className="py-1">
                     {edit.state}
                     {edit.doc_ref ? ` · ${edit.doc_ref}` : ""}
