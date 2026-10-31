@@ -423,17 +423,17 @@ export default function MessageInput({
                 aria-pressed={kbOn}
                 className={`icon-btn rounded-full p-2 disabled:opacity-50 ${
                   kbOn
-                    ? "bg-[var(--bg-hover)] text-[var(--accent-brand)]"
+                    ? "bg-[var(--bg-hover)] text-[var(--fg-primary)]"
                     : "text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
                 }`}
                 title={
                   !kbSearchEnabled
-                    ? "База знаний не подключена"
+                    ? "Поиск по базе и задачам не подключён"
                     : kbOn
-                      ? "Поиск по Базе знаний: включён"
-                      : "Поиск по Базе знаний: выключен"
+                      ? "Поиск по базе знаний и задачам Redmine: включён. В этом режиме чат не видит файлов проекта"
+                      : "Поиск по базе знаний и задачам Redmine: выключен"
                 }
-                aria-label="Поиск по Базе знаний"
+                aria-label="Поиск по базе знаний и задачам Redmine"
               >
                 <SearchIcon size={20} />
               </button>

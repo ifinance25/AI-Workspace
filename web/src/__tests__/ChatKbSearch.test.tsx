@@ -38,7 +38,7 @@ const session = {
   notes: "заголовок",
 } as unknown as Session;
 
-const NAME = "Поиск по Базе знаний";
+const NAME = "Поиск по базе знаний и задачам Redmine";
 const loupe = () => screen.getByRole("button", { name: NAME });
 const send = async (text: string) => {
   await waitFor(() => expect(screen.getByRole("textbox")).toBeEnabled());
@@ -79,7 +79,7 @@ describe("Chat: поиск по Базе знаний", () => {
     render(<Chat session={session} />);
     const button = await waitFor(loupe);
     expect(button).toBeDisabled();
-    expect(button).toHaveAttribute("title", "База знаний не подключена");
+    expect(button).toHaveAttribute("title", "Поиск по базе и задачам не подключён");
     await send("вопрос");
     await waitFor(() => expect(lastMessage()).toBeTruthy());
     expect(lastMessage()).not.toHaveProperty("kb_search");

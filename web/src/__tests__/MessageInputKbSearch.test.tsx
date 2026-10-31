@@ -12,7 +12,7 @@ beforeEach(() => {
   vi.spyOn(api, "getSlashCommands").mockResolvedValue([]);
 });
 
-const NAME = "Поиск по Базе знаний";
+const NAME = "Поиск по базе знаний и задачам Redmine";
 
 const mount = (kbSearchEnabled: boolean, onSubmit = vi.fn()) => {
   const view = render(
@@ -32,7 +32,7 @@ describe("MessageInput: переключатель поиска по Базе з
     mount(true);
     expect(screen.getByTitle("Скиллы").nextElementSibling).toBe(btn());
     expect(btn()).toHaveAttribute("aria-pressed", "false");
-    expect(btn()).toHaveAttribute("title", "Поиск по Базе знаний: выключен");
+    expect(btn()).toHaveAttribute("title", "Поиск по базе знаний и задачам Redmine: выключен");
   });
 
   it("нажатие меняет aria-pressed и title, текст поля не трогает", () => {
@@ -40,7 +40,7 @@ describe("MessageInput: переключатель поиска по Базе з
     fireEvent.change(field(), { target: { value: "черновик" } });
     fireEvent.click(btn());
     expect(btn()).toHaveAttribute("aria-pressed", "true");
-    expect(btn()).toHaveAttribute("title", "Поиск по Базе знаний: включён");
+    expect(btn()).toHaveAttribute("title", "Поиск по базе знаний и задачам Redmine: включён. В этом режиме чат не видит файлов проекта");
     expect(field().value).toBe("черновик");
     expect(onSubmit).not.toHaveBeenCalled();
     fireEvent.click(btn());
@@ -69,7 +69,7 @@ describe("MessageInput: переключатель поиска по Базе з
     window.localStorage.setItem(KB_SEARCH_STORAGE_KEY, "1");
     const { onSubmit } = mount(false);
     expect(btn()).toBeDisabled();
-    expect(btn()).toHaveAttribute("title", "База знаний не подключена");
+    expect(btn()).toHaveAttribute("title", "Поиск по базе и задачам не подключён");
     expect(btn()).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(btn());
     expect(window.localStorage.getItem(KB_SEARCH_STORAGE_KEY)).toBe("1");
