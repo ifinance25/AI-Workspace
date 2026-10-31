@@ -11,6 +11,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends
 
+from src.child_env import child_env
 from src.web.dependencies import get_current_user_factory
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -25,6 +26,7 @@ def _from_git() -> tuple[str, str] | None:
             text=True,
             timeout=3,
             check=True,
+            env=child_env(),
         ).stdout.strip()
     except (OSError, subprocess.SubprocessError):
         return None
