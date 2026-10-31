@@ -5,6 +5,7 @@ import {
   CloseIcon,
   FileIcon,
   ImageIcon,
+  LightbulbIcon,
   PlusIcon,
   SearchIcon,
   SendIcon,
@@ -48,6 +49,9 @@ interface Props {
   leftSlot?: ReactNode;
   /** Подключена ли общая база знаний (флаг с сервера); иначе кнопка поиска disabled. */
   kbSearchEnabled?: boolean;
+  /** Показывать блоки «Размышления» в ленте (verbose ≥ 2). */
+  reasoningOn?: boolean;
+  onReasoningToggle?: () => void;
 }
 
 const MAX_ROWS = 10;
@@ -68,6 +72,8 @@ export default function MessageInput({
   onStop,
   leftSlot,
   kbSearchEnabled = false,
+  reasoningOn = false,
+  onReasoningToggle,
 }: Props) {
   const [text, setText] = useState("");
   const [slashes, setSlashes] = useState<SlashCommand[]>([]);
@@ -372,11 +378,10 @@ export default function MessageInput({
             style={{ minHeight: "26px" }}
           />
 
-          {/* Нижний бар */}
+          {/* Нижний бар: действия слева, модель и отправка справа */}
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               {leftSlot}
-              <InputModelButton />
               {/* Скрытый файл-инпут — клик идёт через PlusIcon кнопку */}
               <input
                 ref={fileInputRef}
@@ -433,30 +438,53 @@ export default function MessageInput({
                 <SearchIcon size={20} />
               </button>
             </div>
-            {isGenerating ? (
-              <button
-                type="button"
-                onClick={() => onStop?.()}
-                className="icon-btn rounded-full bg-[var(--accent)] p-2.5 text-[var(--accent-fg)] transition-colors hover:opacity-90"
-                title="Остановить генерацию"
-              >
-                <StopIcon size={20} />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => submit()}
-                disabled={!canSend}
-                className={`icon-btn rounded-full p-2.5 transition-colors ${
-                  canSend
-                    ? "bg-[var(--accent)] text-[var(--accent-fg)] hover:opacity-90"
-                    : "bg-[var(--bg-hover)] text-[var(--fg-muted)] cursor-not-allowed"
-                }`}
-                title={sendButtonTitle(sendKey)}
-              >
-                <SendIcon size={20} />
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {onReasoningToggle && (
+                <button
+                  type="button"
+                  onClick={onReasoningToggle}
+                  aria-pressed={reasoningOn}
+                  className={`icon-btn rounded-full p-2 ${
+                    reasoningOn
+                      ? "bg-[var(--bg-hover)] text-[var(--fg-primary)]"
+                      : "text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
+                  }`}
+                  title={
+                    reasoningOn
+                      ? "Размышления показываются — нажмите, чтобы скрыть"
+                      : "Размышления скрыты — нажмите, чтобы показывать"
+                  }
+                  aria-label="Размышления"
+                >
+                  <LightbulbIcon size={20} />
+                </button>
+              )}
+              <InputModelButton />
+              {isGenerating ? (
+                <button
+                  type="button"
+                  onClick={() => onStop?.()}
+                  className="icon-btn rounded-full bg-[var(--accent)] p-2.5 text-[var(--accent-fg)] transition-colors hover:opacity-90"
+                  title="Остановить генерацию"
+                >
+                  <StopIcon size={20} />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => submit()}
+                  disabled={!canSend}
+                  className={`icon-btn rounded-full p-2.5 transition-colors ${
+                    canSend
+                      ? "bg-[var(--accent)] text-[var(--accent-fg)] hover:opacity-90"
+                      : "bg-[var(--bg-hover)] text-[var(--fg-muted)] cursor-not-allowed"
+                  }`}
+                  title={sendButtonTitle(sendKey)}
+                >
+                  <SendIcon size={20} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
         <div className="mt-2 hidden text-center text-xs text-[var(--fg-muted)] sm:mt-3 sm:block">
