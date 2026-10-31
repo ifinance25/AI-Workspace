@@ -7,11 +7,16 @@ import {
   type DecisionAction,
   type FindingDetail,
   type FindingImage,
+  type ReviewStatus,
   type RunDetail,
 } from "@/components/runs/runsApi";
 import {
   ACTION_LABEL,
+  EDIT_STATE_LABEL,
+  LIFECYCLE_LABEL,
   REASONS,
+  ROLE_LABEL,
+  STATUS_LABEL,
   availableActions,
   displayStatus,
   formatStamp,
@@ -194,7 +199,7 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
                   <td className="py-1 pr-3 text-[var(--status-error-fg)] line-through">{edit.old_text || "(пусто)"}</td>
                   <td className="py-1 pr-3 text-[var(--status-success-fg)]">{edit.new_text || "(удалить)"}</td>
                   <td className="py-1">
-                    {edit.state}
+                    {EDIT_STATE_LABEL[edit.state] ?? edit.state}
                     {edit.doc_ref ? ` · ${edit.doc_ref}` : ""}
                   </td>
                 </tr>
@@ -315,9 +320,12 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
             {finding.history.map((item) => (
               <li key={item.decision_key}>
                 <span className="text-[var(--fg-secondary)]">
-                  {formatStamp(item.at)} · {item.actor} ({item.actor_role}) ·{" "}
+                  {formatStamp(item.at)} · {item.actor} (
+                  {ROLE_LABEL[item.actor_role] ?? item.actor_role}) ·{" "}
                 </span>
-                {item.action}: {item.review_to}, этап {item.lifecycle_to}
+                <b>{ACTION_LABEL[item.action as DecisionAction] ?? item.action}.</b> Статус «
+                {STATUS_LABEL[item.review_to as ReviewStatus] ?? item.review_to}», этап «
+                {LIFECYCLE_LABEL[item.lifecycle_to] ?? item.lifecycle_to}»
                 {item.why ? `. ${item.why}` : ""}
               </li>
             ))}

@@ -31,6 +31,40 @@ export const ACTION_LABEL: Record<DecisionAction, string> = {
   reopen: "Вернуть в разбор",
 };
 
+export const LIFECYCLE_LABEL: Record<string, string> = {
+  new: "новая",
+  confirmed: "подтверждена",
+  submitted: "правки переданы",
+  in_progress: "в работе",
+  fixed: "правки внесены",
+  retested: "перепроверена",
+  closed: "закрыта",
+  reopened: "возвращена в разбор",
+  rejected: "отклонена",
+  duplicate: "дубликат",
+};
+
+export const EDIT_STATE_LABEL: Record<string, string> = {
+  proposed: "предложена",
+  queued: "в очереди",
+  applied: "внесена",
+  rejected: "отклонена",
+};
+
+export const ROLE_LABEL: Record<string, string> = {
+  project_manager: "менеджер проекта",
+  pmo_head: "руководитель проектного офиса",
+  observer: "наблюдатель",
+  business_analyst: "бизнес-аналитик",
+  system_analyst: "системный аналитик",
+  architect: "архитектор",
+  developer: "разработчик",
+  tester: "тестировщик",
+  customer_representative: "представитель заказчика",
+  customer_signatory: "подписант заказчика",
+  system_admin: "администратор системы",
+};
+
 export type StatusFilter = "all" | ReviewStatus | "fixed";
 
 export function displayStatus(f: Pick<FindingRow, "review_status" | "lifecycle">): string {
