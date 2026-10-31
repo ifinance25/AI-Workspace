@@ -20,9 +20,25 @@ mkdir -p "$BACKUP_DIR"
 work="$(mktemp -d "${BACKUP_DIR}/.tmp.XXXXXX")"
 trap 'rm -rf "$work"' EXIT
 
-sqlite3 "$DB" ".backup '${work}/sessions.db'"
-[[ "$(sqlite3 "${work}/sessions.db" 'PRAGMA integrity_check')" == "ok" ]] \
-    || { echo "Копия базы не прошла integrity_check" >&2; exit 1; }
+# Копия базы: утилита sqlite3, а если её нет на сервере, модуль sqlite3 из Python.
+db_backup() {
+    if [[ "${BACKUP_FORCE_PYTHON:-0}" != "1" ]] && command -v sqlite3 >/dev/null 2>&1; then
+        sqlite3 "$1" ".backup '$2'" || return 1
+        [[ "$(sqlite3 "$2" 'PRAGMA integrity_check')" == "ok" ]]
+    else
+        python3 - "$1" "$2" <<'PY'
+import sqlite3, sys
+src = sqlite3.connect(sys.argv[1])
+dst = sqlite3.connect(sys.argv[2])
+src.backup(dst)
+ok = dst.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+src.close()
+dst.close()
+sys.exit(0 if ok else 1)
+PY
+    fi
+}
+db_backup "$DB" "${work}/sessions.db" || { echo "Копия базы не прошла проверку целостности" >&2; exit 1; }
 
 parts=(sessions.db)
 if [[ -d "${DATA_DIR}/office_validation" ]]; then

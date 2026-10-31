@@ -50,6 +50,26 @@ def test_backup_contains_database_and_files(data, tmp_path):
     assert not list(backup.glob(".tmp.*"))
 
 
+@pytest.mark.parametrize("force_python", ["0", "1"])
+def test_backup_works_with_and_without_sqlite3_cli(data, tmp_path, force_python):
+    backup = tmp_path / "backups"
+    result = _run(data, backup, BACKUP_FORCE_PYTHON=force_python)
+    assert result.returncode == 0, result.stderr
+    archive = next(backup.glob("validation-*.tar.gz"))
+    with tarfile.open(archive) as tar:
+        tar.extractall(tmp_path / f"out{force_python}", filter="data")
+    restored = sqlite3.connect(tmp_path / f"out{force_python}" / "sessions.db")
+    assert restored.execute("SELECT v FROM t").fetchone() == ("решение",)
+
+
+def test_corrupt_database_fails_without_sqlite3_cli(data, tmp_path):
+    (data / "sessions.db").write_bytes(b"not a sqlite file" * 100)
+    backup = tmp_path / "backups"
+    result = _run(data, backup, BACKUP_FORCE_PYTHON="1")
+    assert result.returncode != 0
+    assert not list(backup.glob("validation-*.tar.gz"))
+
+
 def test_old_backups_are_removed(data, tmp_path):
     backup = tmp_path / "backups"
     backup.mkdir()
