@@ -6,5 +6,5 @@ Type=oneshot
 Environment=DATA_DIR=/srv/fakt/validation/data
 Environment=BACKUP_DIR=/srv/fakt/validation-backups
 Environment=KEEP_DAYS=14
-ExecStart=/opt/fakt-knowledge-base/validation/backup_office.sh
+ExecStart=/opt/fakt-runs/backup_office.sh
 Nice=10
