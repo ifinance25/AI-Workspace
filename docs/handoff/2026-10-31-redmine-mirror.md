@@ -32,3 +32,9 @@
 ## Дополнение (тот же день, позже)
 
 - `35bce66`: ваши незакоммиченные `MessageInput.tsx`, `ChatEmptyState.tsx` и `ChatEmptyState.test.tsx` закоммичены за вас как есть. Причина: `Chat.tsx` в `035d39a` уже ссылался на `reasoningOn` и не передавал `projectName`, чистый `main` не проходил `tsc`, и `update.sh` на проде не собрал фронт. Остальные ваши файлы в `web/` не тронуты. Перед следующим коммитом подтяните `develop`.
+
+## Дополнение: чат читает зеркало (коммит `107957c`)
+
+- Новый маршрут в `src/web/routes_redmine_mirror.py`: `POST /projects/{id}/redmine/proposals` (создание по подписи карточки чата). Остальные маршруты не менялись. Новые файлы: `src/connections/redmine_tools.py` (инструменты чата поверх `mirror_snapshot`), `src/office/redmine_mirror/_proposal.py` (подпись).
+- Чат считает задачу открытой, если `cycle_hours is None`. Если поменяете смысл этого поля в зеркале, поправьте `_open` в `redmine_tools.py`.
+- `web/src/lib/Markdown.tsx`: блок ```pm-task рисуется карточкой `web/src/components/chat/TaskDraftCard.tsx`.
