@@ -476,7 +476,7 @@ export default function MessageInput({
                   disabled={!canSend}
                   className={`icon-btn rounded-full p-2.5 transition-colors ${
                     canSend
-                      ? "bg-[var(--accent)] text-[var(--accent-fg)] hover:opacity-90"
+                      ? "bg-[var(--accent-brand)] text-white hover:opacity-90"
                       : "bg-[var(--bg-hover)] text-[var(--fg-muted)] cursor-not-allowed"
                   }`}
                   title={sendButtonTitle(sendKey)}

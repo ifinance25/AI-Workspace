@@ -1208,10 +1208,7 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
           showThinking ? (
             <div className="py-8">{liveStatus}</div>
           ) : (
-            <ChatEmptyState
-              modelLabel={info?.known.find((m) => m.id === info?.current)?.label}
-              modelId={info?.current}
-            />
+            <ChatEmptyState />
           )
         ) : (
           <>
