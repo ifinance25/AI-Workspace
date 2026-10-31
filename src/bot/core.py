@@ -24,6 +24,7 @@ from src.bot.handlers import (
     setup_message_handlers,
 )
 from src.bot.middleware import AuthMiddleware, SecurityMiddleware
+from src.web.telegram_team import resolve_team_account
 from src.claude import ClaudeBridge, SessionManager, SessionStatus, sync_commands
 from src.config import Settings
 from src.connections.resolver import build_shared_mcp_servers
@@ -214,12 +215,23 @@ class TelegramClaudeBot:
             display_settings=settings.display,
             connections_secret_key=settings.get_connections_secret_key(),
         )
+        # Бот опрашивает Telegram только здесь: ссылка на привязку живая.
+        self.web_server.telegram_bot_enabled = True
 
         # Setup middleware
         self._setup_middleware()
 
         # Setup handlers
         self._setup_handlers()
+
+    def _team_account(self, telegram_id: int) -> dict | None:
+        """Локальная учётка участника команды по telegram id."""
+        return resolve_team_account(
+            telegram_id,
+            allowed_user_ids=self.settings.get_allowed_user_ids(),
+            office_store=self.web_server.office_store,
+            session_manager=self.session_manager,
+        )
 
     def _setup_middleware(self) -> None:
         """Setup middleware."""
@@ -232,7 +244,11 @@ class TelegramClaudeBot:
         # апсертить строку users (+username) при взаимодействии — иначе
         # приглашение участника по @username / числовому id отдаёт 404 (H-1/M-10).
         self.dp.message.middleware(
-            AuthMiddleware(allowed_users, session_manager=self.session_manager)
+            AuthMiddleware(
+                allowed_users,
+                session_manager=self.session_manager,
+                team_resolver=self._team_account,
+            )
         )
         self.dp.callback_query.middleware(
             AuthMiddleware(allowed_users, session_manager=self.session_manager)

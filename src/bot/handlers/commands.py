@@ -1,9 +1,12 @@
 """Command handlers (/start, /close, /settings, etc.)."""
 from __future__ import annotations
 
+import asyncio
+import re
+import time
 from html import escape
 
-from aiogram import Router
+from aiogram import F, Router
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
@@ -18,13 +21,19 @@ from src.bot.keyboards import (
 from src.claude import SessionManager, SessionStatus, ClaudeBridge
 from src.claude.mcp import McpManager, get_mcp_manager
 from src.bot import onboarding
+from src.bot.middleware.auth import FLAG_TEAM_WEBLOGIN, FLAG_TELEGRAM_BIND
 from src.config import Settings
+from src.office.storage import hash_channel_code
 from src.utils.url_safety import is_loopback_url, is_public_https_url
 from src.utils.context_hint import CONTEXT_WINDOW
 
 logger = structlog.get_logger()
 
 router = Router(name="commands")
+
+# Код из ссылки на привязку. Символы и длина как у secrets.token_urlsafe(24).
+BIND_PAYLOAD_RE = re.compile(r"^bind_[A-Za-z0-9_-]{20,64}$")
+BIND_CONFIRM_TTL_SECONDS = 10 * 60
 
 
 def setup_command_handlers(
@@ -145,6 +154,37 @@ async def _continue_in_topic(
         await bot.send_message(
             chat_id=chat_id,
             text="Не удалось восстановить сессию из веба. Попробуйте ещё раз позже.",
+        )
+
+
+@router.message(
+    CommandStart(deep_link=True, magic=F.args.regexp(BIND_PAYLOAD_RE)),
+    F.text,
+    F.chat.type == "private",
+    flags={FLAG_TELEGRAM_BIND: True},
+)
+async def cmd_start_bind(message: Message, command: CommandObject) -> None:
+    """Шаг привязки Telegram к учётке панели (architecture/11 §6.2, УИБ29-32).
+
+    Привязка не завершается здесь: человек подтверждает аккаунт паролем в панели.
+    Неверный код получает молчание, как любое сообщение постороннего.
+    """
+    store = getattr(getattr(router, "web_server", None), "office_store", None)
+    if store is None or message.from_user is None:
+        return
+    code = (command.args or "")[len("bind_") :]
+    user = message.from_user
+    accepted = await asyncio.to_thread(
+        store.mark_channel_binding_started,
+        hash_channel_code(code),
+        "telegram",
+        str(user.id),
+        user.username or user.full_name,
+        confirm_expires_at=time.time() + BIND_CONFIRM_TTL_SECONDS,
+    )
+    if accepted:
+        await message.answer(
+            "Аккаунт получен. Вернитесь в PM Workspace и подтвердите привязку паролем."
         )
 
 
@@ -498,7 +538,7 @@ async def cmd_skills(message: Message) -> None:
     )
 
 
-@router.message(Command("weblogin"))
+@router.message(Command("weblogin"), flags={FLAG_TEAM_WEBLOGIN: True})
 async def cmd_weblogin(message: Message) -> None:
     """Issue a one-time magic link for the web UI.
 
