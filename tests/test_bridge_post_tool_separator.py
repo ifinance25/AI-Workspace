@@ -67,6 +67,9 @@ class PostToolSeparatorTests(unittest.TestCase):
         out = []
         for raw in raw_events:
             out.extend(bridge._events_from_sdk_message(raw, state))
+        flushed = bridge._flush_post_tool_text(state)
+        if flushed is not None:
+            out.append(flushed)
         return "".join(
             e.content for e in out if e.type == ClaudeEventType.TEXT and e.content
         )
@@ -100,6 +103,23 @@ class PostToolSeparatorTests(unittest.TestCase):
             ]
         )
         self.assertEqual(text, "Смотрю файлы.\n\nГотово")
+
+    def test_mid_sentence_after_tool_stays_one_paragraph(self) -> None:
+        """Инструмент в середине фразы не должен ставить новый абзац."""
+        text = self._text(
+            [
+                _text_start(),
+                _delta("Файл не найден по"),
+                _block_stop(1),
+                _tool_start(),
+                _block_stop(0),
+                _text_start(),
+                _delta(" этому"),
+                _delta(" пути."),
+            ]
+        )
+        self.assertEqual(text, "Файл не найден по этому пути.")
+        self.assertNotIn("\n\n", text)
 
 
 if __name__ == "__main__":

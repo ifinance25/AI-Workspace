@@ -40,6 +40,7 @@ export function stripThinking(raw: string): string {
     .replace(TRAILING_OPEN_THINKING_RE, "")
     .replace(LONE_MARKER_RE, "")
     .replace(CONTROL_BYTES_RE, "")
+    .replace(/([^\n.!?…:;])\n\n[ \t]+/g, "$1 ")
     .replace(/\n{3,}/g, "\n\n")
     .replace(/^\s+|\s+$/g, "");
 }

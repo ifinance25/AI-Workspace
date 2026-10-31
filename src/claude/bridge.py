@@ -590,6 +590,22 @@ def _format_tool_params(name: str, params: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _post_tool_separator(pending: str, *, had_text: bool) -> str:
+    """Пустая строка после инструмента, только если дальше новое предложение.
+
+    Инструмент часто срабатывает посередине фразы («Файл не найден по» и
+    следом « этому пути»). Пустая строка в этом месте markdown рисует
+    новый абзац. Разделитель оставляем, когда первый кусок после
+    инструмента начинает новое предложение. Пробел или строчная буква
+    значит, что модель продолжает ту же строку.
+    """
+    if not had_text or not pending:
+        return ""
+    if pending[0].isspace() or pending[0].islower():
+        return ""
+    return "\n\n"
+
+
 class ClaudeBridge:
     """Bridge between Telegram handlers and Claude transports."""
 
@@ -2380,11 +2396,17 @@ class ClaudeBridge:
             state.saw_stream_delta = True
             prefix = _close_thinking()
             text_content = str(_value(delta, "text", "") or "")
-            if state.had_tool_use and state.had_text_output and text_content:
+            if state.had_tool_use and text_content:
                 if not state.post_tool_buffer:
                     state.post_tool_buffer = text_content
                     return prefix + [ClaudeEvent(type=ClaudeEventType.TEXT, content="")]
-                text_content = "\n\n" + state.post_tool_buffer + text_content
+                text_content = (
+                    _post_tool_separator(
+                        state.post_tool_buffer, had_text=state.had_text_output
+                    )
+                    + state.post_tool_buffer
+                    + text_content
+                )
                 state.post_tool_buffer = ""
                 state.had_tool_use = False
             if text_content:
@@ -2553,7 +2575,9 @@ class ClaudeBridge:
         if not state.post_tool_buffer:
             return None
 
-        sep = "\n\n" if state.had_text_output else ""
+        sep = _post_tool_separator(
+            state.post_tool_buffer, had_text=state.had_text_output
+        )
         content = sep + state.post_tool_buffer
         state.post_tool_buffer = ""
         return ClaudeEvent(type=ClaudeEventType.TEXT, content=content)
