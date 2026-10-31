@@ -319,6 +319,10 @@ class Settings(BaseSettings):
 
     # Environment overrides
     telegram_bot_token: str = Field(default="", alias="TELEGRAM_BOT_TOKEN")
+    # Прокси только для Telegram (бот, уведомления, вход): socks5://, socks5h://
+    # или http://. Нужен там, где api.telegram.org закрыт (хостинг в РФ).
+    # Пусто: прямое соединение. Прокси Claude (HTTP_PROXY) не затрагивается.
+    telegram_proxy_url: str = Field(default="", alias="TELEGRAM_PROXY_URL")
     allowed_user_ids_env: str = Field(default="", alias="ALLOWED_USER_IDS")
     projects_dir_env: str = Field(default="", alias="PROJECTS_DIR")
     session_database_path_env: str = Field(default="", alias="SESSION_DATABASE_PATH")

@@ -68,18 +68,39 @@ def plan_sdk_session_restore(sessions, existing_topic_ids):
     return restore_map, fork_pending
 
 
+def build_telegram_session(proxy_url: str = "") -> AiohttpSession:
+    """Сессия aiogram: через TELEGRAM_PROXY_URL, иначе напрямую.
+
+    Прямой режим не берёт HTTP_PROXY из окружения: он нужен Claude CLI для
+    Anthropic, а Telegram доступен напрямую (VPN). Заданный прокси работает
+    только для Telegram, адрес с логином в журнал не попадает.
+    """
+    url = (proxy_url or "").strip()
+    if url:
+        scheme = url.split("://", 1)[0].lower() if "://" in url else ""
+        if scheme == "socks5h":
+            # aiogram и так просит прокси разрешать имена сам (rdns).
+            url = "socks5://" + url.split("://", 1)[1]
+            scheme = "socks5"
+        if scheme not in {"socks5", "socks4", "http", "https"}:
+            raise ValueError(
+                "TELEGRAM_PROXY_URL: ожидается socks5://, socks4://, http:// или https://"
+            )
+        host = url.split("@")[-1].split("/")[0]
+        logger.info("telegram_proxy_enabled", scheme=scheme, host=host)
+        return AiohttpSession(proxy=url)
+    session = AiohttpSession()
+    session._proxy = None
+    return session
+
+
 class TelegramClaudeBot:
     """Main bot class."""
 
     def __init__(self, settings: Settings):
         self.settings = settings
 
-        # Create session WITHOUT proxy — Telegram API
-        # is reachable via VPN directly, while HTTP_PROXY
-        # env var is used by Claude CLI for Anthropic API.
-        session = AiohttpSession()
-        # Override: don't use env proxy for Telegram
-        session._proxy = None
+        session = build_telegram_session(settings.telegram_proxy_url)
 
         # Initialize bot
         self.bot = Bot(

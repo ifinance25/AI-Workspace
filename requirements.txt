@@ -1,4 +1,6 @@
 aiogram>=3.4.0
+# SOCKS-прокси для Telegram (TELEGRAM_PROXY_URL=socks5://...)
+aiohttp-socks>=0.9
 aiosqlite>=0.20.0
 claude-agent-sdk>=0.1.0
 mcp>=2.2,<3
