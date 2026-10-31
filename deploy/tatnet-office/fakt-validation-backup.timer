@@ -1,0 +1,11 @@
+[Unit]
+Description=Ночная копия сервера валидации
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=600
+Unit=fakt-validation-backup.service
+
+[Install]
+WantedBy=timers.target

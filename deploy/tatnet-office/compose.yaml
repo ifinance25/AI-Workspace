@@ -1,0 +1,35 @@
+# Сервер ручной валидации рядом с базой знаний на VPS tatnet.
+# Запуск из этого каталога: docker compose --env-file ./release.env up -d --build
+# Снаружи контейнер недоступен: порта нет, сеть runs-net внутренняя, без выхода в интернет.
+# Nginx контура fakt подключается к сети fakt_runs-net (см. docs/deploy-tatnet-office.md).
+name: fakt
+
+services:
+  runs:
+    build:
+      context: ../..
+      dockerfile: deploy/tatnet-office/Dockerfile
+    image: fakt-runs:${RELEASE:-local}
+    container_name: fakt-runs
+    user: "1001:1001"
+    read_only: true
+    tmpfs: ["/tmp:size=128m,uid=1001,gid=1001"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    # Секреты лежат на сервере в файле root:root 0600, в образ и в Git не попадают.
+    env_file: /srv/fakt/validation/runs.env
+    environment:
+      SESSION_DATABASE_PATH: /data/sessions.db
+      WEB_PUBLIC_ORIGIN: https://runs.pm-workspace.ru
+      WEB_COOKIE_SECURE: "1"
+    volumes:
+      - /srv/fakt/validation/data:/data
+    networks: [runs-net]
+    mem_limit: 768m
+    cpus: "0.5"
+    pids_limit: 128
+
+networks:
+  runs-net:
+    internal: true

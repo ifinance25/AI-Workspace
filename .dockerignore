@@ -1,0 +1,20 @@
+# Секреты и данные в образ не попадают: окружение приходит при запуске.
+.env
+.env.*
+!.env.example
+data/
+*.db
+*.db-wal
+*.db-shm
+.git/
+.venv/
+node_modules/
+web/node_modules/
+web/dist/
+graphify-out/
+.autopilot/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+tests/
+deploy/

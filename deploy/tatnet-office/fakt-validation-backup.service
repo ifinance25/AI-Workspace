@@ -1,0 +1,10 @@
+[Unit]
+Description=Ночная копия сервера валидации (база и файлы прогонов)
+
+[Service]
+Type=oneshot
+Environment=DATA_DIR=/srv/fakt/validation/data
+Environment=BACKUP_DIR=/srv/fakt/validation-backups
+Environment=KEEP_DAYS=14
+ExecStart=/opt/fakt-knowledge-base/validation/backup_office.sh
+Nice=10
