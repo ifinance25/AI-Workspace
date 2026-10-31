@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useAuth } from "@/auth/AuthContext";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDownIcon, providerLogo } from "@/components/icons";
 import { useClickOutside } from "@/lib/useClickOutside";
@@ -18,6 +19,7 @@ export default function InputModelButton({ onChange }: Props) {
   // useFallback=true — даже если бэк недоступен, показываем кнопку с
   // дефолтным списком моделей, а не пустую/мёртвую.
   const { info, error: loadError, setModel } = useModelInfo(true);
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [patchError, setPatchError] = useState<string | null>(null);
@@ -50,6 +52,10 @@ export default function InputModelButton({ onChange }: Props) {
       setBusy(false);
     }
   };
+
+  // Модель общая для всех и меняется только админом (PATCH /api/model),
+  // остальным кнопка не нужна.
+  if (!user?.is_admin) return null;
 
   const current = info?.current ?? "claude-sonnet-5-5";
   const knownItem = info?.known.find((m) => m.id === current);
