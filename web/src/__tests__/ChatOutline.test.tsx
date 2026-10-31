@@ -12,9 +12,17 @@ describe("buildOutline", () => {
       { id: "u-3", kind: "user_message", content: "Вторая тема" },
     ]);
     expect(items).toEqual([
-      { id: "u-1", title: "Первая тема" },
-      { id: "u-3", title: "Вторая тема" },
+      { id: "u-1", title: "Первая тема", preview: "вторая строка" },
+      { id: "u-3", title: "Вторая тема", preview: undefined },
     ]);
+  });
+
+  it("для однострочного вопроса берёт начало ответа", () => {
+    const [x] = buildOutline([
+      { id: "u-1", kind: "user_message", content: "Как выкатить?" },
+      { id: "t-1", kind: "text", content: "## Шаги\nЗапусти `install.sh`" },
+    ]);
+    expect(x.preview).toBe("Шаги Запусти install.sh");
   });
 
   it("обрезает длинный заголовок", () => {

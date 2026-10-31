@@ -4,23 +4,48 @@ import type { RefObject } from "react";
 export interface OutlineItem {
   id: string;
   title: string;
+  /** Краткое описание: продолжение вопроса или начало ответа Claude. */
+  preview?: string;
 }
 
 const MAX_TITLE = 70;
+const MAX_PREVIEW = 170;
+
+const clean = (t: string): string =>
+  t
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/[#*_`>|]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const cut = (t: string, n: number): string =>
+  t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t;
 
 /** Оглавление чата: по одной черте на каждое сообщение пользователя. */
 export function buildOutline(
   bubbles: { id: string; kind: string; content: string }[],
 ): OutlineItem[] {
   const items: OutlineItem[] = [];
-  for (const b of bubbles) {
+  for (let i = 0; i < bubbles.length; i++) {
+    const b = bubbles[i];
     if (b.kind !== "user_message") continue;
-    const line = b.content.split("\n").find((l) => l.trim()) ?? "";
-    const text = line.trim().replace(/\s+/g, " ");
-    if (!text) continue;
+    const lines = b.content.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (lines.length === 0) continue;
+    let preview = clean(lines.slice(1).join(" "));
+    if (!preview) {
+      // Вопрос в одну строку: показываем начало ответа Claude.
+      for (let j = i + 1; j < bubbles.length; j++) {
+        if (bubbles[j].kind === "user_message") break;
+        if (bubbles[j].kind === "text") {
+          preview = clean(bubbles[j].content);
+          if (preview) break;
+        }
+      }
+    }
     items.push({
       id: b.id,
-      title: text.length > MAX_TITLE ? `${text.slice(0, MAX_TITLE - 1)}…` : text,
+      title: cut(clean(lines[0]) || lines[0], MAX_TITLE),
+      preview: preview ? cut(preview, MAX_PREVIEW) : undefined,
     });
   }
   return items;
@@ -97,8 +122,15 @@ export default function ChatOutline({ items, scrollRef }: Props) {
             className="group relative flex h-4 w-8 shrink-0 items-center justify-end pr-1.5"
           >
             {hovered && (
-              <span className="pointer-events-none absolute right-8 top-1/2 max-w-[18rem] -translate-y-1/2 truncate whitespace-nowrap rounded-lg bg-[var(--bg-elevated)] px-2.5 py-1 text-xs text-[var(--fg-primary)] shadow-lg ring-1 ring-[var(--border-subtle)]">
-                {it.title}
+              <span className="pointer-events-none absolute right-8 top-1/2 z-30 w-72 -translate-y-1/2 rounded-xl bg-[var(--bg-elevated)] px-3 py-2 text-left shadow-lg ring-1 ring-[var(--border-subtle)]">
+                <span className="block text-sm font-medium leading-snug text-[var(--fg-primary)]">
+                  {it.title}
+                </span>
+                {it.preview && (
+                  <span className="mt-1 line-clamp-3 block text-xs leading-snug text-[var(--fg-secondary)]">
+                    {it.preview}
+                  </span>
+                )}
               </span>
             )}
             <span
