@@ -28,6 +28,8 @@ BIND_CODE_TTL_SECONDS = 10 * 60
 
 class _ConfirmIn(BaseModel):
     password: str
+    # Аккаунт, который человек видел на экране, когда вводил пароль.
+    external_user_id: str
 
 
 def make_telegram_link_router(
@@ -130,7 +132,10 @@ def make_telegram_link_router(
         limiter.reset(key)
         try:
             binding = await asyncio.to_thread(
-                office_store.confirm_channel_binding, user_id, CHANNEL_TELEGRAM
+                office_store.confirm_channel_binding,
+                user_id,
+                CHANNEL_TELEGRAM,
+                payload.external_user_id,
             )
         except ChannelBindingConflictError:
             raise HTTPException(

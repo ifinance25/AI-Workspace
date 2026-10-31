@@ -61,7 +61,7 @@ describe("TelegramLinkPanel", () => {
     await userEvent.type(screen.getByPlaceholderText("Пароль"), "secret-password");
     await userEvent.click(screen.getByRole("button", { name: "Подтвердить" }));
     await waitFor(() =>
-      expect(mockApi.telegramConfirm).toHaveBeenCalledWith("secret-password"),
+      expect(mockApi.telegramConfirm).toHaveBeenCalledWith("secret-password", "7900000000"),
     );
     expect(await screen.findByText("Привязан аккаунт: ivan")).toBeInTheDocument();
   });

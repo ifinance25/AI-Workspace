@@ -52,10 +52,14 @@ export default function TelegramLinkPanel() {
 
   const confirm = () =>
     run(async () => {
-      await api.telegramConfirm(password);
-      setPassword("");
-      setDeepLink("");
-      await load();
+      try {
+        // Сервер сверит аккаунт: подменённый за это время не подтвердится.
+        await api.telegramConfirm(password, info?.external_user_id ?? "");
+        setPassword("");
+        setDeepLink("");
+      } finally {
+        await load();
+      }
     });
 
   const cancel = () =>

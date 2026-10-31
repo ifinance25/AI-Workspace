@@ -77,7 +77,8 @@ def _bind(env, client=None, telegram_id: str = TEAM_TG):
     code = _start(env, client)
     assert _telegram_presses_start(env, code, telegram_id)
     return (client or env.client).post(
-        "/api/me/telegram/confirm", json={"password": PASSWORD}
+        "/api/me/telegram/confirm",
+        json={"password": PASSWORD, "external_user_id": telegram_id},
     )
 
 
@@ -130,7 +131,7 @@ def test_confirm_window_expires(tmp_path):
     store.mark_channel_binding_started(
         "h", "telegram", TEAM_TG, "ivan", confirm_expires_at=200.0, now=50.0
     )
-    assert store.confirm_channel_binding(1, "telegram", now=201.0) is None
+    assert store.confirm_channel_binding(1, "telegram", TEAM_TG, now=201.0) is None
     store.close()
 
 
@@ -143,9 +144,9 @@ def test_duplicate_active_binding_rejected_by_database(tmp_path):
         store.mark_channel_binding_started(
             code_hash, "telegram", TEAM_TG, "ivan", confirm_expires_at=200.0, now=50.0
         )
-    store.confirm_channel_binding(1, "telegram", now=60.0)
+    store.confirm_channel_binding(1, "telegram", TEAM_TG, now=60.0)
     with pytest.raises(ChannelBindingConflictError):
-        store.confirm_channel_binding(2, "telegram", now=60.0)
+        store.confirm_channel_binding(2, "telegram", TEAM_TG, now=60.0)
     store.close()
 
 
@@ -197,25 +198,46 @@ def test_confirm_with_right_password(env):
 def test_confirm_with_wrong_password(env):
     code = _start(env)
     _telegram_presses_start(env, code)
-    resp = env.client.post("/api/me/telegram/confirm", json={"password": "wrong"})
+    resp = env.client.post(
+        "/api/me/telegram/confirm", json={"password": "wrong", "external_user_id": TEAM_TG}
+    )
     assert resp.status_code == 401
     assert env.store.find_active_binding("telegram", TEAM_TG) is None
+
+
+def test_confirm_refuses_swapped_account(env):
+    """Вор сессии подменил аккаунт, пока владелец вводит пароль за показанный."""
+    _telegram_presses_start(env, _start(env), TEAM_TG)
+    shown = env.client.get("/api/me/telegram").json()["external_user_id"]
+    _telegram_presses_start(env, _start(env), "666")
+    resp = env.client.post(
+        "/api/me/telegram/confirm", json={"password": PASSWORD, "external_user_id": shown}
+    )
+    assert resp.status_code == 409
+    assert env.store.find_active_binding("telegram", "666") is None
+    assert env.client.get("/api/me/telegram").json()["state"] == "waiting_confirm"
 
 
 def test_confirm_is_rate_limited(env):
     code = _start(env)
     _telegram_presses_start(env, code)
     statuses = [
-        env.client.post("/api/me/telegram/confirm", json={"password": "wrong"}).status_code
+        env.client.post(
+            "/api/me/telegram/confirm", json={"password": "wrong", "external_user_id": TEAM_TG}
+        ).status_code
         for _ in range(12)
     ]
     assert 429 in statuses
-    resp = env.client.post("/api/me/telegram/confirm", json={"password": PASSWORD})
+    resp = env.client.post(
+        "/api/me/telegram/confirm", json={"password": PASSWORD, "external_user_id": TEAM_TG}
+    )
     assert resp.status_code == 429
 
 
 def test_confirm_without_start_is_409(env):
-    resp = env.client.post("/api/me/telegram/confirm", json={"password": PASSWORD})
+    resp = env.client.post(
+        "/api/me/telegram/confirm", json={"password": PASSWORD, "external_user_id": TEAM_TG}
+    )
     assert resp.status_code == 409
 
 

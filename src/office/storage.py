@@ -313,9 +313,13 @@ class OfficeStore:
             return cur.rowcount > 0
 
     def confirm_channel_binding(
-        self, user_id: int, channel: str, *, now: float | None = None
+        self, user_id: int, channel: str, external_user_id: str, *, now: float | None = None
     ) -> dict | None:
-        """Владелец подтвердил аккаунт. None: подтверждать нечего или срок вышел."""
+        """Владелец подтвердил именно этот аккаунт.
+
+        None: подтверждать нечего, срок вышел или аккаунт подменили, пока человек
+        вводил пароль: подтверждение не должно закрепить то, чего он не видел.
+        """
         ts = time.time() if now is None else now
         with self._lock:
             conn = self._connection()
@@ -324,8 +328,8 @@ class OfficeStore:
                     "UPDATE office_channel_bindings SET state = 'active', "
                     "confirm_expires_at = NULL, updated_at = ? "
                     "WHERE user_id = ? AND channel = ? AND state = 'pending' "
-                    "AND external_user_id IS NOT NULL AND confirm_expires_at >= ?",
-                    (_now(), user_id, channel, ts),
+                    "AND external_user_id = ? AND confirm_expires_at >= ?",
+                    (_now(), user_id, channel, external_user_id, ts),
                 )
             except sqlite3.IntegrityError as exc:
                 conn.rollback()

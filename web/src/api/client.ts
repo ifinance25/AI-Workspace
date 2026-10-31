@@ -138,11 +138,11 @@ export const api = {
   telegramStart() {
     return req<{ deep_link: string; expires_in: number }>("POST", "/api/me/telegram/start");
   },
-  telegramConfirm(password: string) {
+  telegramConfirm(password: string, externalUserId: string) {
     return req<{ ok: boolean; state: string; username: string }>(
       "POST",
       "/api/me/telegram/confirm",
-      { password },
+      { password, external_user_id: externalUserId },
     );
   },
   telegramUnbind() {

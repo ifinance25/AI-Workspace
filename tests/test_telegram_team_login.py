@@ -42,7 +42,7 @@ def _bind(store, user_id: int, telegram_id: int = TEAM_TG) -> None:
     assert store.mark_channel_binding_started(
         "hash", "telegram", str(telegram_id), "ivan", confirm_expires_at=time.time() + 60
     )
-    assert store.confirm_channel_binding(user_id, "telegram") is not None
+    assert store.confirm_channel_binding(user_id, "telegram", str(telegram_id)) is not None
 
 
 @pytest.fixture
