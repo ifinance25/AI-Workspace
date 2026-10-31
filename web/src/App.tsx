@@ -8,6 +8,7 @@ import ChatPage from "@/routes/ChatPage";
 import LoginPage from "@/routes/LoginPage";
 import OfficePage from "@/routes/OfficePage";
 import RedminePage from "@/routes/RedminePage";
+import RunsPage from "@/routes/RunsPage";
 import SettingsPage from "@/routes/SettingsPage";
 import { ROUTER_BASENAME } from "@/api/base";
 
@@ -74,6 +75,14 @@ export default function App() {
               element={
                 <Protected>
                   <RedminePage />
+                </Protected>
+              }
+            />
+            <Route
+              path="/office/:id/runs"
+              element={
+                <Protected>
+                  <RunsPage />
                 </Protected>
               }
             />

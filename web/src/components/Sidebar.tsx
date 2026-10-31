@@ -325,6 +325,7 @@ export default function Sidebar({
   const redmineActive = Boolean(
     officeProjectNumeric && location.pathname.endsWith("/redmine"),
   );
+  const runsActive = Boolean(officeProjectNumeric && location.pathname.endsWith("/runs"));
 
   const fullContent = (
     <div className="flex h-full w-80 flex-col">
@@ -386,6 +387,19 @@ export default function Sidebar({
             }`}
           >
             Задачи
+          </Link>
+        )}
+        {officeProjectNumeric && (
+          <Link
+            to={`/office/${officeProjectNumeric}/runs`}
+            onClick={() => overlay && onToggleCollapsed()}
+            className={`mt-0.5 flex w-full items-center rounded-xl py-2 pl-11 pr-3 text-[14px] transition-colors ${
+              runsActive
+                ? "bg-[var(--bg-hover)] text-[var(--fg-primary)]"
+                : "text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
+            }`}
+          >
+            Прогоны
           </Link>
         )}
       </div>
