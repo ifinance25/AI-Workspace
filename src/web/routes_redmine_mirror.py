@@ -47,6 +47,16 @@ class _CreateIn(BaseModel):
     base_url: str = ""
 
 
+class _ProposalIn(BaseModel):
+    """Карточка из чата: поля и подпись инструмента, как они были в блоке."""
+
+    subject: str
+    description: str = ""
+    due_date: str = ""
+    signature: str
+    redmine_project: str = ""
+
+
 class _UpdateIn(BaseModel):
     subject: str | None = None
     description: str | None = None
@@ -95,7 +105,13 @@ class _LazyClient:
 
 
 def make_redmine_mirror_router(
-    *, office_store, require_actor, require_project, session_manager, cipher=None
+    *,
+    office_store,
+    require_actor,
+    require_project,
+    session_manager,
+    cipher=None,
+    proposal_secret: str = "",
 ) -> APIRouter:
     def _factory(base_url: str):
         del base_url
@@ -208,6 +224,41 @@ def make_redmine_mirror_router(
                 start_date=body.start_date,
                 due_date=body.due_date,
                 notes=body.notes,
+                base_url=url,
+            )
+        except redmine_mirror.MirrorError as exc:
+            raise _fail(exc) from exc
+
+    @router.post("/projects/{project_id}/redmine/proposals")
+    async def confirm_proposal(body: _ProposalIn, ctx: dict = Depends(require_project)) -> dict:
+        """Человек нажал «Создать» под карточкой чата. Без верной подписи задачи нет."""
+        project_id = ctx["project"]["id"]
+        actor_id = ctx["actor"]["user_id"]
+        if not redmine_mirror.verify_proposal(
+            proposal_secret,
+            body.signature,
+            project_id,
+            actor_id,
+            body.subject,
+            body.description,
+            body.due_date,
+        ):
+            raise HTTPException(status_code=403, detail="Карточка не от чата или изменена")
+        url, project, key = _access(body.redmine_project)
+        try:
+            return await asyncio.to_thread(
+                redmine_mirror.create_issue,
+                office_store,
+                project_id,
+                actor_id=actor_id,
+                is_admin=ctx["actor"]["is_admin"],
+                client=_LazyClient(url, key),
+                users=session_manager,
+                request_key=redmine_mirror.proposal_request_key(body.signature),
+                redmine_project=project,
+                subject=body.subject,
+                description=body.description,
+                due_date=body.due_date or None,
                 base_url=url,
             )
         except redmine_mirror.MirrorError as exc:

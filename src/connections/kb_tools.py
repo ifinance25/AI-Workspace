@@ -371,27 +371,40 @@ async def call_tool(
     return result
 
 
-def build_kb_server(url: str, key: str, *, user_id: int | None = None) -> dict[str, Any]:
+def build_kb_server(
+    url: str,
+    key: str,
+    *,
+    user_id: int | None = None,
+    extra_tools: tuple[Any, ...] | list[Any] = (),
+) -> dict[str, Any]:
     """Запись типа sdk для опций запуска.
 
     Импорт ленивый: мост импортирует этот модуль при старте, а SDK может отсутствовать,
     тогда работает запасной CLI-путь без базы.
+
+    ``extra_tools``: готовые инструменты других источников (задачи Redmine) в тот же
+    сервер. Пустые ``url`` и ``key`` значат, что инструментов базы знаний нет.
     """
     from claude_agent_sdk import SdkMcpTool, ToolAnnotations, create_sdk_mcp_server
 
-    endpoint = KbEndpoint(url=url, key=key)
-    read_only = ToolAnnotations(readOnlyHint=True)
+    tools: list[Any] = []
+    if url and key:
+        endpoint = KbEndpoint(url=url, key=key)
+        read_only = ToolAnnotations(readOnlyHint=True)
 
-    def _sdk_tool(spec: KbTool) -> SdkMcpTool[Any]:
-        async def _handler(arguments: dict[str, Any]) -> dict[str, Any]:
-            return await call_tool(endpoint, spec.name, arguments, user_id=user_id)
+        def _sdk_tool(spec: KbTool) -> SdkMcpTool[Any]:
+            async def _handler(arguments: dict[str, Any]) -> dict[str, Any]:
+                return await call_tool(endpoint, spec.name, arguments, user_id=user_id)
 
-        return SdkMcpTool(
-            name=spec.name,
-            description=spec.description,
-            input_schema=spec.schema,
-            handler=_handler,
-            annotations=read_only,
-        )
+            return SdkMcpTool(
+                name=spec.name,
+                description=spec.description,
+                input_schema=spec.schema,
+                handler=_handler,
+                annotations=read_only,
+            )
 
-    return create_sdk_mcp_server(SERVER_NAME, tools=[_sdk_tool(spec) for spec in TOOLS])
+        tools.extend(_sdk_tool(spec) for spec in TOOLS)
+    tools.extend(extra_tools)
+    return create_sdk_mcp_server(SERVER_NAME, tools=tools)

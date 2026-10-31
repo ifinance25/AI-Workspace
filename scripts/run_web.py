@@ -131,6 +131,7 @@ async def _serve(host: str | None, port: int | None) -> int:
         projects_dir=settings.get_projects_directory(),
         # Пилот включён, если резолвер собирает общий сервер (как в src/bot/core.py).
         kb_search_enabled=bool(build_shared_mcp_servers(settings)),
+        redmine_chat_tools=True,
         display_settings=settings.display,
         connections_secret_key=settings.get_connections_secret_key(),
     )

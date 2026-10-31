@@ -72,6 +72,7 @@ def make_office_router(
             require_project=require_project,
             session_manager=session_manager,
             cipher=redmine_mirror.cipher_from_key(connections_secret_key),
+            proposal_secret=jwt_secret,
         )
     )
     return router

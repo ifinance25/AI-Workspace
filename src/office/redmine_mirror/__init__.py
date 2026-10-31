@@ -15,6 +15,9 @@ from src.office.redmine_mirror._account import (
     url_allowed,
 )
 from src.office.redmine_mirror._http import open_client
+from src.office.redmine_mirror._proposal import request_key as proposal_request_key
+from src.office.redmine_mirror._proposal import sign as sign_proposal
+from src.office.redmine_mirror._proposal import verify as verify_proposal
 from src.office.redmine_mirror._demo_seed import create_demo_issue, seed_demo_mirror
 from src.office.redmine_mirror._lookups import load_lookups, seed_lookups
 from src.office.redmine_mirror._mirror import (
@@ -44,6 +47,9 @@ __all__ = [
     "load_project",
     "mirror_snapshot",
     "open_client",
+    "proposal_request_key",
+    "sign_proposal",
+    "verify_proposal",
     "resolve_access",
     "run_due",
     "save_account",

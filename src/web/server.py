@@ -104,6 +104,7 @@ class WebServer:
         ssh_store: Any = None,
         projects_dir: str | Path | None = None,
         kb_search_enabled: bool = False,
+        redmine_chat_tools: bool = False,
         display_settings: DisplaySettings | None = None,
         connections_secret_key: str = "",
     ) -> None:
@@ -115,7 +116,9 @@ class WebServer:
         self.display_settings = display_settings or DisplaySettings()
         # Только булев флаг «общая база знаний подключена» для /api/me: адрес и
         # ключ сервера до веб-слоя не доходят.
-        self.kb_search_enabled = bool(kb_search_enabled)
+        # Лупа доступна, если подключена база знаний ИЛИ чат читает задачи Redmine.
+        self.kb_search_enabled = bool(kb_search_enabled) or bool(redmine_chat_tools)
+        self.redmine_chat_tools = bool(redmine_chat_tools)
         self.allowed_user_ids = allowed_user_ids
         self.bot_username = bot_username
         self.session_manager = session_manager
@@ -448,6 +451,12 @@ class WebServer:
             storage_path = getattr(self.session_manager, "storage_path", None)
             if isinstance(storage_path, (str, Path)):
                 self.office_store = OfficeStore(storage_path)
+                if self.redmine_chat_tools:
+                    from src.connections import redmine_tools
+
+                    redmine_tools.register(
+                        self.office_store, self.session_manager, self.jwt_secret
+                    )
                 self.app.include_router(
                     make_office_router(
                         jwt_secret=self.jwt_secret,

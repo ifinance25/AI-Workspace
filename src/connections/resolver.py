@@ -12,7 +12,7 @@ from typing import Any
 
 import structlog
 
-from src.connections import catalog, kb_tools, proxy
+from src.connections import catalog, kb_tools, proxy, redmine_tools
 from src.connections.store import ConnectionsStore
 
 logger = structlog.get_logger()
@@ -80,15 +80,24 @@ def build_shared_mcp_servers(settings: Any, user_id: int | None = None) -> dict[
     записи, а адрес и ключ остаются здесь. Пустой результат также выключает лупу
     (kb_search_enabled в src/bot/core.py и scripts/run_web.py).
     """
+    if not _uses_sdk_transport(settings):
+        return {}
     url = _kb_setting(settings, "get_kb_mcp_url")
     key = _kb_setting(settings, "get_kb_mcp_key")
-    if not url or not key or not _uses_sdk_transport(settings):
-        return {}
-    if not kb_tools.url_allowed(url):
+    kb_ready = bool(url and key)
+    if kb_ready and not kb_tools.url_allowed(url):
         logger.warning("kb_url_rejected", reason="нужен https или http на петлевом адресе")
+        kb_ready = False
+    # Задачи Redmine идут в тот же сервер, но только для известного пользователя: без
+    # user_id (проверка «включена ли лупа») они не считаются.
+    extra = redmine_tools.sdk_tools(user_id) if user_id is not None else []
+    if not kb_ready and not extra:
         return {}
     try:
-        server = kb_tools.build_kb_server(url, key, user_id=user_id)
+        extras = {"extra_tools": extra} if extra else {}
+        server = kb_tools.build_kb_server(
+            url if kb_ready else "", key if kb_ready else "", user_id=user_id, **extras
+        )
     except Exception as exc:  # noqa: BLE001 — без SDK или при сбое сборки чат работает без базы
         logger.warning("kb_server_build_failed", error_class=type(exc).__name__)
         return {}
