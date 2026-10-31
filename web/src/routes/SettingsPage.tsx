@@ -4,6 +4,7 @@ import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
 import { LogOutIcon, RefreshIcon } from "@/components/icons";
 import SshSettingsPanel from "@/components/SshSettingsPanel";
+import TelegramLinkPanel from "@/components/TelegramLinkPanel";
 import {
   applyTheme,
   getStoredTheme,
@@ -109,6 +110,10 @@ export default function SettingsPage() {
                 </span>
               </div>
             </div>
+          </Section>
+
+          <Section title="Telegram">
+            <TelegramLinkPanel />
           </Section>
 
           <Section title="Тема">

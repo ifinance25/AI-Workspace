@@ -225,6 +225,15 @@ function UserRow({
     }
   };
 
+  const unbindTelegram = async () => {
+    try {
+      await api.adminUnbindTelegram(user.user_id);
+      onChanged();
+    } catch (e) {
+      onError((e as Error).message);
+    }
+  };
+
   const remove = async () => {
     try {
       await api.adminDeleteUser(user.user_id);
@@ -246,6 +255,9 @@ function UserRow({
           )}
           {!user.is_active ? <span className="text-xs text-red-400">отключён</span> : null}
           <KeyBadge user={user} />
+          {user.telegram_username ? (
+            <span className="text-xs text-sky-400">Telegram: {user.telegram_username}</span>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           {!isSelf && (
@@ -262,6 +274,14 @@ function UserRow({
           >
             Сброс пароля
           </button>
+          {user.telegram_username ? (
+            <button
+              onClick={() => void unbindTelegram()}
+              className="rounded-lg bg-[var(--bg-hover)] px-2.5 py-1 text-xs text-[var(--fg-secondary)] hover:text-[var(--fg-primary)]"
+            >
+              Отвязать Telegram
+            </button>
+          ) : null}
           <button
             onClick={() => void toggleActive()}
             className="rounded-lg bg-[var(--bg-hover)] px-2.5 py-1 text-xs text-[var(--fg-secondary)] hover:text-[var(--fg-primary)]"

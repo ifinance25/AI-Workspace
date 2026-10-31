@@ -6,6 +6,7 @@ import type {
   ApiUser,
   ArtifactsResponse,
   Attachment,
+  AuthConfig,
   ConnectionsInfo,
   DisplaySettingsAdmin,
   DocFile,
@@ -25,6 +26,7 @@ import type {
   Session,
   SlashCommand,
   SshProfileInfo,
+  TelegramLinkStatus,
 } from "@/lib/types";
 import { apiUrl } from "@/api/base";
 
@@ -126,6 +128,31 @@ export const api = {
       username,
       password,
     });
+  },
+  authConfig() {
+    return req<AuthConfig>("GET", "/api/auth/config");
+  },
+  telegramStatus() {
+    return req<TelegramLinkStatus>("GET", "/api/me/telegram");
+  },
+  telegramStart() {
+    return req<{ deep_link: string; expires_in: number }>("POST", "/api/me/telegram/start");
+  },
+  telegramConfirm(password: string) {
+    return req<{ ok: boolean; state: string; username: string }>(
+      "POST",
+      "/api/me/telegram/confirm",
+      { password },
+    );
+  },
+  telegramUnbind() {
+    return req<{ ok: boolean; removed: boolean }>("DELETE", "/api/me/telegram");
+  },
+  adminUnbindTelegram(userId: number) {
+    return req<{ ok: boolean; removed: boolean }>(
+      "DELETE",
+      `/api/admin/users/${userId}/telegram`,
+    );
   },
   adminListUsers() {
     return req<AdminUser[]>("GET", "/api/admin/users");

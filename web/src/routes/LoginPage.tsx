@@ -10,8 +10,6 @@ declare global {
   }
 }
 
-const BOT_USERNAME = import.meta.env.VITE_BOT_USERNAME ?? "";
-
 /**
  * Снимает секреты входа (`token`/`magic`) из адресной строки браузера ДО
  * того как страница успеет отрендерить внешний telegram-widget или сделать
@@ -57,12 +55,33 @@ export default function LoginPage() {
   }
   const { token: capturedToken, magic: capturedMagic } = secretsRef.current;
   const [error, setError] = useState<string | null>(null);
+  const [magicFailed, setMagicFailed] = useState(false);
+  // Имя бота приходит с сервера: пользователя ещё нет, /api/me недоступен.
+  // Пусто: вход только по логину, про Telegram страница молчит.
+  const [botUsername, setBotUsername] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const consumedMagicRef = useRef<string | null>(null);
   const consumedTokenRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .authConfig()
+      .then((config) => {
+        if (!cancelled && config.telegram_enabled) {
+          setBotUsername(config.telegram_bot_username);
+        }
+      })
+      .catch(() => {
+        // Конфиг не ответил: вход по логину работает в любой установке.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const submitLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,10 +110,8 @@ export default function LoginPage() {
         await refresh();
         nav("/", { replace: true });
       } catch (e) {
-        setError(
-          `Не удалось войти по magic-ссылке: ${(e as Error).message}. ` +
-            "Запросите свежую ссылку через /weblogin в боте."
-        );
+        setError(`Не удалось войти по magic-ссылке: ${(e as Error).message}.`);
+        setMagicFailed(true);
       }
     })();
   }, [capturedMagic, nav, refresh]);
@@ -116,7 +133,7 @@ export default function LoginPage() {
   }, [capturedToken, nav, refresh]);
 
   useEffect(() => {
-    if (!BOT_USERNAME) return;
+    if (!botUsername) return;
     // Не грузим внешний telegram-widget, пока в процессе вход по token/magic:
     // лишний внешний скрипт при активном секрет-флоу не нужен. (К моменту
     // этого effect'а секреты уже сняты с URL в consumeAuthSecretsFromUrl.)
@@ -138,7 +155,7 @@ export default function LoginPage() {
     const s = document.createElement("script");
     s.src = "https://telegram.org/js/telegram-widget.js?22";
     s.async = true;
-    s.setAttribute("data-telegram-login", BOT_USERNAME);
+    s.setAttribute("data-telegram-login", botUsername);
     s.setAttribute("data-size", "large");
     s.setAttribute("data-radius", "8");
     s.setAttribute("data-onauth", "onTelegramAuth(user)");
@@ -148,7 +165,7 @@ export default function LoginPage() {
     return () => {
       node.replaceChildren();
     };
-  }, [nav, refresh, capturedToken, capturedMagic]);
+  }, [nav, refresh, capturedToken, capturedMagic, botUsername]);
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-[var(--bg-canvas)] px-4 py-8 sm:px-6">
@@ -206,7 +223,7 @@ export default function LoginPage() {
         </form>
 
         <div className="mt-8">
-          {BOT_USERNAME ? (
+          {botUsername ? (
             <>
               <p className="mb-3 text-sm text-[var(--fg-muted)]">или через Telegram</p>
               <div ref={widgetRef} className="flex justify-center" />
@@ -214,17 +231,22 @@ export default function LoginPage() {
           ) : null}
         </div>
 
-        <p className="mt-8 text-xs text-[var(--fg-muted)]">
-          Получить ссылку для входа: отправьте{" "}
-          <code className="rounded-md bg-[var(--bg-hover)] px-1.5 py-0.5 text-[var(--fg-secondary)]">
-            /weblogin
-          </code>{" "}
-          боту в Telegram.
-        </p>
+        {botUsername ? (
+          <p className="mt-8 text-xs text-[var(--fg-muted)]">
+            Получить ссылку для входа: отправьте{" "}
+            <code className="rounded-md bg-[var(--bg-hover)] px-1.5 py-0.5 text-[var(--fg-secondary)]">
+              /weblogin
+            </code>{" "}
+            боту в Telegram.
+          </p>
+        ) : null}
 
         {error && (
           <p className="mt-5 rounded-xl border border-red-700/40 bg-red-900/20 px-4 py-3 text-sm text-red-300">
             {error}
+            {magicFailed && botUsername
+              ? " Запросите свежую ссылку через /weblogin в боте."
+              : ""}
           </p>
         )}
       </div>

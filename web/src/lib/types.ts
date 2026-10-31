@@ -123,6 +123,20 @@ export interface AdminUser {
   has_key?: boolean;
   key_status?: "active" | "unverified" | "needs_reentry" | null;
   key_last4?: string | null;
+  // Имя привязанного Telegram. id аккаунта в админку не приходит.
+  telegram_username?: string | null;
+}
+
+export interface AuthConfig {
+  telegram_enabled: boolean;
+  telegram_bot_username: string;
+}
+
+export interface TelegramLinkStatus {
+  available: boolean;
+  state: "none" | "waiting_start" | "waiting_confirm" | "active";
+  username: string;
+  external_user_id: string;
 }
 
 export interface ProjectAccess {
