@@ -33,6 +33,7 @@ import {
 } from "@/lib/verboseDisplay";
 import { useModelInfo } from "@/lib/useModelInfo";
 import ContextGauge from "@/components/ContextGauge";
+import ChatOutline, { buildOutline } from "@/components/ChatOutline";
 import { contextWindowFor } from "@/lib/modelContext";
 import { CTX_RED_PCT } from "@/lib/contextGauge";
 import type { Attachment, HistoryMessage, Session, WsMessage } from "@/lib/types";
@@ -841,6 +842,8 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
   // Рендер одного бабла по его kind. Ключ (key) теперь живёт на
   // оборачивающем <div className="animate-fadeInUp"> в .map, поэтому
   // здесь key-проп не нужен — иначе React ругался бы на дубль.
+  const outlineItems = useMemo(() => buildOutline(bubbles), [bubbles]);
+
   const renderBubble = (b: Bubble) => {
     switch (b.kind) {
       case "user_message":
@@ -944,9 +947,9 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
   };
 
   return (
-    <div className="flex min-w-0 flex-1 overflow-hidden">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">
       <main
-        className="flex min-w-0 flex-1 flex-col bg-[var(--bg-canvas)]"
+        className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--bg-canvas)]"
         style={
           {
             "--chat-w": wide ? "80%" : "48rem",
@@ -1223,7 +1226,7 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
                 // рендерим (иначе пустой зазор в space-y-2).
                 if (el === null) return null;
                 return (
-                  <div key={b.id} className="animate-fadeInUp">
+                  <div key={b.id} data-bubble-id={b.id} className="animate-fadeInUp">
                     {el}
                   </div>
                 );
@@ -1241,6 +1244,10 @@ export default function Chat({ session, onNewChat, onOpenSidebar }: Props) {
           </>
         )}
       </div>
+
+      {!isEmpty && (
+        <ChatOutline items={outlineItems} scrollRef={scrollRef} />
+      )}
 
       {/* MessageInput держим в ОДНОЙ позиции дерева (никогда не переезжает),
           иначе React ремоунтит его и теряет набранный черновик. Центрирование
