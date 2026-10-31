@@ -55,7 +55,7 @@
 
 ## Восстановление из копии
 
-`sudo systemctl stop`-аналога нет: остановить контейнер `sudo docker compose -f /opt/fakt-runs/compose.yaml stop runs`, распаковать архив во временную папку, положить `sessions.db` в `/srv/fakt/validation/data/` (удалив рядом `sessions.db-wal` и `sessions.db-shm`), распаковать `office_validation.tar` в ту же папку, `chown -R 1001:1001`, запустить контейнер. Markdown можно пересобрать из базы, снимки и PDF только из копии.
+Остановить контейнер: `sudo docker compose -f /opt/fakt-runs/compose.yaml stop runs`. Затем распаковать архив во временную папку, положить `sessions.db` в `/srv/fakt/validation/data/` (удалив рядом `sessions.db-wal` и `sessions.db-shm`), распаковать `office_validation.tar` в ту же папку, `chown -R 1001:1001`, запустить контейнер. Markdown можно пересобрать из базы, снимки и PDF только из копии.
 
 ## Что не закрыто
 
