@@ -263,7 +263,7 @@ class OfficeStore:
             return cur.rowcount > 0
 
     # ------------------------------------------------------------------
-    # Привязка мессенджера (architecture/11 §6.2, architecture/45)
+    # Привязка мессенджера (architecture/11 §6.2, architecture/47)
     # ------------------------------------------------------------------
 
     def start_channel_binding(

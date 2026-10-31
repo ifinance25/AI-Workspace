@@ -30,7 +30,7 @@ SQLite, structlog.
 | Документация | `routes_docs.py`, `docs/USER-GUIDE.md` |
 | Настройки, ключи API, подключения MCP | `SettingsPage.tsx`, `routes_settings.py`, `routes_connections.py` |
 | Терминал SSH (ключ в настройках) | `src/web/routes_ssh.py`, `TerminalPanel.tsx`, `SshSettingsPanel.tsx` |
-| Привязка Telegram и вход команды | `src/web/routes_telegram_link.py`, `telegram_team.py`, `TelegramLinkPanel.tsx`, `architecture/45` |
+| Привязка Telegram и вход команды | `src/web/routes_telegram_link.py`, `telegram_team.py`, `TelegramLinkPanel.tsx`, `architecture/47` |
 
 Заголовок чата берётся из первого сообщения (`deriveTitle` → `patchSessionNotes`).
 Скачивание файлов из ленты: `/api/sessions/{uuid}/file`.
