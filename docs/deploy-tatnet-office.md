@@ -1,6 +1,23 @@
 # Сервер ручной валидации на VPS tatnet
 
-Документ для оператора. Состояние на 2026-10-31: код готов и проверен тестами, образ не собран (демон Docker на машине разработки был выключен), на сервере ничего не менялось. Любое действие на сервере делается только по отдельному подтверждению владельца: рядом с сервисом работают база знаний и MCP.
+Документ для оператора. Любое действие на сервере делается только по подтверждению владельца: рядом с сервисом работают база знаний и MCP.
+
+## Состояние выката на 2026-11-01
+
+Сделано на VPS `fact@185.152.82.63` (`fact-basa`), ничего из контура `fakt` (база знаний, MCP, nginx) не менялось и не перезапускалось:
+
+- образ `fakt-runs:34e9a4b` собран из закоммиченного кода (не из рабочей папки) и загружен напрямую;
+- каталоги `/srv/fakt/validation/data`, `/srv/fakt/validation-backups`, `/opt/fakt-runs`; секреты в `/srv/fakt/validation/runs.env` (root, 0600), созданы на сервере;
+- контейнер `fakt-runs` (проект Compose `fakt-runs`, сеть `fakt_runs-net` без выхода в интернет, файловая система только для чтения, без привилегий) работает и здоров;
+- ночные копии включены (`fakt-validation-backup.timer`, 03:38 UTC, 14 дней), разовая копия проверена;
+- пакет прогона № 4 загружен: 82 находки, 139 правок, 408 файлов (48 МБ), проект «ФАКТ: валидация прогона № 4».
+
+Не сделано, ждёт владельца:
+
+- **DNS-запись `runs.pm-workspace.ru`** (A на `185.152.82.63`) и сертификат. Без неё публичного адреса нет.
+- **Подключение к nginx контура.** Контур `fakt` собирается скриптом выката из другого репозитория (`ФАКТ.Диджитал/deploy/kb-mcp`), каждый релиз лежит в новом каталоге. Ручная правка текущего релиза пропала бы при следующем выкате, поэтому блоки из `nginx-runs.conf` и сеть `fakt_runs-net` нужно внести в тот репозиторий и выкатить его штатно.
+
+До этого сервис открывается только через SSH-туннель: `bash deploy/tatnet-office/open-tunnel.sh` (адрес `http://localhost:8613/office/1/runs`), пароль администратора `bash deploy/tatnet-office/open-tunnel.sh --show-admin`, закрыть `--close`. Первый вход под `admin`, пароль после входа сменить.
 
 ## Что ставится
 
@@ -23,7 +40,7 @@
 2. Передать на сервер без реестра: `docker save fakt-runs:<версия> | gzip | ssh fact@185.152.82.63 'gunzip | sudo docker load'`
 3. Создать каталоги: `sudo install -d -m 0750 -o 1001 -g 1001 /srv/fakt/validation/data` и `sudo install -d -m 0700 /srv/fakt/validation-backups`.
 4. Создать `/srv/fakt/validation/runs.env` по шаблону `deploy/tatnet-office/runs.env.example`, владелец root, права 0600. Секрет сгенерировать на сервере: `openssl rand -hex 32`. Значения не вставлять в чат, в Git и в историю командной строки (вводить через редактор).
-5. Скопировать `compose.yaml` в `/opt/fakt-runs/` и запустить: `cd /opt/fakt-runs && sudo RELEASE=<версия> docker compose up -d --no-build`. Проверить: `sudo docker compose ps` (состояние `healthy`).
+5. Скопировать `compose.yaml` в `/opt/fakt-runs/`, убрать из копии блок `build:` (его контекст `../..` указывал бы на корень диска) и запустить: `sudo env RELEASE=<версия> docker compose -f /opt/fakt-runs/compose.yaml up -d --no-build`. Проверить: `sudo docker compose ps` (состояние `healthy`).
 6. Выпустить сертификат `runs.pm-workspace.ru` тем же способом, что для остальных доменов (certbot, webroot `/srv/acme`), положить в `/srv/fakt/tls/runs.pm-workspace.ru/`.
 7. Подключить nginx. В `deploy/kb-mcp/compose.yaml` добавить сервису `nginx` сеть `runs-net` и объявить её внешней:
    ```yaml
@@ -33,7 +50,7 @@
      runs-net: {external: true, name: fakt_runs-net}
    ```
    В `deploy/kb-mcp/nginx/conf.d/fakt.conf` добавить блоки из `deploy/tatnet-office/nginx-runs.conf`, в `nginx.conf` зону `limit_req_zone $binary_remote_addr zone=fakt_login:10m rate=10r/m;`. Сначала проверить конфигурацию, потом перезагружать: `sudo docker compose exec nginx nginx -t`, затем `sudo docker compose up -d nginx`. Пересоздание nginx на секунды прерывает `pm-workspace.ru` и `mcp.pm-workspace.ru`: делать в тихое время.
-8. Копии: `sudo install -m 0755 scripts/backup_office.sh /opt/fakt-knowledge-base/validation/backup_office.sh`, затем юниты `fakt-validation-backup.service` и `.timer` в `/etc/systemd/system/` и `sudo systemctl enable --now fakt-validation-backup.timer`. Проверить вручную: `sudo systemctl start fakt-validation-backup.service` и `ls -l /srv/fakt/validation-backups`.
+8. Копии: `sudo install -m 0755 scripts/backup_office.sh /opt/fakt-runs/backup_office.sh`, затем юниты `fakt-validation-backup.service` и `.timer` в `/etc/systemd/system/` и `sudo systemctl enable --now fakt-validation-backup.timer`. Проверить вручную: `sudo systemctl start fakt-validation-backup.service` и `ls -l /srv/fakt/validation-backups`.
 
 ## Проверка после выката
 
