@@ -22,6 +22,7 @@ import {
 import ConnectionsPanel from "@/components/ConnectionsPanel";
 import ProvidersPanel from "@/components/ProvidersPanel";
 import SshSettingsPanel from "@/components/SshSettingsPanel";
+import VersionInfo from "@/components/VersionInfo";
 
 type Tab = "general" | "model" | "verbose" | "connections" | "ssh" | "session";
 
@@ -159,6 +160,7 @@ export default function SettingsModal({ open, onClose, initialTab }: Props) {
               </button>
             ))}
           </nav>
+          <VersionInfo />
         </aside>
 
         {/* Правая колонка — контент */}

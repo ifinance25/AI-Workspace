@@ -310,6 +310,16 @@ class WebServer:
                 ),
             )
 
+        from src.web.version import make_version_router
+
+        self.app.include_router(
+            make_version_router(
+                jwt_secret=self.jwt_secret,
+                session_manager=self.session_manager,
+                allowed_user_ids=self.allowed_user_ids,
+            )
+        )
+
         if self._ws_forwarder is not None and self.event_bus is not None:
             self.app.include_router(
                 make_ws_router(
