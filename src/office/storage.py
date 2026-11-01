@@ -405,6 +405,44 @@ class OfficeStore:
         assert member is not None
         return member
 
+    def change_member(
+        self, project_id: int, user_id: int, role: str | None, *, manager_role: str,
+    ) -> bool:
+        """Меняет роль участника или убирает его (``role=None``).
+
+        Проект не остаётся без менеджера: если это единственный менеджер и он
+        перестаёт им быть, правка не применяется и метод возвращает ``False``.
+        Проверка и запись идут в одной транзакции под замком.
+        """
+        with self._lock:
+            conn = self._connection()
+            current = conn.execute(
+                "SELECT role FROM office_members WHERE project_id = ? AND user_id = ?",
+                (project_id, user_id),
+            ).fetchone()
+            if current is None:
+                return False
+            if current["role"] == manager_role and role != manager_role:
+                managers = conn.execute(
+                    "SELECT COUNT(*) AS n FROM office_members "
+                    "WHERE project_id = ? AND role = ?",
+                    (project_id, manager_role),
+                ).fetchone()["n"]
+                if managers <= 1:
+                    return False
+            if role is None:
+                conn.execute(
+                    "DELETE FROM office_members WHERE project_id = ? AND user_id = ?",
+                    (project_id, user_id),
+                )
+            else:
+                conn.execute(
+                    "UPDATE office_members SET role = ? WHERE project_id = ? AND user_id = ?",
+                    (role, project_id, user_id),
+                )
+            conn.commit()
+        return True
+
     def get_member(self, project_id: int, user_id: int) -> dict | None:
         with self._lock:
             row = self._connection().execute(

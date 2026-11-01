@@ -8,21 +8,37 @@
 from src.office.tenancy._access import (
     can_create_project,
     can_decide,
+    can_manage_team,
     can_manage_validation,
     can_write,
     open_project,
     record_creator,
     visible_projects,
 )
+from src.office.tenancy._members import (
+    ASSIGNABLE,
+    MembersError,
+    add_or_set,
+    check_role,
+    list_team,
+    remove_member,
+)
 from src.office.tenancy._roles import CUSTOMER_ROLES, DECIDE_ROLES, MANAGER, ROLES
 
 __all__ = [
+    "ASSIGNABLE",
+    "MembersError",
+    "add_or_set",
+    "check_role",
+    "list_team",
+    "remove_member",
     "CUSTOMER_ROLES",
     "DECIDE_ROLES",
     "MANAGER",
     "ROLES",
     "can_create_project",
     "can_decide",
+    "can_manage_team",
     "can_manage_validation",
     "can_write",
     "open_project",

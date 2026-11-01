@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from src.office import redmine_mirror, tenancy
 from src.web.dependencies import get_current_user_factory
 from src.web.routes_office_brief import make_office_brief_router
+from src.web.routes_office_members import make_office_members_router
 from src.web.routes_office_project import make_office_project_router
 from src.web.routes_office_spec import make_office_spec_router
 from src.web.routes_office_validation import make_validation_router
@@ -74,6 +75,13 @@ def make_office_router(
             session_manager=session_manager,
             cipher=redmine_mirror.cipher_from_key(connections_secret_key),
             proposal_secret=jwt_secret,
+        )
+    )
+    router.include_router(
+        make_office_members_router(
+            office_store=office_store,
+            require_project=require_project,
+            session_manager=session_manager,
         )
     )
     router.include_router(

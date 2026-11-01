@@ -59,6 +59,14 @@ def can_manage_validation(
     return member is not None and member["role"] == MANAGER
 
 
+def can_manage_team(store: OfficeStore, project_id: int, *, actor_id: int, is_admin: bool) -> bool:
+    """Состав команды и роли меняет менеджер проекта или администратор."""
+    if is_admin:
+        return True
+    member = store.get_member(project_id, actor_id)
+    return member is not None and member["role"] == MANAGER
+
+
 def can_create_project(store: OfficeStore, *, actor_id: int, is_admin: bool) -> bool:
     """Учётка, у которой все роли это роли заказчика, проектов не создаёт.
 
