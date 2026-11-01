@@ -10,6 +10,7 @@ export default function MembersPage() {
   return (
     <AppShell
       activeSessionUuid={null}
+      openLastChat={false}
       onSelectSession={() => navigate("/")}
       mobileHeaderTitle="Команда"
     >

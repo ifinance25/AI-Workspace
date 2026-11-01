@@ -14,6 +14,7 @@ export default function RunsPage() {
   return (
     <AppShell
       activeSessionUuid={null}
+      openLastChat={false}
       onSelectSession={() => navigate("/")}
       mobileHeaderTitle="Прогоны"
     >

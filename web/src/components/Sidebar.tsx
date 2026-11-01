@@ -22,6 +22,8 @@ import type { Project, Session } from "@/lib/types";
 
 interface Props {
   activeSessionUuid: string | null;
+  /** Открывать самый свежий чат после первой загрузки. Страницам офиса нужно выключить. */
+  openLastChat?: boolean;
   onSelectSession: (s: Session | null) => void;
   collapsed: boolean;
   onToggleCollapsed: () => void;
@@ -138,6 +140,7 @@ function SessionRow({
 
 export default function Sidebar({
   activeSessionUuid,
+  openLastChat = true,
   onSelectSession,
   collapsed,
   onToggleCollapsed,
@@ -179,7 +182,8 @@ export default function Sidebar({
       // юзер ничего не открыл. Так после reload страница не зависает на
       // «Выберите чат», а сразу показывает последний разговор.
       if (
-        !initialSelectionDoneRef.current
+        openLastChat
+        && !initialSelectionDoneRef.current
         && !activeSessionUuid
         && s.length > 0
       ) {

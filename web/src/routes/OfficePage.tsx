@@ -21,6 +21,7 @@ export default function OfficePage() {
   return (
     <AppShell
       activeSessionUuid={null}
+      openLastChat={false}
       onSelectSession={onSelectSession}
       mobileHeaderTitle="Проектный офис"
     >

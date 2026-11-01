@@ -24,6 +24,8 @@ export function useAppShellControls() {
 export interface AppShellProps {
   children: ReactNode;
   activeSessionUuid?: string | null;
+  /** Открывать самый свежий чат при первой загрузке; страницы офиса выключают. */
+  openLastChat?: boolean;
   onSelectSession?: (s: Session | null) => void;
   showTerminal?: boolean;
   terminalActive?: boolean;
@@ -34,6 +36,7 @@ export interface AppShellProps {
 export default function AppShell({
   children,
   activeSessionUuid = null,
+  openLastChat = true,
   onSelectSession = () => {},
   showTerminal = false,
   terminalActive = false,
@@ -87,6 +90,7 @@ export default function AppShell({
   const sidebar = (
     <Sidebar
       activeSessionUuid={activeSessionUuid}
+      openLastChat={openLastChat}
       onSelectSession={(s) => {
         onSelectSession(s);
         if (isNarrow) setNavOpen(false);

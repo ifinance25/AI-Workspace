@@ -26,6 +26,7 @@ export default function RedminePage() {
   return (
     <AppShell
       activeSessionUuid={null}
+      openLastChat={false}
       onSelectSession={onSelectSession}
       mobileHeaderTitle="Задачи"
     >
