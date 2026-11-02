@@ -1,5 +1,6 @@
 // Карточка находки: суть, правки, цитаты, решение проверяющего, история.
 import { useState } from "react";
+import ShotCarousel, { type Shot } from "@/components/runs/ShotCarousel";
 import {
   assetUrl,
   errorText,
@@ -45,38 +46,57 @@ function Shots({
   runId: number;
   onOpenPdf: Props["onOpenPdf"];
 }) {
+  const [open, setOpen] = useState<number | null>(null);
+  const shots: Shot[] = items.flatMap((item) =>
+    item.asset_id === null
+      ? []
+      : [{ src: assetUrl(projectId, runId, item.asset_id), doc: item.doc, page: item.page, quote: item.quote }],
+  );
   if (items.length === 0) return <p className="text-sm text-[var(--fg-secondary)]">Снимков нет.</p>;
   return (
-    <div className="grid gap-3 md:grid-cols-2">
-      {items.map((item, index) => (
-        <figure key={`${item.img}-${index}`} className="rounded-lg border border-[var(--border-subtle)] p-2">
-          <figcaption className="mb-1 text-xs text-[var(--fg-secondary)]">
-            <b>{item.doc}</b>
-            {item.pdf && item.page ? (
-              <>
-                {", "}
-                <button
-                  type="button"
-                  className="underline"
-                  onClick={() => onOpenPdf(item.pdf as string, item.page)}
-                >
-                  стр. {item.page}
-                </button>
-              </>
-            ) : null}
-            {item.quote ? ` · «${item.quote}»` : ""}
-          </figcaption>
-          {item.asset_id !== null && (
-            <img
-              src={assetUrl(projectId, runId, item.asset_id)}
-              alt={`Фрагмент ${item.doc}`}
-              loading="lazy"
-              className="w-full rounded"
-            />
-          )}
-        </figure>
-      ))}
-    </div>
+    <>
+      <div className="grid gap-3 md:grid-cols-2">
+        {items.map((item, index) => (
+          <figure key={`${item.img}-${index}`} className="rounded-lg border border-[var(--border-subtle)] p-2">
+            <figcaption className="mb-1 text-xs text-[var(--fg-secondary)]">
+              <b>{item.doc}</b>
+              {item.pdf && item.page ? (
+                <>
+                  {", "}
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => onOpenPdf(item.pdf as string, item.page)}
+                  >
+                    стр. {item.page}
+                  </button>
+                </>
+              ) : null}
+              {item.quote ? ` · «${item.quote}»` : ""}
+            </figcaption>
+            {item.asset_id !== null && (
+              <button
+                type="button"
+                className="block w-full cursor-zoom-in text-left"
+                onClick={() =>
+                  setOpen(items.slice(0, index).filter((x) => x.asset_id !== null).length)
+                }
+              >
+                <img
+                  src={assetUrl(projectId, runId, item.asset_id)}
+                  alt={`Фрагмент ${item.doc}`}
+                  loading="lazy"
+                  className="w-full rounded"
+                />
+              </button>
+            )}
+          </figure>
+        ))}
+      </div>
+      {open !== null && (
+        <ShotCarousel shots={shots} index={open} onIndex={setOpen} onClose={() => setOpen(null)} />
+      )}
+    </>
   );
 }
 
