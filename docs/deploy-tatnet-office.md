@@ -4,20 +4,24 @@
 
 ## Состояние выката на 2026-11-04
 
-Сделано на VPS `fact@185.152.82.63` (`fact-basa`), ничего из контура `fakt` (база знаний, MCP, nginx) не менялось и не перезапускалось:
+Сделано на VPS `fact@185.152.82.63` (`fact-basa`), контур `fakt` после пересоздания nginx проверен: `https://pm-workspace.ru` отвечает (401 Basic, как до выката).
 
 - образ `fakt-runs:e681696` (карусель снимков, меню «Прогоны», `office_only` в боковой панели) собран из закоммиченного кода и загружен напрямую; данные целы (82 находки);
 - каталоги `/srv/fakt/validation/data`, `/srv/fakt/validation-backups`, `/opt/fakt-runs`; секреты в `/srv/fakt/validation/runs.env` (root, 0600), созданы на сервере;
 - контейнер `fakt-runs` (проект Compose `fakt-runs`, сеть `fakt_runs-net` без выхода в интернет, файловая система только для чтения, без привилегий) работает и здоров;
 - ночные копии включены (`fakt-validation-backup.timer`, 03:38 UTC, 14 дней), разовая копия проверена;
-- пакет прогона № 4 загружен: 82 находки, 139 правок, 408 файлов (48 МБ), проект «ФАКТ: валидация прогона № 4».
+- пакет прогона № 4 загружен: 82 находки, 139 правок, 408 файлов (48 МБ), проект «ФАКТ: валидация прогона № 4»;
+- **nginx контура:** блоки `runs.pm-workspace.ru` из `deploy/tatnet-office/nginx-runs.conf` на VPS, зона `fakt_login`, nginx в сети `fakt_runs-net`. С `--resolve` на IP: `GET /api/health` → 200, `/api/files/tree` → 404 (bootstrap TLS до Let's Encrypt).
+
+**PDF во фрейме (Chrome):** стенд `http://127.0.0.1:8612/office/1/runs`, 2026-11-04, iframe + inline PDF, Chrome **PASS**. Код не менялся.
 
 Не сделано, ждёт владельца:
 
-- **DNS-запись `runs.pm-workspace.ru`** (A на `185.152.82.63`) и сертификат. Без неё публичного адреса нет.
-- **Подключение к nginx контура.** Контур `fakt` собирается скриптом выката из другого репозитория (`ФАКТ.Диджитал/deploy/kb-mcp`), каждый релиз лежит в новом каталоге. Ручная правка текущего релиза пропала бы при следующем выкате, поэтому блоки из `nginx-runs.conf` и сеть `fakt_runs-net` нужно внести в тот репозиторий и выкатить его штатно.
+- **DNS A `runs.pm-workspace.ru` → `185.152.82.63`** (NS `ns1.tatnet.ru`). `dig` пусто; certbot: NXDOMAIN 2026-11-04.
+- **Let's Encrypt** после DNS: certbot webroot `/srv/fakt/acme`, `fakt-sync-tls`, reload nginx.
+- **Репозиторий ФАКТ.Диджитал:** закрепить правки `deploy/kb-mcp` штатным релизом (на VPS уже в `current`).
 
-До этого сервис открывается только через SSH-туннель: `bash deploy/tatnet-office/open-tunnel.sh` (адрес `http://localhost:8613/office/1/runs`), пароль администратора `bash deploy/tatnet-office/open-tunnel.sh --show-admin`, закрыть `--close`. Первый вход под `admin`, пароль после входа сменить.
+До HTTPS: SSH-туннель `bash deploy/tatnet-office/open-tunnel.sh` → `http://localhost:8613/office/1/runs`. На HTTP-туннеле `WEB_COOKIE_SECURE=1` не даёт браузеру держать сессию. `--show-admin` совпадает с БД только если пароль admin не меняли после bootstrap.
 
 Роли: администратор создаёт учётки в разделе «Администрирование», менеджер проекта или администратор вводит логин и роль на экране «Команда» (`/office/:id/members`). Проект и создателя-менеджера заводит тот, кто первым создал проект офиса.
 
