@@ -11,7 +11,7 @@
 - контейнер `fakt-runs` (проект Compose `fakt-runs`, сеть `fakt_runs-net` без выхода в интернет, файловая система только для чтения, без привилегий) работает и здоров;
 - ночные копии включены (`fakt-validation-backup.timer`, 03:38 UTC, 14 дней), разовая копия проверена;
 - пакет прогона № 4 загружен: 82 находки, 139 правок, 408 файлов (48 МБ), проект «ФАКТ: валидация прогона № 4»;
-- **nginx контура:** блоки `runs.pm-workspace.ru` из `deploy/tatnet-office/nginx-runs.conf` на VPS, зона `fakt_login`, nginx в сети `fakt_runs-net`. С `--resolve` на IP: `GET /api/health` → 200, `/api/files/tree` → 404 (bootstrap TLS до Let's Encrypt).
+- **nginx контура:** блоки `runs.pm-workspace.ru` из `deploy/tatnet-office/nginx-runs.conf` на VPS, зона `fakt_login`, nginx в сети `fakt_runs-net`. Публично по DNS: `GET /api/health` → 200, `/api/files/tree` → 404.
 
 **PDF во фрейме (Chrome):** стенд `http://127.0.0.1:8612/office/1/runs`, 2026-11-04, iframe + inline PDF, Chrome **PASS**. Код не менялся.
 
@@ -21,7 +21,8 @@
 - **Let's Encrypt** `runs.pm-workspace.ru`: certbot webroot `/srv/fakt/acme`, `fakt-sync-tls` (домен добавлен в `/usr/local/sbin/fakt-sync-tls`), reload nginx контура `fakt`. Срок сертификата до **2027-02-02**. Публично: `GET /api/health` → 200, `/api/files/tree` → 404.
 
 Не сделано, ждёт владельца:
-- **Репозиторий ФАКТ.Диджитал:** закрепить правки `deploy/kb-mcp` штатным релизом (на VPS уже в `current`).
+
+- **Репозиторий ФАКТ.Диджитал:** закрепить правки `deploy/kb-mcp` (блоки `runs.pm-workspace.ru` в `fakt.conf`, сеть `runs-net` в compose) и скрипт `fakt-sync-tls` с доменом `runs.pm-workspace.ru` штатным релизом. На VPS release `20261103T104327Z` в `/opt/fakt-knowledge-base/current`, обновление `/usr/local/sbin/fakt-sync-tls` пока только на диске сервера (локальной копии репозитория в vault нет).
 
 Публичный вход: **https://runs.pm-workspace.ru** (офис и «Прогоны»). Запасной путь до DNS/сертификата: SSH-туннель `bash deploy/tatnet-office/open-tunnel.sh` → `http://localhost:8613/office/1/runs`. На HTTP-туннеле `WEB_COOKIE_SECURE=1` не даёт браузеру держать сессию. `--show-admin` совпадает с БД только если пароль admin не меняли после bootstrap.
 
