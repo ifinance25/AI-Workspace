@@ -1,5 +1,8 @@
 // Статистика прогона. Цифры считает сервер, экран только показывает.
+import { useState } from "react";
 import type { RunStats, SliceRow } from "@/components/runs/runsApi";
+
+type SliceTab = "severity" | "doc" | "category";
 
 function Tile({ value, label, tone = "" }: { value: number | string; label: string; tone?: string }) {
   return (
@@ -10,17 +13,28 @@ function Tile({ value, label, tone = "" }: { value: number | string; label: stri
   );
 }
 
-function Slice({ title, rows }: { title: string; rows: SliceRow[] }) {
+function sumRows(rows: SliceRow[]) {
+  return rows.reduce(
+    (acc, row) => ({
+      total: acc.total + row.total,
+      validated: acc.validated + (row.validated ?? 0),
+      fixed: acc.fixed + (row.fixed ?? 0),
+    }),
+    { total: 0, validated: 0, fixed: 0 },
+  );
+}
+
+function SliceTable({ rows }: { rows: SliceRow[] }) {
+  const totals = sumRows(rows);
   return (
     <div className="overflow-x-auto">
-      <h3 className="mb-2 text-sm font-medium">{title}</h3>
       <table className="w-full text-left text-sm">
         <thead className="text-[var(--fg-secondary)]">
           <tr>
-            <th className="py-1 pr-3 font-normal">Значение</th>
-            <th className="py-1 pr-3 font-normal">Находок</th>
-            <th className="py-1 pr-3 font-normal">Валидация пройдена</th>
-            <th className="py-1 font-normal">Правки внесены</th>
+            <th className="py-1 pr-3 font-semibold">Значение</th>
+            <th className="py-1 pr-3 font-semibold">Находок</th>
+            <th className="py-1 pr-3 font-semibold">Валидация пройдена</th>
+            <th className="py-1 font-semibold">Правки внесены</th>
           </tr>
         </thead>
         <tbody>
@@ -32,16 +46,30 @@ function Slice({ title, rows }: { title: string; rows: SliceRow[] }) {
               <td className="py-1">{row.fixed ?? 0}</td>
             </tr>
           ))}
+          <tr className="border-t border-[var(--border-subtle)] font-medium">
+            <td className="py-1 pr-3">Итого</td>
+            <td className="py-1 pr-3">{totals.total}</td>
+            <td className="py-1 pr-3">{totals.validated}</td>
+            <td className="py-1">{totals.fixed}</td>
+          </tr>
         </tbody>
       </table>
     </div>
   );
 }
 
+const SLICE_TABS: Array<[SliceTab, string]> = [
+  ["severity", "По важности"],
+  ["doc", "По документу"],
+  ["category", "По категории"],
+];
+
 export default function StatsPanel({ stats }: { stats: RunStats }) {
+  const [sliceTab, setSliceTab] = useState<SliceTab>("severity");
   const percent = stats.total ? Math.round((stats.validated / stats.total) * 100) : 0;
   const fixedPercent = stats.total ? Math.round((stats.findings_edits_done / stats.total) * 100) : 0;
   const by = stats.by_status;
+  const sliceRows = stats.slices[sliceTab];
   return (
     <div className="space-y-6" data-testid="stats-panel">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -92,10 +120,26 @@ export default function StatsPanel({ stats }: { stats: RunStats }) {
           решением человека.
         </p>
       )}
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Slice title="По важности" rows={stats.slices.severity} />
-        <Slice title="По документу" rows={stats.slices.doc} />
-        <Slice title="По категории" rows={stats.slices.category} />
+      <div>
+        <div role="tablist" className="mb-3 flex flex-wrap gap-2 border-b border-[var(--border-subtle)]">
+          {SLICE_TABS.map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={sliceTab === id}
+              onClick={() => setSliceTab(id)}
+              className={`px-3 py-2 text-sm font-medium ${
+                sliceTab === id
+                  ? "border-b-2 border-[var(--accent)] text-[var(--accent)]"
+                  : "text-[var(--fg-secondary)]"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <SliceTable rows={sliceRows} />
       </div>
     </div>
   );

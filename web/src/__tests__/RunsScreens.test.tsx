@@ -13,7 +13,6 @@ const mockRuns = vi.hoisted(() => ({
   listFindings: vi.fn(),
   getFinding: vi.fn(),
   decide: vi.fn(),
-  setPolicy: vi.fn(),
   importRun: vi.fn(),
   exportRun: vi.fn(),
 }));
@@ -227,16 +226,16 @@ describe("Экран прогонов", () => {
     expect(screen.getByRole("button", { name: /R4-002/ })).toBeTruthy();
   });
 
-  it("управление прогоном видно только менеджеру, вывоз закрыт по умолчанию", async () => {
+  it("управление прогоном видно только менеджеру, выгрузка доступна", async () => {
     const view = setup();
     await screen.findByRole("tab", { name: "Карточки" });
     expect(screen.queryByText("Загрузить прогон")).toBeNull();
     view.unmount();
     vi.clearAllMocks();
-    setup({ can_manage: true });
+    setup({ can_manage: true, export_ban: "none" });
     const download = (await screen.findByText("Скачать markdown для LLM")) as HTMLButtonElement;
-    expect(download.disabled).toBe(true);
-    fireEvent.click(screen.getByLabelText(/Разрешить вывоз/));
-    await waitFor(() => expect(mockRuns.setPolicy).toHaveBeenCalledWith(3, "none"));
+    expect(download.disabled).toBe(false);
+    expect(screen.getByText("Загрузить прогон")).toBeTruthy();
+    expect(screen.getByLabelText(/Разрешить вывоз markdown/)).toBeTruthy();
   });
 });

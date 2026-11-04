@@ -305,6 +305,7 @@ class WebServer:
                 kb_search_enabled=self.kb_search_enabled,
                 display_settings=self.display_settings,
                 get_office_store=lambda: self.office_store,
+                office_only=self.office_only,
             )
         )
         # H-6: громкое предупреждение, если статический dev-bearer активен на

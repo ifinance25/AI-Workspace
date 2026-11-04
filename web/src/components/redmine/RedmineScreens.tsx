@@ -206,6 +206,7 @@ export default function RedmineScreens({
   const [view, setView] = useState<RedmineView | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [syncProgressVisible, setSyncProgressVisible] = useState(false);
   const [forbidden, setForbidden] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [screen, setScreen] = useState<ViewId>("board");
@@ -223,6 +224,10 @@ export default function RedmineScreens({
     assignee: "",
     period: "all",
   });
+
+  useEffect(() => {
+    if (syncing) setSyncProgressVisible(true);
+  }, [syncing]);
 
   useEffect(() => {
     let alive = true;
@@ -418,8 +423,12 @@ export default function RedmineScreens({
 
   return (
     <>
-      {syncing && !loading ? (
-        <UIKitTopProgress label="Обновление задач…" />
+      {syncProgressVisible && !loading ? (
+        <UIKitTopProgress
+          label="Обновление задач…"
+          active={syncing}
+          onFinished={() => setSyncProgressVisible(false)}
+        />
       ) : null}
       <Header projectId={projectId} />
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">

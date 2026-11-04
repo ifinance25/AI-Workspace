@@ -45,6 +45,7 @@ def make_auth_router(
     kb_search_enabled: bool = False,
     display_settings: DisplaySettings | None = None,
     get_office_store: Callable[[], Any] | None = None,
+    office_only: bool = False,
 ) -> APIRouter:
     router = APIRouter(prefix="/api", tags=["auth"])
     display = display_settings or DisplaySettings()
@@ -405,6 +406,7 @@ def make_auth_router(
             # Только булево: адрес и ключ сервера базы знаний наружу не отдаём.
             "kb_search_enabled": kb_search_enabled,
             "show_token_usage": display.show_token_usage,
+            "office_only": office_only,
         }
 
     return router

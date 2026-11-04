@@ -1,5 +1,5 @@
 import { type JSX } from "react";
-import LoadingCenter from "@/components/uikit/LoadingCenter";
+import LoadingCenter, { UIKitRouteProgress } from "@/components/uikit/LoadingCenter";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/auth/AuthContext";
 import { ModelInfoProvider } from "@/lib/ModelInfoContext";
@@ -37,6 +37,7 @@ export default function App() {
     <AuthProvider>
       <ModelInfoProvider>
         <BrowserRouter basename={ROUTER_BASENAME}>
+          <UIKitRouteProgress />
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route

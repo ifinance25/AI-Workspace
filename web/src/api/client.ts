@@ -41,6 +41,21 @@ export class ApiError extends Error {
   }
 }
 
+/** Сообщения fetch/сети для UI на русском (светлая тема, alert-error). */
+export function humanizeClientError(message: string): string {
+  const m = message.trim();
+  if (!m) return "Не удалось загрузить данные";
+  if (
+    m === "Failed to fetch" ||
+    m.includes("NetworkError") ||
+    m.includes("Load failed") ||
+    m.includes("Network request failed")
+  ) {
+    return "Нет связи с сервером. Запустите стенд: bash scripts/run_stand.sh";
+  }
+  return m;
+}
+
 // Глобальный сигнал «сессия истекла». AuthProvider слушает его и сбрасывает
 // user → ProtectedRoute редиректит на /login. Без этого протухшая cookie
 // посреди работы оставляла приложение висеть на баннере ошибки (поллинг

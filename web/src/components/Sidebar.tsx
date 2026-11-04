@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Link, useLocation, useMatch } from "react-router-dom";
-import { api } from "@/api/client";
+import { api, humanizeClientError } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
 import {
   ChevronDownIcon,
   ChevronRightIcon,
+  CheckIcon,
   FolderIcon,
   NewChatIcon,
+  PackageIcon,
   PanelLeftIcon,
   SearchIcon,
   SettingsIcon,
@@ -17,6 +19,7 @@ import {
 } from "@/components/icons";
 import Logo from "@/components/Logo";
 import NewChatDialog from "@/components/NewChatDialog";
+import { officeApi } from "@/components/office/officeApi";
 import { sessionTitle } from "@/lib/sessionTitle";
 import type { Project, Session } from "@/lib/types";
 
@@ -35,6 +38,7 @@ interface Props {
 }
 
 const SEARCH_DEBOUNCE_MS = 200;
+const OFFICE_LAST_PROJECT_KEY = "ai-workspace.officeLastProjectId";
 
 interface DateGroup {
   label: string;
@@ -150,6 +154,7 @@ export default function Sidebar({
   overlay = false,
 }: Props) {
   const { user } = useAuth();
+  const showChatNav = !user?.office_only;
   const [projects, setProjects] = useState<Project[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -159,6 +164,14 @@ export default function Sidebar({
   const [foldersOpen, setFoldersOpen] = useState(true);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [newChatOpen, setNewChatOpen] = useState(false);
+  const [sidebarOfficeProjectId, setSidebarOfficeProjectId] = useState<string | null>(() => {
+    try {
+      const stored = localStorage.getItem(OFFICE_LAST_PROJECT_KEY);
+      return stored && /^\d+$/.test(stored) ? stored : null;
+    } catch {
+      return null;
+    }
+  });
   const debounceRef = useRef<number | null>(null);
 
   const toggleProject = (path: string) => {
@@ -196,24 +209,26 @@ export default function Sidebar({
         onSelectSession(newest);
       }
     } catch (e) {
-      setError((e as Error).message);
+      setError(humanizeClientError((e as Error).message));
     }
   };
 
   useEffect(() => {
+    if (!showChatNav) return;
     void reload(activeQuery);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeQuery]);
+  }, [activeQuery, showChatNav]);
 
   // Периодически обновляем список сессий, чтобы индикатор is_running
   // («Клод работает») оставался актуальным без перезагрузки страницы.
   useEffect(() => {
+    if (!showChatNav) return;
     const id = window.setInterval(() => {
       void reload(activeQuery);
     }, 4000);
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeQuery]);
+  }, [activeQuery, showChatNav]);
 
   useEffect(() => {
     if (debounceRef.current !== null) window.clearTimeout(debounceRef.current);
@@ -233,7 +248,7 @@ export default function Sidebar({
       setSessions((arr) => [...arr, s]);
       onSelectSession(s);
     } catch (e) {
-      setError((e as Error).message);
+      setError(humanizeClientError((e as Error).message));
     }
   };
 
@@ -258,7 +273,7 @@ export default function Sidebar({
         onSelectSession(newest);
       }
     } catch (e) {
-      setError(`Не удалось удалить: ${(e as Error).message}`);
+      setError(`Не удалось удалить: ${humanizeClientError((e as Error).message)}`);
     }
   };
 
@@ -295,14 +310,16 @@ export default function Sidebar({
       >
         <PanelLeftIcon size={22} />
       </button>
-      <button
-        onClick={onNewChat}
-        className="mt-2 rounded-xl p-2.5 text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
-        title="Новый чат"
-      >
-        <NewChatIcon size={22} />
-      </button>
-      {onOpenTerminal && (
+      {showChatNav && (
+        <button
+          onClick={onNewChat}
+          className="mt-2 rounded-xl p-2.5 text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
+          title="Новый чат"
+        >
+          <NewChatIcon size={22} />
+        </button>
+      )}
+      {onOpenTerminal && showChatNav && (
         <button
           onClick={onOpenTerminal}
           className={`mt-2 rounded-xl p-2.5 hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)] ${
@@ -326,10 +343,46 @@ export default function Sidebar({
   const officeProjectId = officeMatch?.params.id;
   const officeProjectNumeric =
     officeProjectId && /^\d+$/.test(officeProjectId) ? officeProjectId : null;
-  const redmineActive = Boolean(
-    officeProjectNumeric && location.pathname.endsWith("/redmine"),
-  );
-  const runsActive = Boolean(officeProjectNumeric && location.pathname.endsWith("/runs"));
+  const menuOfficeProjectId = officeProjectNumeric ?? sidebarOfficeProjectId;
+  const redmineActive = location.pathname.endsWith("/redmine");
+  const runsActive = location.pathname.endsWith("/runs");
+  const tasksHref = menuOfficeProjectId
+    ? `/office/${menuOfficeProjectId}/redmine`
+    : "/office";
+  const runsHref = menuOfficeProjectId ? `/office/${menuOfficeProjectId}/runs` : "/office";
+
+  useEffect(() => {
+    if (officeProjectNumeric) {
+      setSidebarOfficeProjectId(officeProjectNumeric);
+      try {
+        localStorage.setItem(OFFICE_LAST_PROJECT_KEY, officeProjectNumeric);
+      } catch {
+        /* localStorage может быть недоступен */
+      }
+      return;
+    }
+    let cancelled = false;
+    officeApi.listProjects({ offset: 0, limit: 1 }).then((list) => {
+      if (cancelled || list.length === 0) return;
+      const id = String(list[0].id);
+      setSidebarOfficeProjectId(id);
+      try {
+        localStorage.setItem(OFFICE_LAST_PROJECT_KEY, id);
+      } catch {
+        /* localStorage может быть недоступен */
+      }
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [officeProjectNumeric]);
+
+  const mainNavLinkClass = (active: boolean) =>
+    `flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] transition-colors ${
+      active
+        ? "bg-[var(--bg-hover)] text-[var(--fg-primary)]"
+        : "text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
+    }`;
 
   const fullContent = (
     <div className="flex h-full w-80 flex-col">
@@ -345,6 +398,8 @@ export default function Sidebar({
         </button>
       </div>
 
+      {showChatNav && (
+        <>
       {/* Новый чат */}
       <div className="px-4 pt-2">
         <button
@@ -358,7 +413,7 @@ export default function Sidebar({
 
       {/* Поиск */}
       <div className="px-4 pt-1.5">
-        <div className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)]">
+        <div className="flex items-center gap-3 rounded-xl bg-[var(--bg-elevated)] px-3 py-2.5 text-[15px] text-[var(--fg-secondary)] shadow-[var(--shadow-composer)] ring-1 ring-[var(--border-subtle)] focus-within:ring-[var(--fg-muted)] hover:bg-[var(--bg-hover)]">
           <SearchIcon size={20} />
           <input
             type="search"
@@ -369,53 +424,57 @@ export default function Sidebar({
           />
         </div>
       </div>
+        </>
+      )}
 
-      {/* Проектный офис */}
-      <div className="px-4 pt-1.5">
-        <Link
-          to="/office"
-          onClick={() => overlay && onToggleCollapsed()}
-          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
-        >
-          <UsersIcon size={18} />
-          <span>Проектный офис</span>
-        </Link>
-        {officeProjectNumeric && (
+      {/* Основное меню */}
+      <div className="px-4 pt-3">
+        <div className="px-3 pb-1.5 text-[12px] font-semibold uppercase tracking-wider text-[var(--fg-muted)]">
+          Основное меню
+        </div>
+        <div className="space-y-0.5">
           <Link
-            to={`/office/${officeProjectNumeric}/redmine`}
+            to="/office"
             onClick={() => overlay && onToggleCollapsed()}
-            className={`mt-0.5 flex w-full items-center rounded-xl py-2 pl-11 pr-3 text-[14px] transition-colors ${
-              redmineActive
-                ? "bg-[var(--bg-hover)] text-[var(--fg-primary)]"
-                : "text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
-            }`}
+            className={mainNavLinkClass(
+              location.pathname === "/office" ||
+                (location.pathname.startsWith("/office/") &&
+                  !redmineActive &&
+                  !runsActive),
+            )}
           >
-            Задачи
+            <UsersIcon size={18} />
+            <span>Проектный офис</span>
           </Link>
-        )}
-        {officeProjectNumeric && (
           <Link
-            to={`/office/${officeProjectNumeric}/runs`}
+            to={tasksHref}
             onClick={() => overlay && onToggleCollapsed()}
-            className={`mt-0.5 flex w-full items-center rounded-xl py-2 pl-11 pr-3 text-[14px] transition-colors ${
-              runsActive
-                ? "bg-[var(--bg-hover)] text-[var(--fg-primary)]"
-                : "text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg-primary)]"
-            }`}
+            className={mainNavLinkClass(redmineActive)}
           >
-            Прогоны
+            <CheckIcon size={18} />
+            <span>Задачи</span>
           </Link>
-        )}
+          <Link
+            to={runsHref}
+            onClick={() => overlay && onToggleCollapsed()}
+            className={mainNavLinkClass(runsActive)}
+          >
+            <PackageIcon size={18} />
+            <span>Прогоны</span>
+          </Link>
+        </div>
       </div>
 
       {error && (
-        <div className="mx-4 mt-2 rounded-xl bg-red-900/30 px-3 py-2 text-sm text-red-300">
+        <div className="alert-error mx-4 mt-2" role="alert">
           {error}
         </div>
       )}
 
       {/* Прокручиваемая середина */}
       <div className="flex-1 overflow-y-auto px-4 pt-4 pb-3">
+        {showChatNav && (
+        <>
         {/* Папки / Проекты */}
         <div>
           <button
@@ -589,10 +648,12 @@ export default function Sidebar({
             </div>
           ))}
         </div>
+        </>
+        )}
       </div>
 
       {/* Терминал SSH */}
-      {onOpenTerminal && (
+      {onOpenTerminal && showChatNav && (
         <div className="px-3 pt-2">
           <button
             type="button"

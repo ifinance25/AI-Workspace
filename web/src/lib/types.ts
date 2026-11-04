@@ -106,6 +106,8 @@ export interface ApiUser {
   kb_search_enabled?: boolean;
   /** Детализация токенов под ответами в чате (глобально, из display.show_token_usage). */
   show_token_usage?: boolean;
+  /** Режим «только офис» (стенд tatnet): без чатов Claude и терминала. */
+  office_only?: boolean;
 }
 
 export interface DisplaySettingsAdmin {

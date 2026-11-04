@@ -65,11 +65,22 @@
     position: absolute;
     top: 0;
     bottom: 0;
+    left: 0;
     width: 36%;
     border-radius: 0 2px 2px 0;
     background: var(--accent-brand);
     box-shadow: 0 0 8px color-mix(in srgb, var(--accent-brand) 45%, transparent);
+  }
+  .uikit-top-progress--indeterminate .uikit-top-progress__bar {
     animation: uikit-top-progress-slide 1.35s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+  .uikit-top-progress--complete {
+    opacity: 1;
+    transition: opacity 280ms ease 120ms;
+  }
+  .uikit-top-progress--complete .uikit-top-progress__bar {
+    width: 100%;
+    transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1);
   }
   @keyframes uikit-top-progress-slide {
     0% { left: -36%; }

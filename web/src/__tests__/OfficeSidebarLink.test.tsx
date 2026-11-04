@@ -61,7 +61,7 @@ describe("Sidebar: проектный офис", () => {
     ).toHaveAttribute("href", "/office");
   });
 
-  it("на странице проекта под офисом есть «Задачи»", async () => {
+  it("«Задачи» и «Прогоны» в основном меню на странице проекта", async () => {
     render(
       <MemoryRouter initialEntries={["/office/7"]}>
         <Routes>
@@ -73,10 +73,24 @@ describe("Sidebar: проектный офис", () => {
       "href",
       "/office/7/redmine",
     );
+    expect(screen.getByRole("link", { name: "Прогоны" })).toHaveAttribute(
+      "href",
+      "/office/7/runs",
+    );
+    expect(screen.getByText("Основное меню")).toBeTruthy();
   });
 
-  it("в списке проектов подпункта «Задачи» нет", async () => {
-    mockOffice.listProjects.mockResolvedValue([]);
+  it("«Задачи» видны на списке офиса с первым проектом", async () => {
+    mockOffice.listProjects.mockResolvedValue([
+      {
+        id: 7,
+        name: "Лендинг",
+        work_kind: "",
+        nature: "",
+        project_type: "small",
+        status: "active",
+      },
+    ]);
     render(
       <MemoryRouter initialEntries={["/office"]}>
         <Routes>
@@ -84,7 +98,10 @@ describe("Sidebar: проектный офис", () => {
         </Routes>
       </MemoryRouter>,
     );
-    await screen.findByText("Проектов нет");
-    expect(screen.queryByRole("link", { name: "Задачи" })).not.toBeInTheDocument();
+    await screen.findByRole("link", { name: "Лендинг" });
+    expect(screen.getByRole("link", { name: "Задачи" })).toHaveAttribute(
+      "href",
+      "/office/7/redmine",
+    );
   });
 });

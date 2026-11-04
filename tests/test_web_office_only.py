@@ -101,3 +101,14 @@ async def test_office_only_has_no_websocket_forwarder_routes(tmp_path):
         srv.office_store.close()
         sm.close_sync()
         sm._engine.sync_engine.dispose()
+
+
+async def test_me_reports_office_only_flag(tmp_path):
+    async with _running(tmp_path, office_only=True) as client:
+        me = await client.get("/api/me")
+        assert me.status_code == 200
+        assert me.json()["office_only"] is True
+    async with _running(tmp_path / "full", office_only=False) as client:
+        me = await client.get("/api/me")
+        assert me.status_code == 200
+        assert me.json().get("office_only") is False

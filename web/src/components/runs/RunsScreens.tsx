@@ -229,7 +229,7 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
             type="button"
             disabled={busy}
             onClick={() => fileInput.current?.click()}
-            className="rounded-lg bg-[var(--bg-hover)] px-3 py-1.5 disabled:opacity-40"
+            className="rounded-lg bg-[var(--accent-brand)] px-3 py-1.5 text-white hover:opacity-90 disabled:opacity-40"
           >
             Загрузить прогон
           </button>
