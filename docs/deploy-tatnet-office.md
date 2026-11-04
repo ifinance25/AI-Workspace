@@ -15,13 +15,15 @@
 
 **PDF во фрейме (Chrome):** стенд `http://127.0.0.1:8612/office/1/runs`, 2026-11-04, iframe + inline PDF, Chrome **PASS**. Код не менялся.
 
-Не сделано, ждёт владельца:
+Сделано 2026-11-04 (после DNS у tatnet):
 
-- **DNS A `runs.pm-workspace.ru` → `185.152.82.63`** (NS `ns1.tatnet.ru`). `dig` пусто; certbot: NXDOMAIN 2026-11-04.
-- **Let's Encrypt** после DNS: certbot webroot `/srv/fakt/acme`, `fakt-sync-tls`, reload nginx.
+- **DNS A `runs.pm-workspace.ru` → `185.152.82.63`** (NS `ns1.tatnet.ru`), `dig +short` совпадает с публичным резолвером.
+- **Let's Encrypt** `runs.pm-workspace.ru`: certbot webroot `/srv/fakt/acme`, `fakt-sync-tls` (домен добавлен в `/usr/local/sbin/fakt-sync-tls`), reload nginx контура `fakt`. Срок сертификата до **2027-02-02**. Публично: `GET /api/health` → 200, `/api/files/tree` → 404.
+
+Не сделано, ждёт владельца:
 - **Репозиторий ФАКТ.Диджитал:** закрепить правки `deploy/kb-mcp` штатным релизом (на VPS уже в `current`).
 
-До HTTPS: SSH-туннель `bash deploy/tatnet-office/open-tunnel.sh` → `http://localhost:8613/office/1/runs`. На HTTP-туннеле `WEB_COOKIE_SECURE=1` не даёт браузеру держать сессию. `--show-admin` совпадает с БД только если пароль admin не меняли после bootstrap.
+Публичный вход: **https://runs.pm-workspace.ru** (офис и «Прогоны»). Запасной путь до DNS/сертификата: SSH-туннель `bash deploy/tatnet-office/open-tunnel.sh` → `http://localhost:8613/office/1/runs`. На HTTP-туннеле `WEB_COOKIE_SECURE=1` не даёт браузеру держать сессию. `--show-admin` совпадает с БД только если пароль admin не меняли после bootstrap.
 
 Роли: администратор создаёт учётки в разделе «Администрирование», менеджер проекта или администратор вводит логин и роль на экране «Команда» (`/office/:id/members`). Проект и создателя-менеджера заводит тот, кто первым создал проект офиса.
 
