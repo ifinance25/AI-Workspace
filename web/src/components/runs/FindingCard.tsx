@@ -172,6 +172,11 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
             Разрыв прослеживаемости
           </span>
         )}
+        {finding.defect_class === "stand_defect" && (
+          <span className="rounded-full bg-[var(--status-warning-bg)] px-2.5 py-0.5 text-xs text-[var(--status-warning-fg)]">
+            Дефект стенда
+          </span>
+        )}
         <span className="rounded-full bg-[var(--bg-hover)] px-2.5 py-0.5 text-xs">
           {finding.severity_raw}
         </span>

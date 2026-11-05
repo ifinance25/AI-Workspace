@@ -461,6 +461,82 @@ def test_redmine_export_rejects_unconfirmed(store, run):
     assert exc.value.code == "bad_transition"
 
 
+def _stand_package(tmp_path, *, findings, run_key="STAND-01"):
+    manifest = {
+        "schema_version": 1,
+        "adapter": "stand_run_v1",
+        "source_kind": "stand_run",
+        "run_key": run_key,
+        "title": "Соответствие стенда",
+        "stand_version": "tatnet-demo",
+    }
+    return _package(tmp_path, findings=findings, run_key=run_key, manifest=manifest)
+
+
+def test_stand_defect_class_on_stand_run_import(store, tmp_path):
+    """Сценарий stand_compliance: большинство находок без явного класса → stand_defect."""
+    project = store.create_project(name="Факт", created_by=1)
+    findings = [
+        _finding("S-001", summary="Кнопка «Сохранить» не активна на шаге 3"),
+        _finding("S-002", summary="API возвращает 500 на сценарии оплаты"),
+        _finding("S-003", summary="Поле ИНН не маскируется"),
+        _finding("S-004", summary="Таймаут загрузки вложений"),
+        _finding("S-005", defect_class="document_defect", summary="Опечатка в тексте ПМИ"),
+    ]
+    path = _stand_package(tmp_path, findings=findings)
+    run_id = delivery.import_package(store, project["id"], path, actor_id=1)["run_id"]
+    rows = store._connection().execute(
+        "SELECT defect_class FROM office_validation_findings WHERE run_id = ? ORDER BY gid",
+        (run_id,),
+    ).fetchall()
+    assert [r["defect_class"] for r in rows] == [
+        "stand_defect", "stand_defect", "stand_defect", "stand_defect", "document_defect",
+    ]
+
+
+def test_stand_remediation_aggregate_redmine(store, tmp_path, monkeypatch):
+    from src.office import redmine_mirror
+
+    project = store.create_project(name="Факт", created_by=1)
+    findings = [_finding(f"S-{i:03d}", summary=f"Дефект стенда {i}") for i in range(1, 4)]
+    path = _stand_package(tmp_path, findings=findings)
+    run_id = delivery.import_package(store, project["id"], path, actor_id=1)["run_id"]
+    rows = delivery.list_findings(store, project["id"], run_id)
+    for row in rows:
+        _decide(store, (project["id"], run_id, row["id"]), "confirm")
+    stats = delivery.get_run(store, project["id"], run_id)["stats"]
+    assert stats["stand_remediation_ready"] is True
+
+    cipher = redmine_mirror.cipher_for("secret")
+    redmine_mirror.save_account(
+        store, cipher, base_url="https://127.0.0.1", redmine_project="fact",
+        api_key="platform-key-1234567890",
+    )
+    captured = {}
+
+    class _Client:
+        def _call(self, *_args, **_kwargs):
+            return {"user": {"id": 7}}
+
+        def create_issue(self, _project, fields):
+            captured["fields"] = fields
+            return {"issue": {"id": 777}}
+
+    monkeypatch.setattr(
+        "src.office.delivery._validation_redmine.HttpRedmine",
+        lambda _base, _token: _Client(),
+    )
+    out = delivery.export_run_stand_remediation(
+        store, project["id"], run_id, api_key="user-token-1234567890", request_key="ignored",
+    )
+    assert out["issue_id"] == 777
+    assert out["findings"] == 3
+    assert "Исправление стенда по прогону STAND-01" in captured["fields"]["subject"]
+    assert "S-001" in captured["fields"]["description"]
+    detail = delivery.get_run(store, project["id"], run_id)
+    assert detail["stand_remediation_issue_id"] == 777
+
+
 def test_redmine_export_creates_issue(store, run, monkeypatch):
     from src.office import redmine_mirror
 

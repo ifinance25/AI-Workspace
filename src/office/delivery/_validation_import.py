@@ -114,13 +114,23 @@ _TRACE_MARKERS = (
 )
 
 
-def _defect_class(item: dict) -> str:
+_DEFECT_CLASSES = frozenset({"document_defect", "traceability_break", "stand_defect"})
+
+
+def _defect_class(item: dict, *, source_kind: str = "doc_review") -> str:
+    """Класс находки: документ, разрыв прослеживаемости (блок 6) или дефект стенда.
+
+    Прогон ``stand_run``: цель сверки «стенд соответствует документации», большинство
+    карточек помечаются ``stand_defect`` (явное поле в JSON или умолчание вида источника).
+    """
     explicit = str(item.get("defect_class") or "").strip()
-    if explicit in ("document_defect", "traceability_break"):
+    if explicit in _DEFECT_CLASSES:
         return explicit
     hay = f"{item.get('category') or ''} {item.get('summary') or ''}".lower()
     if any(marker in hay for marker in _TRACE_MARKERS):
         return "traceability_break"
+    if source_kind == "stand_run":
+        return "stand_defect"
     return "document_defect"
 
 
@@ -131,8 +141,8 @@ def _reason_key(item: dict) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-def _doc_review_v1(items: Any) -> list[dict]:
-    """Сверка документов: у находки нет сценария, класс ``document_defect``."""
+def _adapt_findings(items: Any, *, source_kind: str) -> list[dict]:
+    """Общий адаптер пакета находок для ``doc_review`` и ``stand_run``."""
     if not isinstance(items, list) or not items:
         raise _reject("Список находок пуст")
     out = []
@@ -143,11 +153,26 @@ def _doc_review_v1(items: Any) -> list[dict]:
             raise _reject("Неизвестная важность находки")
         if not isinstance(item["edits"], list) or not isinstance(item["evidence"], list):
             raise _reject("Правки и цитаты должны быть списками")
-        out.append({**item, "defect_class": _defect_class(item), "reason_key": _reason_key(item)})
+        out.append({
+            **item,
+            "defect_class": _defect_class(item, source_kind=source_kind),
+            "reason_key": _reason_key(item),
+        })
     return out
 
 
-ADAPTERS: dict[str, Callable[[Any], list[dict]]] = {"doc_review_v1": _doc_review_v1}
+def _doc_review_v1(items: Any) -> list[dict]:
+    return _adapt_findings(items, source_kind="doc_review")
+
+
+def _stand_run_v1(items: Any) -> list[dict]:
+    return _adapt_findings(items, source_kind="stand_run")
+
+
+ADAPTERS: dict[str, Callable[[Any], list[dict]]] = {
+    "doc_review_v1": _doc_review_v1,
+    "stand_run_v1": _stand_run_v1,
+}
 
 
 def _check_scan(findings: list[dict]) -> None:
@@ -233,6 +258,12 @@ def _manifest(archive: zipfile.ZipFile) -> dict:
         raise _reject("Неизвестный адаптер пакета")
     if manifest.get("source_kind") not in ("doc_review", "stand_run"):
         raise _reject("Неизвестный вид источника")
+    kind = manifest["source_kind"]
+    adapter = manifest.get("adapter")
+    if kind == "stand_run" and adapter != "stand_run_v1":
+        raise _reject("Прогон стенда требует адаптер stand_run_v1")
+    if kind == "doc_review" and adapter != "doc_review_v1":
+        raise _reject("Сверка документов требует адаптер doc_review_v1")
     if not _RUN_KEY.match(str(manifest.get("run_key") or "")):
         raise _reject("Недопустимый ключ прогона")
     return manifest

@@ -36,6 +36,9 @@ export interface RunStats {
   validated: number;
   pending_decision: number;
   run_can_close: boolean;
+  stand_defect_total?: number;
+  confirmed_stand_defects?: number;
+  stand_remediation_ready?: boolean;
   findings_edits_done: number;
   edits_total: number;
   edits_applied: number;
@@ -46,6 +49,7 @@ export interface RunStats {
 export interface RunDetail extends RunSummary {
   docs: Array<{ id: number; name: string }>;
   stats: RunStats;
+  stand_remediation_issue_id?: number;
 }
 
 export interface FindingRow {
@@ -222,6 +226,13 @@ export const runsApi = {
     return officeRequest<RedmineExportResult>(
       "POST",
       `${base(projectId)}/runs/${runId}/findings/${findingId}/redmine`,
+      body,
+    );
+  },
+  exportStandRemediation(projectId: number, runId: number, body: RedmineExportBody) {
+    return officeRequest<RedmineExportResult & { findings: number }>(
+      "POST",
+      `${base(projectId)}/runs/${runId}/redmine-stand-remediation`,
       body,
     );
   },

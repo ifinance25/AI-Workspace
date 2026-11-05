@@ -201,6 +201,31 @@ def make_validation_router(
         )
         return result
 
+    @router.post("/runs/{run_id}/redmine-stand-remediation")
+    async def export_stand_remediation(
+        run_id: int,
+        body: _RedmineExportIn,
+        ctx: dict = Depends(require_team),
+    ) -> dict:
+        project_id = ctx["project"]["id"]
+        result = await _call(
+            delivery.export_run_stand_remediation,
+            office_store,
+            project_id,
+            run_id,
+            api_key=body.api_key,
+            request_key=body.request_key,
+        )
+        log.info(
+            "validation_stand_remediation_redmine",
+            project_id=project_id,
+            run_id=run_id,
+            issue_id=result["issue_id"],
+            created=result["created"],
+            findings=result["findings"],
+        )
+        return result
+
     @router.get("/runs/{run_id}/assets/{asset_id}")
     async def asset(run_id: int, asset_id: int, ctx: dict = Depends(require_team)) -> FileResponse:
         path, name, mime = await _call(

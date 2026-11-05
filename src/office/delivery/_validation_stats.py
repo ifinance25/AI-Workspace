@@ -6,11 +6,20 @@ from typing import Any
 _SLICES = {"severity": "severity_raw", "doc": "doc", "category": "category"}
 
 
-def run_stats(conn: Any, run_id: int) -> dict:
+def run_stats(conn: Any, run_id: int, *, source_kind: str = "doc_review") -> dict:
     """Цифры дашборда по одному прогону."""
     by_status = {r["review_status"]: r["n"] for r in conn.execute(
         "SELECT review_status, COUNT(*) AS n FROM office_validation_findings "
         "WHERE run_id = ? GROUP BY review_status", (run_id,))}
+    stand_total = conn.execute(
+        "SELECT COUNT(*) FROM office_validation_findings WHERE run_id = ? AND defect_class = 'stand_defect'",
+        (run_id,),
+    ).fetchone()[0]
+    confirmed_stand = conn.execute(
+        "SELECT COUNT(*) FROM office_validation_findings WHERE run_id = ? "
+        "AND defect_class = 'stand_defect' AND review_status = 'confirmed'",
+        (run_id,),
+    ).fetchone()[0]
     edits = conn.execute(
         "SELECT COUNT(*) AS total, COALESCE(SUM(e.state = 'applied'), 0) AS applied "
         "FROM office_validation_edits e JOIN office_validation_findings f ON f.id = e.finding_id "
@@ -30,6 +39,14 @@ def run_stats(conn: Any, run_id: int) -> dict:
         "validated": reviewed,
         "pending_decision": pending_new + pending_info,
         "run_can_close": pending_new == 0 and pending_info == 0,
+        "stand_defect_total": stand_total,
+        "confirmed_stand_defects": confirmed_stand,
+        "stand_remediation_ready": (
+            source_kind == "stand_run"
+            and pending_new == 0
+            and pending_info == 0
+            and confirmed_stand > 0
+        ),
         "findings_edits_done": done,
         "edits_total": edits["total"],
         "edits_applied": edits["applied"],

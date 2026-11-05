@@ -60,7 +60,7 @@ def _write_run(conn: Any, store: Any, run: Any, stale: list) -> None:
     ).fetchall()
     journal = "".join(journal_line(run, gids[r["finding_id"]], r) + "\n" for r in rows)
     _atomic_write(root / "journal.jsonl", journal)
-    _atomic_write(root / "summary.md", render_summary(run, run_stats(conn, run["id"])))
+    _atomic_write(root / "summary.md", render_summary(run, run_stats(conn, run["id"], source_kind=run["source_kind"])))
 
 
 def sync_files(store: Any, project_id: int, run_id: int, *, force: bool = False) -> bool:

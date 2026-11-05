@@ -8,6 +8,7 @@ from typing import Any
 from src.office.delivery._validation_files import _run, sync_files
 from src.office.delivery._validation_schema import ValidationError, ensure, run_dir
 from src.office.delivery._validation_stats import run_stats
+from src.office.redmine_mirror._mirror import _ensure as _ensure_redmine_tables
 
 _FOLDERS = {"image": "img", "pdf": "docs"}
 _POLICY_VALUES = frozenset({"none", "all_external"})
@@ -40,9 +41,17 @@ def get_run(store: Any, project_id: int, run_id: int) -> dict:
             "SELECT id, name FROM office_validation_assets WHERE run_id = ? AND kind = 'pdf' "
             "ORDER BY name", (run_id,)
         ).fetchall()
-        stats = run_stats(conn, run_id)
+        stats = run_stats(conn, run_id, source_kind=run["source_kind"])
+        _ensure_redmine_tables(store)
+        remediation = conn.execute(
+            "SELECT issue_id FROM office_redmine_creates WHERE project_id = ? AND request_key = ?",
+            (project_id, f"run-{run_id}-stand-remediation"),
+        ).fetchone()
     keys = ("id", "run_key", "source_kind", "title", "stand_version", "imported_at")
-    return {**{k: run[k] for k in keys}, "docs": [dict(d) for d in docs], "stats": stats}
+    out = {**{k: run[k] for k in keys}, "docs": [dict(d) for d in docs], "stats": stats}
+    if remediation is not None:
+        out["stand_remediation_issue_id"] = int(remediation["issue_id"])
+    return out
 
 
 def list_findings(store: Any, project_id: int, run_id: int) -> list[dict]:

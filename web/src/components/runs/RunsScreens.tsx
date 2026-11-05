@@ -3,6 +3,7 @@ import LoadingCenter from "@/components/uikit/LoadingCenter";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import FindingCard from "@/components/runs/FindingCard";
 import StatsPanel from "@/components/runs/StatsPanel";
+import RedmineStandRemediationModal from "@/components/runs/RedmineStandRemediationModal";
 import {
   assetUrl,
   errorText,
@@ -49,6 +50,7 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [openedIds, setOpenedIds] = useState<Set<number>>(() => new Set());
+  const [standRemediationOpen, setStandRemediationOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
@@ -89,6 +91,20 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
   useEffect(() => {
     if (runId !== null) void loadRun(runId);
   }, [runId, loadRun]);
+
+  useEffect(() => {
+    if (!run?.stats.stand_remediation_ready || run.stand_remediation_issue_id) {
+      setStandRemediationOpen(false);
+      return;
+    }
+    const key = `office.runs.standRemediationPrompt.${projectId}.${run.id}`;
+    try {
+      if (sessionStorage.getItem(key)) return;
+    } catch {
+      /* ignore */
+    }
+    setStandRemediationOpen(true);
+  }, [projectId, run]);
 
   useEffect(() => {
     if (runId === null) {
@@ -324,6 +340,16 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
 
       {run && (
         <>
+          {run.source_kind === "stand_run" && (
+            <p
+              className="rounded-lg border border-[color-mix(in_srgb,var(--accent-brand)_35%,transparent)] bg-[color-mix(in_srgb,var(--accent-brand)_10%,transparent)] px-3 py-2 text-sm text-[var(--fg-secondary)]"
+              data-testid="stand-run-hint"
+            >
+              Прогон соответствия стенда документации: карточки с классом «дефект стенда» описывают
+              расхождение поведения стенда с ПМИ/ФТТ. После разбора всех находок можно создать
+              сводный тикет Redmine на исправление стенда.
+            </p>
+          )}
           <div role="tablist" className="flex gap-2 border-b border-[var(--border-subtle)]">
             {(
               [
@@ -347,7 +373,26 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
             ))}
           </div>
 
-          {view === "stats" && <StatsPanel stats={run.stats} />}
+          {view === "stats" && (
+            <div className="space-y-4">
+              <StatsPanel stats={run.stats} />
+              {run.stats.stand_remediation_ready && !run.stand_remediation_issue_id && (
+                <button
+                  type="button"
+                  data-testid="stand-remediation-btn"
+                  onClick={() => setStandRemediationOpen(true)}
+                  className="rounded-lg bg-[var(--accent)] px-3 py-2 text-sm text-white"
+                >
+                  Создать тикет Redmine на исправление стенда
+                </button>
+              )}
+              {run.stand_remediation_issue_id ? (
+                <p className="text-sm text-[var(--fg-secondary)]">
+                  Сводный тикет на исправление стенда: #{run.stand_remediation_issue_id}
+                </p>
+              ) : null}
+            </div>
+          )}
 
           {view === "cards" && (
             <div className="grid gap-4 lg:grid-cols-[20rem_1fr]">
@@ -404,6 +449,7 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
                     ))}
                     <option value="undecided">Без решения</option>
                     <option value="traceability">Разрыв прослеживаемости</option>
+                    <option value="stand_defect">Дефект стенда</option>
                     <option value="fixed">{FIXED_LABEL}</option>
                   </select>
                   <select
@@ -517,6 +563,29 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
             </div>
           )}
         </>
+      )}
+
+      {run && (
+        <RedmineStandRemediationModal
+          projectId={projectId}
+          runId={run.id}
+          runKey={run.run_key}
+          confirmedCount={run.stats.confirmed_stand_defects ?? 0}
+          open={standRemediationOpen}
+          onClose={() => {
+            const key = `office.runs.standRemediationPrompt.${projectId}.${run.id}`;
+            try {
+              sessionStorage.setItem(key, "1");
+            } catch {
+              /* ignore */
+            }
+            setStandRemediationOpen(false);
+          }}
+          onExported={(url) => {
+            setMessage(`Сводный тикет создан: ${url}`);
+            void loadRun(run.id);
+          }}
+        />
       )}
     </div>
   );

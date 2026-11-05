@@ -136,6 +136,25 @@ describe("Экран прогонов", () => {
     vi.clearAllMocks();
   });
 
+  it("показывает подсказку для прогона stand_run", async () => {
+    mockRuns.listRuns.mockResolvedValue(
+      lists({ runs: [{ ...run, source_kind: "stand_run" }] }),
+    );
+    mockRuns.getRun.mockResolvedValue({
+      ...run,
+      source_kind: "stand_run",
+      stats: {
+        ...stats,
+        stand_defect_total: 2,
+        confirmed_stand_defects: 0,
+        stand_remediation_ready: false,
+      },
+    });
+    mockRuns.listFindings.mockResolvedValue([row()]);
+    render(<RunsScreens projectId={3} />);
+    expect(await screen.findByTestId("stand-run-hint")).toBeInTheDocument();
+  });
+
   it("показывает список и открывает карточку", async () => {
     setup();
     await openCard();
