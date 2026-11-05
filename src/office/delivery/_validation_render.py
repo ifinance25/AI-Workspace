@@ -83,7 +83,8 @@ def render_summary(run: Any, stats: dict) -> str:
     lines = [_front({"run": run["run_key"], "title": run["title"], "data_class": "team"}),
              f"# Сводка {run['run_key']}\n",
              f"Всего находок: {stats['total']}",
-             f"Валидация пройдена: {stats['validated']}",
+             f"Разобрано: {stats['reviewed']}",
+             f"Прогон можно закрыть: {'да' if stats['run_can_close'] else 'нет'}",
              f"Правки внесены в документы: {stats['findings_edits_done']}",
              f"Внесено правок: {stats['edits_applied']} из {stats['edits_total']}\n",
              "## По статусам\n"]

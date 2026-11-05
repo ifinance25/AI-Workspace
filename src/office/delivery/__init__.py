@@ -23,7 +23,7 @@ from src.office.delivery._validation_read import (
     list_runs,
     set_policy,
 )
-from src.office.delivery._validation_render import actor_ref
+from src.office.delivery._validation_redmine import export_finding_to_redmine
 from src.office.delivery._validation_schema import ValidationError, data_root, ensure, run_dir
 
 __all__ = [
@@ -34,6 +34,7 @@ __all__ = [
     "data_root",
     "decide",
     "ensure",
+    "export_finding_to_redmine",
     "export_run",
     "get_finding",
     "get_policy",

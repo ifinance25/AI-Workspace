@@ -104,6 +104,26 @@ def _load_json(archive: zipfile.ZipFile, name: str) -> Any:
         raise _reject(f"{name} не разобран") from exc
 
 
+_TRACE_MARKERS = (
+    "прослеж",
+    "разрыв цепочки",
+    "не проверя",
+    "нет проверки",
+    "не покрыт",
+    "req-",
+)
+
+
+def _defect_class(item: dict) -> str:
+    explicit = str(item.get("defect_class") or "").strip()
+    if explicit in ("document_defect", "traceability_break"):
+        return explicit
+    hay = f"{item.get('category') or ''} {item.get('summary') or ''}".lower()
+    if any(marker in hay for marker in _TRACE_MARKERS):
+        return "traceability_break"
+    return "document_defect"
+
+
 def _reason_key(item: dict) -> str:
     blocks = sorted(str(e.get("block") or "") for e in item["evidence"])
     edits = sorted(f"{e.get('block')}|{e.get('col')}" for e in item["edits"])
@@ -123,7 +143,7 @@ def _doc_review_v1(items: Any) -> list[dict]:
             raise _reject("Неизвестная важность находки")
         if not isinstance(item["edits"], list) or not isinstance(item["evidence"], list):
             raise _reject("Правки и цитаты должны быть списками")
-        out.append({**item, "defect_class": "document_defect", "reason_key": _reason_key(item)})
+        out.append({**item, "defect_class": _defect_class(item), "reason_key": _reason_key(item)})
     return out
 
 

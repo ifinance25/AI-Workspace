@@ -19,16 +19,22 @@ def run_stats(conn: Any, run_id: int) -> dict:
         "SELECT COUNT(*) FROM office_validation_findings f WHERE f.run_id = ? "
         "AND f.lifecycle = 'fixed'", (run_id,)).fetchone()[0]
     confirmed, rejected = by_status.get("confirmed", 0), by_status.get("rejected", 0)
-    decided = confirmed + rejected
+    pending_new = by_status.get("new", 0)
+    pending_info = by_status.get("needs_info", 0)
+    reviewed = confirmed + rejected
     stats = {
         "total": sum(by_status.values()),
         "by_status": by_status,
-        "validated": decided,
+        # «Разобрано»: только подтверждено и отклонено, без «на уточнении».
+        "reviewed": reviewed,
+        "validated": reviewed,
+        "pending_decision": pending_new + pending_info,
+        "run_can_close": pending_new == 0 and pending_info == 0,
         "findings_edits_done": done,
         "edits_total": edits["total"],
         "edits_applied": edits["applied"],
         # Скептик оставил все находки, значит совпадение это доля подтверждённых людьми.
-        "llm_agreement": round(confirmed / decided, 3) if decided else None,
+        "llm_agreement": round(confirmed / reviewed, 3) if reviewed else None,
         "slices": {},
     }
     for name, column in _SLICES.items():

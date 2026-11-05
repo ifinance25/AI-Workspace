@@ -50,6 +50,11 @@ class _PolicyIn(BaseModel):
     export_ban: str
 
 
+class _RedmineExportIn(BaseModel):
+    api_key: str
+    request_key: str
+
+
 def _fail(exc: delivery.ValidationError) -> HTTPException:
     return HTTPException(status_code=_STATUS.get(exc.code, 422), detail=exc.message)
 
@@ -168,6 +173,33 @@ def make_validation_router(
             expected_seq=body.expected_seq, request_key=body.request_key, why=body.why,
             reason_code=body.reason_code, doc_ref=body.doc_ref,
         )
+
+    @router.post("/runs/{run_id}/findings/{finding_id}/redmine")
+    async def export_redmine(
+        run_id: int,
+        finding_id: int,
+        body: _RedmineExportIn,
+        ctx: dict = Depends(require_team),
+    ) -> dict:
+        project_id = ctx["project"]["id"]
+        result = await _call(
+            delivery.export_finding_to_redmine,
+            office_store,
+            project_id,
+            run_id,
+            finding_id,
+            api_key=body.api_key,
+            request_key=body.request_key,
+        )
+        log.info(
+            "validation_redmine_exported",
+            project_id=project_id,
+            run_id=run_id,
+            finding_id=finding_id,
+            issue_id=result["issue_id"],
+            created=result["created"],
+        )
+        return result
 
     @router.get("/runs/{run_id}/assets/{asset_id}")
     async def asset(run_id: int, asset_id: int, ctx: dict = Depends(require_team)) -> FileResponse:

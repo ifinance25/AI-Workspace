@@ -331,7 +331,7 @@ def test_md_written_on_each_decision(store, run):
     assert "review_status: \"confirmed\"" in text and "Подтверждено проверяющим" in text
     lines = (root / "journal.jsonl").read_text().splitlines()
     assert json.loads(lines[0])["gid"] == "R4-001"
-    assert "Валидация пройдена: 1" in (root / "summary.md").read_text()
+    assert "Разобрано: 1" in (root / "summary.md").read_text()
 
 
 def test_md_has_no_login_mail_or_paths(store, run):
@@ -415,7 +415,9 @@ def test_stats_counts(store, tmp_path):
     _decide(store, (project["id"], run_id, rows[0]["id"]), "edits_applied", seq=1, doc_ref="v2")
     _decide(store, (project["id"], run_id, rows[1]["id"]), "reject", why="Нет", reason_code="other")
     stats = delivery.get_run(store, project["id"], run_id)["stats"]
-    assert (stats["total"], stats["validated"], stats["findings_edits_done"]) == (3, 2, 1)
+    assert (stats["total"], stats["reviewed"], stats["findings_edits_done"]) == (3, 2, 1)
+    assert stats["run_can_close"] is False
+    assert stats["pending_decision"] == 1
     assert (stats["edits_total"], stats["edits_applied"]) == (3, 1)
     assert stats["llm_agreement"] == 0.5
 
@@ -436,6 +438,62 @@ def test_scanner_hits(text, kind):
 ])
 def test_scanner_passes_plain_text(text):
     assert scan(text) == []
+
+
+def test_traceability_defect_class_on_import(store, tmp_path):
+    project = store.create_project(name="Факт", created_by=1)
+    finding = _finding(summary="В ПМИ нет проверки требования REQ-0042")
+    path = _package(tmp_path, findings=[finding])
+    run_id = delivery.import_package(store, project["id"], path, actor_id=1)["run_id"]
+    row = store._connection().execute(
+        "SELECT defect_class FROM office_validation_findings WHERE run_id = ?", (run_id,)
+    ).fetchone()
+    assert row["defect_class"] == "traceability_break"
+
+
+def test_redmine_export_rejects_unconfirmed(store, run):
+    project_id, run_id, finding_id = run
+    token = "user-token-1234567890"
+    with pytest.raises(delivery.ValidationError) as exc:
+        delivery.export_finding_to_redmine(
+            store, project_id, run_id, finding_id, api_key=token, request_key="rk1",
+        )
+    assert exc.value.code == "bad_transition"
+
+
+def test_redmine_export_creates_issue(store, run, monkeypatch):
+    from src.office import redmine_mirror
+
+    project_id, run_id, finding_id = run
+    _decide(store, run, "confirm")
+    cipher = redmine_mirror.cipher_for("secret")
+    redmine_mirror.save_account(
+        store,
+        cipher,
+        base_url="https://127.0.0.1",
+        redmine_project="fact",
+        api_key="platform-key-1234567890",
+    )
+
+    class _Client:
+        def _call(self, *_args, **_kwargs):
+            return {"user": {"id": 7}}
+
+        def create_issue(self, _project, _fields):
+            return {"issue": {"id": 901}}
+
+    monkeypatch.setattr(
+        "src.office.delivery._validation_redmine.HttpRedmine",
+        lambda _base, _token: _Client(),
+    )
+    token = "user-token-1234567890"
+    out = delivery.export_finding_to_redmine(
+        store, project_id, run_id, finding_id, api_key=token, request_key="rk-export-1",
+    )
+    assert out["issue_id"] == 901
+    assert out["created"] is True
+    card = delivery.get_finding(store, project_id, run_id, finding_id)
+    assert "901" in str(card["redmine_links"][0])
 
 
 # HTTP: права

@@ -50,8 +50,8 @@ def list_findings(store: Any, project_id: int, run_id: int) -> list[dict]:
     sync_files(store, project_id, run_id)
     with store._lock:
         rows = _conn(store).execute(
-            "SELECT id, gid, doc, category, severity_raw, llm_verdict, review_status, lifecycle, "
-            "decision_seq, payload FROM office_validation_findings "
+            "SELECT id, gid, doc, category, defect_class, severity_raw, llm_verdict, review_status, "
+            "lifecycle, decision_seq, payload FROM office_validation_findings "
             "WHERE run_id = ? AND project_id = ? ORDER BY id", (run_id, project_id)
         ).fetchall()
     return [_card(r) for r in rows]
@@ -100,6 +100,7 @@ def get_finding(store: Any, project_id: int, run_id: int, finding_id: int) -> di
     payload = json.loads(row["payload"])
     return {
         "id": row["id"], "gid": row["gid"], "doc": row["doc"], "category": row["category"],
+        "defect_class": row["defect_class"],
         "severity_raw": row["severity_raw"], "llm_verdict": row["llm_verdict"],
         "llm_verdict_reason": row["llm_verdict_reason"], "review_status": row["review_status"],
         "lifecycle": row["lifecycle"], "decision_seq": row["decision_seq"],
