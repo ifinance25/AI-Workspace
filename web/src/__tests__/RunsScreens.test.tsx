@@ -44,10 +44,17 @@ const stats = {
 const run: RunDetail = {
   id: 5,
   run_key: "RUN4",
+  series_key: "RUN4",
+  import_version: 1,
+  parent_run_id: null,
   source_kind: "doc_review",
+  comparison_kind: "spmi_vs_ftt",
   title: "Прогон 4",
   stand_version: null,
+  started_at: null,
   imported_at: "2026-10-31T10:00:00+00:00",
+  display_at: "2026-10-31T10:00:00+00:00",
+  documents: [{ role: "pdf", name: "FTT1.pdf" }],
   docs: [{ id: 9, name: "FTT1.pdf" }],
   stats,
 };
@@ -127,6 +134,7 @@ function setup(listOver: Partial<RunsList> = {}, rows = [row()], card = detail()
 }
 
 async function openCard() {
+  fireEvent.click(await screen.findByRole("tab", { name: "Карточки" }));
   fireEvent.click(await screen.findByRole("button", { name: /R4-001/ }));
   await screen.findByRole("article");
 }
@@ -153,6 +161,12 @@ describe("Экран прогонов", () => {
     mockRuns.listFindings.mockResolvedValue([row()]);
     render(<RunsScreens projectId={3} />);
     expect(await screen.findByTestId("stand-run-hint")).toBeInTheDocument();
+  });
+
+  it("показывает реестр прогонов по умолчанию", async () => {
+    setup();
+    expect(await screen.findByTestId("runs-registry")).toBeInTheDocument();
+    expect(screen.getByText(/ПМИ ↔ ФТТ/)).toBeTruthy();
   });
 
   it("показывает список и открывает карточку", async () => {
@@ -243,6 +257,7 @@ describe("Экран прогонов", () => {
 
   it("фильтр по статусу прячет лишние находки", async () => {
     setup({}, [row(), row({ id: 12, gid: "R4-002", review_status: "rejected", lifecycle: "rejected" })]);
+    fireEvent.click(await screen.findByRole("tab", { name: "Карточки" }));
     await screen.findByRole("button", { name: /R4-002/ });
     fireEvent.change(screen.getByLabelText("Статус"), { target: { value: "rejected" } });
     expect(screen.queryByRole("button", { name: /R4-001/ })).toBeNull();

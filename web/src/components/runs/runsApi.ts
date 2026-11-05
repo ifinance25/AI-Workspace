@@ -6,13 +6,29 @@ import { officeRequest } from "@/components/office/officeApi";
 export type ReviewStatus = "new" | "confirmed" | "rejected" | "needs_info";
 export type DecisionAction = "confirm" | "reject" | "clarify" | "edits_applied" | "reopen";
 
+export type ComparisonKind = "ftt_vs_stand" | "spmi_vs_ftt" | "admin_vs_pmi" | "pmi_vs_ftt";
+
+export interface RunDocumentRef {
+  role?: string;
+  name: string;
+  [key: string]: unknown;
+}
+
 export interface RunSummary {
   id: number;
   run_key: string;
+  series_key: string;
+  import_version: number;
+  parent_run_id: number | null;
   source_kind: string;
+  comparison_kind: ComparisonKind | string;
   title: string;
   stand_version: string | null;
+  started_at: string | null;
   imported_at: string;
+  display_at?: string;
+  documents: RunDocumentRef[];
+  stats: RunStats;
 }
 
 export interface RunsList {
@@ -48,7 +64,6 @@ export interface RunStats {
 
 export interface RunDetail extends RunSummary {
   docs: Array<{ id: number; name: string }>;
-  stats: RunStats;
   stand_remediation_issue_id?: number;
 }
 

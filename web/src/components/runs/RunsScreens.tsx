@@ -3,6 +3,7 @@ import LoadingCenter from "@/components/uikit/LoadingCenter";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import FindingCard from "@/components/runs/FindingCard";
 import StatsPanel from "@/components/runs/StatsPanel";
+import RunsRegistryPanel from "@/components/runs/RunsRegistryPanel";
 import RedmineStandRemediationModal from "@/components/runs/RedmineStandRemediationModal";
 import {
   assetUrl,
@@ -28,7 +29,7 @@ import {
   markFindingOpened,
 } from "@/components/runs/runsOpened";
 
-type ViewId = "cards" | "stats";
+type ViewId = "registry" | "cards" | "stats";
 
 const SELECT_CLASS =
   "rounded-lg border border-[var(--border-subtle)] bg-transparent px-2 py-1.5 text-sm";
@@ -40,7 +41,7 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
   const [findings, setFindings] = useState<FindingRow[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [detail, setDetail] = useState<FindingDetail | null>(null);
-  const [view, setView] = useState<ViewId>("cards");
+  const [view, setView] = useState<ViewId>("registry");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [severity, setSeverity] = useState("");
   const [doc, setDoc] = useState("");
@@ -353,6 +354,7 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
           <div role="tablist" className="flex gap-2 border-b border-[var(--border-subtle)]">
             {(
               [
+                ["registry", "Реестр прогонов"],
                 ["cards", "Карточки"],
                 ["stats", "Статистика"],
               ] as Array<[ViewId, string]>
@@ -372,6 +374,19 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
               </button>
             ))}
           </div>
+
+          {view === "registry" && list && (
+            <RunsRegistryPanel
+              runs={list.runs}
+              activeRunId={runId}
+              onOpenRun={(id) => {
+                setRunId(id);
+                setSelected(null);
+                setPdf(null);
+                setView("cards");
+              }}
+            />
+          )}
 
           {view === "stats" && (
             <div className="space-y-4">
