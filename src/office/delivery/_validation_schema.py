@@ -14,14 +14,21 @@ CREATE TABLE IF NOT EXISTS office_validation_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id INTEGER NOT NULL REFERENCES office_projects(id) ON DELETE CASCADE,
     run_key TEXT NOT NULL,
+    series_key TEXT NOT NULL,
+    import_version INTEGER NOT NULL DEFAULT 1,
+    parent_run_id INTEGER REFERENCES office_validation_runs(id),
     source_kind TEXT NOT NULL,
+    comparison_kind TEXT NOT NULL DEFAULT 'spmi_vs_ftt',
     title TEXT NOT NULL DEFAULT '',
     schema_version INTEGER NOT NULL,
     package_sha TEXT NOT NULL,
     stand_version TEXT,
+    documents_json TEXT NOT NULL DEFAULT '[]',
+    started_at TEXT,
     imported_by INTEGER NOT NULL,
     imported_at TEXT NOT NULL,
-    UNIQUE (project_id, run_key)
+    UNIQUE (project_id, series_key, import_version),
+    UNIQUE (project_id, package_sha)
 );
 CREATE TABLE IF NOT EXISTS office_validation_findings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -134,6 +141,52 @@ class ValidationError(Exception):
         self.message = message
 
 
+def _migrate_runs_registry(conn: Any) -> None:
+    """Снять UNIQUE (project_id, run_key) и добавить реестр прогонов."""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(office_validation_runs)")}
+    if not cols or "series_key" in cols:
+        return
+    conn.execute("PRAGMA foreign_keys=OFF")
+    conn.executescript(
+        """
+        CREATE TABLE office_validation_runs_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL REFERENCES office_projects(id) ON DELETE CASCADE,
+            run_key TEXT NOT NULL,
+            series_key TEXT NOT NULL,
+            import_version INTEGER NOT NULL DEFAULT 1,
+            parent_run_id INTEGER REFERENCES office_validation_runs_new(id),
+            source_kind TEXT NOT NULL,
+            comparison_kind TEXT NOT NULL DEFAULT 'spmi_vs_ftt',
+            title TEXT NOT NULL DEFAULT '',
+            schema_version INTEGER NOT NULL,
+            package_sha TEXT NOT NULL,
+            stand_version TEXT,
+            documents_json TEXT NOT NULL DEFAULT '[]',
+            started_at TEXT,
+            imported_by INTEGER NOT NULL,
+            imported_at TEXT NOT NULL,
+            UNIQUE (project_id, series_key, import_version),
+            UNIQUE (project_id, package_sha)
+        );
+        INSERT INTO office_validation_runs_new (
+            id, project_id, run_key, series_key, import_version, parent_run_id,
+            source_kind, comparison_kind, title, schema_version, package_sha,
+            stand_version, documents_json, started_at, imported_by, imported_at
+        )
+        SELECT
+            id, project_id, run_key, run_key, 1, NULL, source_kind,
+            CASE source_kind WHEN 'stand_run' THEN 'ftt_vs_stand' ELSE 'spmi_vs_ftt' END,
+            title, schema_version, package_sha, stand_version, '[]', NULL,
+            imported_by, imported_at
+        FROM office_validation_runs;
+        DROP TABLE office_validation_runs;
+        ALTER TABLE office_validation_runs_new RENAME TO office_validation_runs;
+        """
+    )
+    conn.execute("PRAGMA foreign_keys=ON")
+
+
 def ensure(store: Any) -> None:
     """Создать таблицы один раз на хранилище."""
     if getattr(store, "_validation_ready", False):
@@ -141,6 +194,7 @@ def ensure(store: Any) -> None:
     with store._lock:
         conn = store._connection()
         conn.executescript(_SCHEMA)
+        _migrate_runs_registry(conn)
         conn.commit()
         store._validation_ready = True
 

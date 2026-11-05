@@ -26,6 +26,13 @@ from src.office.delivery._validation_schema import (
     run_dir,
 )
 
+COMPARISON_KINDS = frozenset({
+    "ftt_vs_stand",
+    "spmi_vs_ftt",
+    "admin_vs_pmi",
+    "pmi_vs_ftt",
+})
+
 MAX_ARCHIVE_BYTES = 120 * 1024 * 1024
 MAX_UNPACKED_BYTES = 150 * 1024 * 1024
 MAX_FILES = 1000
@@ -217,15 +224,95 @@ def _unpack(archive: zipfile.ZipFile, infos: list[zipfile.ZipInfo], target: Path
     return assets
 
 
+def _series_key(manifest: dict) -> str:
+    raw = str(manifest.get("series_key") or manifest.get("run_key") or "")
+    if not _RUN_KEY.match(raw):
+        raise _reject("Недопустимый ключ серии прогона")
+    return raw
+
+
+def _infer_comparison_kind(source_kind: str) -> str:
+    if source_kind == "stand_run":
+        return "ftt_vs_stand"
+    return "spmi_vs_ftt"
+
+
+def _comparison_kind(manifest: dict) -> str:
+    raw = manifest.get("comparison_kind")
+    if raw is None or raw == "":
+        return _infer_comparison_kind(manifest["source_kind"])
+    kind = str(raw)
+    if kind not in COMPARISON_KINDS:
+        raise _reject("Неизвестный тип сравнения comparison_kind")
+    return kind
+
+
+def _documents(manifest: dict, pdf_names: set[str]) -> list[dict]:
+    raw = manifest.get("documents")
+    if raw is None:
+        return [{"role": "pdf", "name": name} for name in sorted(pdf_names)]
+    if not isinstance(raw, list):
+        raise _reject("Поле documents должно быть списком")
+    out: list[dict] = []
+    for item in raw:
+        if isinstance(item, str):
+            out.append({"role": "doc", "name": item})
+            continue
+        if not isinstance(item, dict):
+            raise _reject("Элемент documents должен быть строкой или объектом")
+        name = str(item.get("name") or item.get("file") or item.get("title") or "").strip()
+        if not name:
+            raise _reject("В documents нужно имя документа")
+        role = str(item.get("role") or item.get("kind") or "doc")
+        out.append({"role": role, "name": name, **{
+            k: v for k, v in item.items() if k not in ("name", "file", "title", "role", "kind")
+        }})
+    return out
+
+
+def _started_at(manifest: dict) -> str | None:
+    raw = manifest.get("started_at")
+    if raw is None or raw == "":
+        return None
+    return str(raw)
+
+
 def _insert_run(
-    conn: Any, project_id: int, manifest: dict, sha: str, actor_id: int, at: str
+    conn: Any,
+    project_id: int,
+    manifest: dict,
+    sha: str,
+    actor_id: int,
+    at: str,
+    *,
+    series_key: str,
+    import_version: int,
+    parent_run_id: int | None,
+    documents: list[dict],
+    comparison_kind: str,
 ) -> int:
     return conn.execute(
-        "INSERT INTO office_validation_runs (project_id, run_key, source_kind, title, "
-        "schema_version, package_sha, stand_version, imported_by, imported_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (project_id, manifest["run_key"], manifest["source_kind"], str(manifest.get("title") or ""),
-         manifest["schema_version"], sha, manifest.get("stand_version"), actor_id, at),
+        "INSERT INTO office_validation_runs (project_id, run_key, series_key, import_version, "
+        "parent_run_id, source_kind, comparison_kind, title, schema_version, package_sha, "
+        "stand_version, documents_json, started_at, imported_by, imported_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            project_id,
+            manifest["run_key"],
+            series_key,
+            import_version,
+            parent_run_id,
+            manifest["source_kind"],
+            comparison_kind,
+            str(manifest.get("title") or ""),
+            manifest["schema_version"],
+            sha,
+            manifest.get("stand_version"),
+            json.dumps(documents, ensure_ascii=False),
+            _started_at(manifest),
+            actor_id,
+            at,
+        ),
     ).lastrowid
 
 
@@ -269,18 +356,44 @@ def _manifest(archive: zipfile.ZipFile) -> dict:
     return manifest
 
 
-def _existing(store: Any, project_id: int, run_key: str, sha: str) -> dict | None:
+def _existing(store: Any, project_id: int, manifest: dict, sha: str) -> dict | None:
+    series_key = _series_key(manifest)
     with store._lock:
-        row = store._connection().execute(
-            "SELECT id, package_sha FROM office_validation_runs "
-            "WHERE project_id = ? AND run_key = ?",
-            (project_id, run_key),
+        conn = store._connection()
+        row = conn.execute(
+            "SELECT id, run_key FROM office_validation_runs "
+            "WHERE project_id = ? AND package_sha = ?",
+            (project_id, sha),
         ).fetchone()
-    if row is None:
-        return None
-    if row["package_sha"] != sha:
-        raise _reject("Прогон с таким ключом уже загружен с другим содержимым", "run_conflict")
-    return {"run_id": row["id"], "run_key": run_key, "duplicate": True}
+    if row is not None:
+        return {"run_id": row["id"], "run_key": row["run_key"], "duplicate": True}
+    return None
+
+
+def _import_version_plan(
+    conn: Any, project_id: int, manifest: dict, series_key: str
+) -> tuple[int, int | None]:
+    """Номер версии в серии и ссылка на предыдущий прогон."""
+    explicit = manifest.get("import_version")
+    latest = conn.execute(
+        "SELECT id, import_version FROM office_validation_runs "
+        "WHERE project_id = ? AND series_key = ? ORDER BY import_version DESC LIMIT 1",
+        (project_id, series_key),
+    ).fetchone()
+    if latest is None:
+        version = int(explicit) if explicit is not None else 1
+        if version < 1:
+            raise _reject("import_version должен быть не меньше 1")
+        return version, None
+    if explicit is not None:
+        version = int(explicit)
+        if version <= latest["import_version"]:
+            raise _reject(
+                "import_version должен быть больше предыдущей версии серии",
+                "run_conflict",
+            )
+        return version, int(latest["id"])
+    return int(latest["import_version"]) + 1, int(latest["id"])
 
 
 def import_package(store: Any, project_id: int, path: Path, *, actor_id: int) -> dict:
@@ -296,9 +409,15 @@ def import_package(store: Any, project_id: int, path: Path, *, actor_id: int) ->
         infos = _members(archive)
         manifest = _manifest(archive)
         sha = _package_sha(archive, infos)
-        found = _existing(store, project_id, manifest["run_key"], sha)
+        found = _existing(store, project_id, manifest, sha)
         if found is not None:
             return found
+        pdf_names = {
+            Path(i.filename).name for i in infos if i.filename.startswith("docs/") and i.filename.endswith(".pdf")
+        }
+        series_key = _series_key(manifest)
+        comparison_kind = _comparison_kind(manifest)
+        documents = _documents(manifest, pdf_names)
         findings = ADAPTERS[manifest["adapter"]](_load_json(archive, "findings.json"))
         _check_refs(findings, {i.filename for i in infos})
         _check_scan(findings)
@@ -306,7 +425,19 @@ def import_package(store: Any, project_id: int, path: Path, *, actor_id: int) ->
         tmp.mkdir(parents=True)
         try:
             assets = _unpack(archive, infos, tmp)
-            run_id = _commit(store, project_id, manifest, sha, findings, assets, tmp, actor_id)
+            run_id = _commit(
+                store,
+                project_id,
+                manifest,
+                sha,
+                findings,
+                assets,
+                tmp,
+                actor_id,
+                series_key=series_key,
+                comparison_kind=comparison_kind,
+                documents=documents,
+            )
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
     sync_files(store, project_id, run_id)
@@ -315,16 +446,39 @@ def import_package(store: Any, project_id: int, path: Path, *, actor_id: int) ->
 
 
 def _commit(
-    store: Any, project_id: int, manifest: dict, sha: str, findings: list[dict],
-    assets: list[dict], tmp: Path, actor_id: int,
+    store: Any,
+    project_id: int,
+    manifest: dict,
+    sha: str,
+    findings: list[dict],
+    assets: list[dict],
+    tmp: Path,
+    actor_id: int,
+    *,
+    series_key: str,
+    comparison_kind: str,
+    documents: list[dict],
 ) -> int:
     at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     with store._lock:
         conn = store._connection()
+        import_version, parent_run_id = _import_version_plan(conn, project_id, manifest, series_key)
         conn.execute("BEGIN IMMEDIATE")
         target = None
         try:
-            run_id = _insert_run(conn, project_id, manifest, sha, actor_id, at)
+            run_id = _insert_run(
+                conn,
+                project_id,
+                manifest,
+                sha,
+                actor_id,
+                at,
+                series_key=series_key,
+                import_version=import_version,
+                parent_run_id=parent_run_id,
+                documents=documents,
+                comparison_kind=comparison_kind,
+            )
             for item in findings:
                 _insert_finding(conn, project_id, run_id, item)
             for asset in assets:

@@ -14,19 +14,55 @@ _FOLDERS = {"image": "img", "pdf": "docs"}
 _POLICY_VALUES = frozenset({"none", "all_external"})
 SUMMARY_PREVIEW = 220
 
+_RUN_LIST_KEYS = (
+    "id",
+    "run_key",
+    "series_key",
+    "import_version",
+    "parent_run_id",
+    "source_kind",
+    "comparison_kind",
+    "title",
+    "stand_version",
+    "started_at",
+    "imported_at",
+    "documents_json",
+)
 
-def _conn(store: Any) -> Any:
-    ensure(store)
-    return store._connection()
+
+def _run_row(row: Any) -> dict:
+    data = {k: row[k] for k in _RUN_LIST_KEYS if k in row.keys()}
+    docs_raw = data.pop("documents_json", "[]") or "[]"
+    try:
+        documents = json.loads(docs_raw)
+    except json.JSONDecodeError:
+        documents = []
+    if not isinstance(documents, list):
+        documents = []
+    display_at = data.get("started_at") or data.get("imported_at")
+    return {**data, "documents": documents, "display_at": display_at}
 
 
 def list_runs(store: Any, project_id: int) -> list[dict]:
     with store._lock:
-        rows = _conn(store).execute(
-            "SELECT id, run_key, source_kind, title, stand_version, imported_at FROM "
-            "office_validation_runs WHERE project_id = ? ORDER BY id DESC", (project_id,)
+        conn = _conn(store)
+        rows = conn.execute(
+            "SELECT id, run_key, series_key, import_version, parent_run_id, source_kind, "
+            "comparison_kind, title, stand_version, started_at, imported_at, documents_json "
+            "FROM office_validation_runs WHERE project_id = ? ORDER BY imported_at DESC, id DESC",
+            (project_id,),
         ).fetchall()
-    return [dict(r) for r in rows]
+        out = []
+        for row in rows:
+            item = _run_row(row)
+            item["stats"] = run_stats(conn, row["id"], source_kind=row["source_kind"])
+            out.append(item)
+    return out
+
+
+def _conn(store: Any) -> Any:
+    ensure(store)
+    return store._connection()
 
 
 def has_runs(store: Any, project_id: int) -> bool:
@@ -47,10 +83,25 @@ def get_run(store: Any, project_id: int, run_id: int) -> dict:
             "SELECT issue_id FROM office_redmine_creates WHERE project_id = ? AND request_key = ?",
             (project_id, f"run-{run_id}-stand-remediation"),
         ).fetchone()
-    keys = ("id", "run_key", "source_kind", "title", "stand_version", "imported_at")
-    out = {**{k: run[k] for k in keys}, "docs": [dict(d) for d in docs], "stats": stats}
+    keys = (
+        "id",
+        "run_key",
+        "series_key",
+        "import_version",
+        "parent_run_id",
+        "source_kind",
+        "comparison_kind",
+        "title",
+        "stand_version",
+        "started_at",
+        "imported_at",
+    )
+    base = {k: run[k] for k in keys}
+    parsed = _run_row(run)
+    out = {**base, "documents": parsed["documents"], "display_at": parsed["display_at"], "stats": stats}
     if remediation is not None:
         out["stand_remediation_issue_id"] = int(remediation["issue_id"])
+    out["docs"] = [dict(d) for d in docs]
     return out
 
 

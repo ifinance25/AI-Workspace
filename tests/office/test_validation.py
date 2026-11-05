@@ -117,13 +117,42 @@ def test_rebuilt_package_with_other_timestamps_is_duplicate(store, tmp_path):
     assert again["duplicate"] is True and again["run_id"] == first["run_id"]
 
 
-def test_import_same_key_other_content_is_conflict(store, tmp_path):
+def test_import_same_key_other_content_creates_new_version(store, tmp_path):
     project = store.create_project(name="Факт", created_by=1)
-    delivery.import_package(store, project["id"], _package(tmp_path), actor_id=1)
+    first = delivery.import_package(store, project["id"], _package(tmp_path), actor_id=1)
     other = _package(tmp_path, findings=[_finding("R4-002")], name="q.zip")
-    with pytest.raises(delivery.ValidationError) as exc:
-        delivery.import_package(store, project["id"], other, actor_id=1)
-    assert exc.value.code == "run_conflict"
+    second = delivery.import_package(store, project["id"], other, actor_id=1)
+    assert second["duplicate"] is False
+    assert second["run_id"] != first["run_id"]
+    rows = delivery.list_runs(store, project["id"])
+    assert len(rows) == 2
+    assert rows[0]["import_version"] == 2
+    assert rows[0]["parent_run_id"] == first["run_id"]
+    assert rows[1]["import_version"] == 1
+
+
+def test_list_runs_registry_fields(store, tmp_path):
+    project = store.create_project(name="Факт", created_by=1)
+    manifest = {
+        "schema_version": 1,
+        "adapter": "doc_review_v1",
+        "source_kind": "doc_review",
+        "run_key": "RUN4",
+        "title": "Прогон 4",
+        "comparison_kind": "admin_vs_pmi",
+        "documents": [{"role": "ftt", "name": "ФТТ1.pdf"}, {"role": "pmi", "name": "ПМИ1"}],
+        "started_at": "2026-10-31T09:00:00+00:00",
+    }
+    delivery.import_package(
+        store, project["id"], _package(tmp_path, manifest=manifest), actor_id=1,
+    )
+    row = delivery.list_runs(store, project["id"])[0]
+    assert row["comparison_kind"] == "admin_vs_pmi"
+    assert row["series_key"] == "RUN4"
+    assert row["import_version"] == 1
+    assert len(row["documents"]) == 2
+    assert row["stats"]["total"] == 1
+    assert "run_can_close" in row["stats"]
 
 
 @pytest.mark.parametrize("name", [
