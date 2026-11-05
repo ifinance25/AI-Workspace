@@ -15,11 +15,17 @@ import {
 import {
   STATUS_LABEL,
   FIXED_LABEL,
+  QUICK_FILTERS,
   displayStatus,
   matchesFilter,
   statusTone,
   type StatusFilter,
 } from "@/components/runs/runsLabels";
+import {
+  isPendingDecision,
+  loadOpenedFindingIds,
+  markFindingOpened,
+} from "@/components/runs/runsOpened";
 
 type ViewId = "cards" | "stats";
 
@@ -42,7 +48,9 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [openedIds, setOpenedIds] = useState<Set<number>>(() => new Set());
   const fileInput = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
 
   const loadList = useCallback(
     async (preferred?: number) => {
@@ -81,6 +89,24 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
   useEffect(() => {
     if (runId !== null) void loadRun(runId);
   }, [runId, loadRun]);
+
+  useEffect(() => {
+    if (runId === null) {
+      setOpenedIds(new Set());
+      return;
+    }
+    setOpenedIds(loadOpenedFindingIds(projectId, runId));
+  }, [projectId, runId]);
+
+  const selectFinding = useCallback(
+    (findingId: number) => {
+      setSelected(findingId);
+      if (runId !== null) {
+        setOpenedIds(markFindingOpened(projectId, runId, findingId));
+      }
+    },
+    [projectId, runId],
+  );
 
   useEffect(() => {
     if (runId === null || selected === null) {
@@ -124,6 +150,43 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
         (!needle || f.gid.toLowerCase().includes(needle) || f.summary.toLowerCase().includes(needle)),
     );
   }, [findings, status, severity, doc, query]);
+
+  const pendingVisible = useMemo(
+    () => visible.filter((f) => isPendingDecision(f.review_status)),
+    [visible],
+  );
+
+  const jumpNextPending = useCallback(() => {
+    if (pendingVisible.length === 0) return;
+    const currentIdx = selected ? pendingVisible.findIndex((f) => f.id === selected) : -1;
+    const next = pendingVisible[(currentIdx + 1) % pendingVisible.length];
+    selectFinding(next.id);
+  }, [pendingVisible, selected, selectFinding]);
+
+  useEffect(() => {
+    if (view !== "cards") return;
+    const onKey = (event: KeyboardEvent) => {
+      if (document.querySelector('[role=dialog][aria-modal="true"]')) return;
+      const target = event.target as HTMLElement | null;
+      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+      if (visible.length === 0) return;
+      const idx = selected ? visible.findIndex((f) => f.id === selected) : -1;
+      if (event.key === "j" || event.key === "ArrowDown") {
+        event.preventDefault();
+        const next = visible[Math.min(visible.length - 1, idx + 1)];
+        if (next) selectFinding(next.id);
+      } else if (event.key === "k" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const next = visible[Math.max(0, idx <= 0 ? 0 : idx - 1)];
+        if (next) selectFinding(next.id);
+      } else if (event.key === "Enter" && idx >= 0) {
+        event.preventDefault();
+        selectFinding(visible[idx].id);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [view, visible, selected, selectFinding]);
 
   const openPdf = useCallback((name: string, page: number | null | undefined) => {
     setPdf({ name, page: page ?? null });
@@ -297,6 +360,36 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
                   className={`${SELECT_CLASS} w-full`}
                 />
                 <div className="flex flex-wrap gap-2">
+                  {QUICK_FILTERS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      aria-pressed={status === preset.id}
+                      onClick={() => setStatus(preset.id)}
+                      className={`rounded-lg px-2 py-1 text-xs ${
+                        status === preset.id
+                          ? "bg-[var(--accent)] text-white"
+                          : "bg-[var(--bg-hover)] text-[var(--fg-secondary)]"
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={pendingVisible.length === 0}
+                    onClick={jumpNextPending}
+                    className="rounded-lg bg-[var(--bg-hover)] px-2 py-1 text-xs disabled:opacity-40"
+                  >
+                    Следующая без решения
+                  </button>
+                  <span className="text-xs text-[var(--fg-secondary)]">
+                    осталось {pendingVisible.length}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
                   <select
                     aria-label="Статус"
                     value={status}
@@ -309,6 +402,8 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
                         {STATUS_LABEL[k]}
                       </option>
                     ))}
+                    <option value="undecided">Без решения</option>
+                    <option value="traceability">Разрыв прослеживаемости</option>
                     <option value="fixed">{FIXED_LABEL}</option>
                   </select>
                   <select
@@ -337,16 +432,23 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
                 <p className="text-xs text-[var(--fg-secondary)]">
                   Показано {visible.length} из {findings.length}
                 </p>
-                <ul className="max-h-[70vh] space-y-1 overflow-y-auto" aria-label="Находки">
-                  {visible.map((f) => (
+                <ul
+                  ref={listRef}
+                  className="max-h-[70vh] space-y-1 overflow-y-auto"
+                  aria-label="Находки"
+                >
+                  {visible.map((f) => {
+                    const openedPending =
+                      openedIds.has(f.id) && isPendingDecision(f.review_status);
+                    return (
                     <li key={f.id}>
                       <button
                         type="button"
-                        onClick={() => setSelected(f.id)}
+                        onClick={() => selectFinding(f.id)}
                         aria-current={selected === f.id}
                         className={`w-full rounded-lg px-3 py-2 text-left text-sm ${
                           selected === f.id ? "bg-[var(--bg-hover)]" : "hover:bg-[var(--bg-hover)]"
-                        }`}
+                        } ${openedPending ? "ring-1 ring-[var(--accent-brand)]" : ""}`}
                       >
                         <span className="flex items-center justify-between gap-2">
                           <b>{f.gid}</b>
@@ -359,11 +461,31 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
                         </span>
                       </button>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               </aside>
 
-              <div className="min-w-0 space-y-4">
+              <div
+                className={`min-w-0 space-y-4 ${
+                  pdf ? "grid gap-4 xl:grid-cols-2 xl:space-y-0" : ""
+                }`}
+              >
+                {detail ? (
+                  <FindingCard
+                    key={detail.id}
+                    projectId={projectId}
+                    run={run}
+                    finding={detail}
+                    canDecide={list?.can_decide ?? false}
+                    onDecided={afterDecision}
+                    onOpenPdf={openPdf}
+                  />
+                ) : (
+                  <p className="text-sm text-[var(--fg-secondary)]">
+                    Выберите находку в списке слева.
+                  </p>
+                )}
                 {pdf && (
                   <section className="rounded-lg border border-[var(--border-subtle)] p-2">
                     <div className="mb-2 flex items-center justify-between text-sm">
@@ -384,27 +506,12 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
                         key={`${pdf.name}-${pdf.page}`}
                         title={pdf.name}
                         src={assetUrl(projectId, run.id, pdfAsset.id, pdf.page)}
-                        className="h-[60vh] w-full rounded bg-white"
+                        className="h-[60vh] w-full rounded bg-white xl:h-[75vh]"
                       />
                     ) : (
                       <p className="text-sm text-[var(--fg-secondary)]">Документа нет в прогоне.</p>
                     )}
                   </section>
-                )}
-                {detail ? (
-                  <FindingCard
-                    key={detail.id}
-                    projectId={projectId}
-                    run={run}
-                    finding={detail}
-                    canDecide={list?.can_decide ?? false}
-                    onDecided={afterDecision}
-                    onOpenPdf={openPdf}
-                  />
-                ) : (
-                  <p className="text-sm text-[var(--fg-secondary)]">
-                    Выберите находку в списке слева.
-                  </p>
                 )}
               </div>
             </div>

@@ -13,12 +13,13 @@ interface Props {
   index: number;
   onIndex: (next: number) => void;
   onClose: () => void;
+  onOpenPdf?: (doc: string, page: number | null | undefined) => void;
 }
 
 const ARROW =
   "absolute top-1/2 -translate-y-1/2 rounded-full bg-black/60 px-4 py-3 text-2xl leading-none text-white hover:bg-black/80 disabled:opacity-30";
 
-export default function ShotCarousel({ shots, index, onIndex, onClose }: Props) {
+export default function ShotCarousel({ shots, index, onIndex, onClose, onOpenPdf }: Props) {
   const last = shots.length - 1;
   const current = shots[index];
 
@@ -54,6 +55,19 @@ export default function ShotCarousel({ shots, index, onIndex, onClose }: Props) 
           {current.quote && <p className="line-clamp-2 text-sm opacity-80">«{current.quote}»</p>}
         </div>
         <div className="flex shrink-0 items-center gap-3 text-sm">
+          {onOpenPdf && current.page ? (
+            <button
+              type="button"
+              className="rounded-lg bg-black/50 px-3 py-1.5 underline"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenPdf(current.doc, current.page);
+                onClose();
+              }}
+            >
+              Открыть PDF на странице {current.page}
+            </button>
+          ) : null}
           <span aria-live="polite">
             {index + 1} / {shots.length}
           </span>

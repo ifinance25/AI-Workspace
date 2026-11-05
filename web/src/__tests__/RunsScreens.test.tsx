@@ -26,7 +26,10 @@ import RunsScreens from "@/components/runs/RunsScreens";
 const stats = {
   total: 2,
   by_status: { new: 1, confirmed: 1 },
+  reviewed: 1,
   validated: 1,
+  pending_decision: 1,
+  run_can_close: false,
   findings_edits_done: 1,
   edits_total: 3,
   edits_applied: 2,
@@ -55,6 +58,7 @@ function row(over: Partial<FindingRow> = {}): FindingRow {
     gid: "R4-001",
     doc: "ПМИ1",
     category: "Шаги",
+    defect_class: "document_defect",
     severity_raw: "средняя",
     llm_verdict: "подтверждено",
     review_status: "new",
@@ -213,8 +217,8 @@ describe("Экран прогонов", () => {
     setup();
     fireEvent.click(await screen.findByRole("tab", { name: "Статистика" }));
     const panel = await screen.findByTestId("stats-panel");
-    expect(panel.textContent).toContain("Валидация пройдена");
-    expect(panel.textContent).toContain("Правки внесены в документы");
+    expect(panel.textContent).toContain("Разобрано");
+    expect(panel.textContent).toContain("Прогон можно закрыть");
     expect(panel.textContent).toContain("2 из 3");
   });
 

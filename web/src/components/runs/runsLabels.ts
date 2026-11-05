@@ -65,7 +65,13 @@ export const ROLE_LABEL: Record<string, string> = {
   system_admin: "администратор системы",
 };
 
-export type StatusFilter = "all" | ReviewStatus | "fixed";
+export type StatusFilter = "all" | ReviewStatus | "fixed" | "undecided" | "traceability";
+
+export const QUICK_FILTERS: Array<{ id: StatusFilter; label: string }> = [
+  { id: "new", label: "Только новые" },
+  { id: "undecided", label: "Без решения" },
+  { id: "traceability", label: "Разрыв прослеживаемости" },
+];
 
 export function displayStatus(f: Pick<FindingRow, "review_status" | "lifecycle">): string {
   return f.lifecycle === "fixed" ? FIXED_LABEL : STATUS_LABEL[f.review_status];
@@ -89,6 +95,10 @@ export function statusTone(f: Pick<FindingRow, "review_status" | "lifecycle">): 
 
 export function matchesFilter(f: FindingRow, filter: StatusFilter): boolean {
   if (filter === "all") return true;
+  if (filter === "undecided") {
+    return (f.review_status === "new" || f.review_status === "needs_info") && f.lifecycle !== "fixed";
+  }
+  if (filter === "traceability") return f.defect_class === "traceability_break";
   if (filter === "fixed") return f.lifecycle === "fixed";
   return f.review_status === filter && f.lifecycle !== "fixed";
 }

@@ -4,11 +4,28 @@ import type { RunStats, SliceRow } from "@/components/runs/runsApi";
 
 type SliceTab = "severity" | "doc" | "category";
 
-function Tile({ value, label, tone = "" }: { value: number | string; label: string; tone?: string }) {
+function Tile({
+  value,
+  label,
+  tone = "",
+  help,
+}: {
+  value: number | string;
+  label: string;
+  tone?: string;
+  help?: string;
+}) {
   return (
     <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-sidebar)] p-4">
       <div className={`text-3xl font-semibold ${tone}`}>{value}</div>
-      <div className="mt-1 text-sm text-[var(--fg-secondary)]">{label}</div>
+      <div className="mt-1 text-sm text-[var(--fg-secondary)]">
+        {label}
+        {help ? (
+          <span className="ml-1 cursor-help text-xs" title={help}>
+            (?)
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -33,7 +50,7 @@ function SliceTable({ rows }: { rows: SliceRow[] }) {
           <tr>
             <th className="py-1 pr-3 font-semibold">Значение</th>
             <th className="py-1 pr-3 font-semibold">Находок</th>
-            <th className="py-1 pr-3 font-semibold">Валидация пройдена</th>
+            <th className="py-1 pr-3 font-semibold">Разобрано</th>
             <th className="py-1 font-semibold">Правки внесены</th>
           </tr>
         </thead>
@@ -64,9 +81,15 @@ const SLICE_TABS: Array<[SliceTab, string]> = [
   ["category", "По категории"],
 ];
 
+const REVIEWED_HELP =
+  "Подтверждено плюс отклонено. «На уточнении» сюда не входит.";
+const CLOSE_HELP =
+  "Да, когда не осталось «не разобрано» и «на уточнении». Иначе прогон ещё нельзя закрыть.";
+
 export default function StatsPanel({ stats }: { stats: RunStats }) {
   const [sliceTab, setSliceTab] = useState<SliceTab>("severity");
-  const percent = stats.total ? Math.round((stats.validated / stats.total) * 100) : 0;
+  const reviewed = stats.reviewed ?? stats.validated;
+  const percent = stats.total ? Math.round((reviewed / stats.total) * 100) : 0;
   const fixedPercent = stats.total ? Math.round((stats.findings_edits_done / stats.total) * 100) : 0;
   const by = stats.by_status;
   const sliceRows = stats.slices[sliceTab];
@@ -75,9 +98,16 @@ export default function StatsPanel({ stats }: { stats: RunStats }) {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Tile value={stats.total} label="Всего находок" />
         <Tile
-          value={stats.validated}
-          label="Валидация пройдена"
+          value={reviewed}
+          label="Разобрано"
           tone="text-[var(--status-success-fg)]"
+          help={REVIEWED_HELP}
+        />
+        <Tile
+          value={stats.run_can_close ? "Да" : "Нет"}
+          label="Прогон можно закрыть"
+          tone={stats.run_can_close ? "text-[var(--status-success-fg)]" : "text-[var(--status-error-fg)]"}
+          help={CLOSE_HELP}
         />
         <Tile
           value={stats.findings_edits_done}
@@ -88,20 +118,18 @@ export default function StatsPanel({ stats }: { stats: RunStats }) {
         <Tile value={by.needs_info ?? 0} label="На уточнение" tone="text-[var(--accent-brand)]" />
         <Tile value={by.confirmed ?? 0} label="Подтверждено" />
         <Tile value={by.rejected ?? 0} label="Отклонено" tone="text-[var(--status-error-fg)]" />
-        <Tile
-          value={`${stats.edits_applied} из ${stats.edits_total}`}
-          label="Правок внесено"
-        />
+        <Tile value={`${stats.edits_applied} из ${stats.edits_total}`} label="Правок внесено" />
       </div>
       <div className="space-y-3">
         <div>
           <div className="mb-1 flex justify-between text-sm">
-            <span>Валидация пройдена</span>
+            <span>Разобрано</span>
             <span>{percent}%</span>
           </div>
           <div className="h-2 rounded bg-[var(--bg-hover)]">
             <div className="h-2 rounded bg-[var(--status-success-fg)]" style={{ width: `${percent}%` }} />
           </div>
+          <p className="mt-1 text-xs text-[var(--fg-secondary)]">{REVIEWED_HELP}</p>
         </div>
         <div>
           <div className="mb-1 flex justify-between text-sm">
@@ -109,9 +137,13 @@ export default function StatsPanel({ stats }: { stats: RunStats }) {
             <span>{fixedPercent}%</span>
           </div>
           <div className="h-2 rounded bg-[var(--bg-hover)]">
-            <div className="h-2 rounded bg-[var(--status-success-fg)] opacity-60" style={{ width: `${fixedPercent}%` }} />
+            <div
+              className="h-2 rounded bg-[var(--status-success-fg)] opacity-60"
+              style={{ width: `${fixedPercent}%` }}
+            />
           </div>
         </div>
+        <p className="text-sm text-[var(--fg-secondary)]">{CLOSE_HELP}</p>
       </div>
       {stats.llm_agreement !== null && (
         <p className="text-sm text-[var(--fg-secondary)]">

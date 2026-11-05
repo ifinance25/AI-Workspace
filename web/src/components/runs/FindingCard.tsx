@@ -1,6 +1,7 @@
 // Карточка находки: суть, правки, цитаты, решение проверяющего, история.
 import { useState } from "react";
 import ShotCarousel, { type Shot } from "@/components/runs/ShotCarousel";
+import RedmineExportModal from "@/components/runs/RedmineExportModal";
 import {
   assetUrl,
   errorText,
@@ -94,7 +95,7 @@ function Shots({
         ))}
       </div>
       {open !== null && (
-        <ShotCarousel shots={shots} index={open} onIndex={setOpen} onClose={() => setOpen(null)} />
+        <ShotCarousel shots={shots} index={open} onIndex={setOpen} onClose={() => setOpen(null)} onOpenPdf={onOpenPdf} />
       )}
     </>
   );
@@ -108,6 +109,7 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [redmineOpen, setRedmineOpen] = useState(false);
 
   const actions = availableActions(finding);
 
@@ -165,6 +167,11 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
         <span className={`rounded-full px-2.5 py-0.5 text-xs ${statusTone(finding)}`}>
           {displayStatus(finding)}
         </span>
+        {finding.defect_class === "traceability_break" && (
+          <span className="rounded-full bg-[color-mix(in_srgb,var(--accent-brand)_22%,transparent)] px-2.5 py-0.5 text-xs">
+            Разрыв прослеживаемости
+          </span>
+        )}
         <span className="rounded-full bg-[var(--bg-hover)] px-2.5 py-0.5 text-xs">
           {finding.severity_raw}
         </span>
@@ -194,6 +201,30 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
           </a>
         ))}
       </p>
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={finding.review_status !== "confirmed"}
+          onClick={() => setRedmineOpen(true)}
+          className="rounded-lg bg-[var(--bg-hover)] px-3 py-1.5 text-sm disabled:opacity-40"
+        >
+          Задача в Redmine
+        </button>
+      </div>
+
+      <RedmineExportModal
+        projectId={projectId}
+        runId={run.id}
+        findingId={finding.id}
+        decisionSeq={finding.decision_seq}
+        open={redmineOpen}
+        onClose={() => setRedmineOpen(false)}
+        onExported={(url) => {
+          setNote(`Задача создана: ${url}`);
+          onDecided();
+        }}
+      />
 
       <section className="rounded-lg border border-[var(--status-error-border)] bg-[var(--status-error-bg)] p-3">
         <h3 className="mb-1 text-sm font-medium">Суть несоответствия</h3>

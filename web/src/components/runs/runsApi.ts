@@ -32,7 +32,10 @@ export interface SliceRow {
 export interface RunStats {
   total: number;
   by_status: Partial<Record<ReviewStatus, number>>;
+  reviewed: number;
   validated: number;
+  pending_decision: number;
+  run_can_close: boolean;
   findings_edits_done: number;
   edits_total: number;
   edits_applied: number;
@@ -50,6 +53,7 @@ export interface FindingRow {
   gid: string;
   doc: string;
   category: string;
+  defect_class: string;
   severity_raw: string;
   llm_verdict: string;
   review_status: ReviewStatus;
@@ -134,6 +138,17 @@ export interface ImportResult {
   assets?: number;
 }
 
+export interface RedmineExportBody {
+  api_key: string;
+  request_key: string;
+}
+
+export interface RedmineExportResult {
+  issue_id: number;
+  issue_url: string;
+  created: boolean;
+}
+
 export function errorText(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err);
   const json = message.indexOf("{");
@@ -202,5 +217,12 @@ export const runsApi = {
   async exportRun(projectId: number, runId: number): Promise<Blob> {
     const resp = await rawRequest("POST", `${base(projectId)}/runs/${runId}/export`);
     return resp.blob();
+  },
+  exportRedmine(projectId: number, runId: number, findingId: number, body: RedmineExportBody) {
+    return officeRequest<RedmineExportResult>(
+      "POST",
+      `${base(projectId)}/runs/${runId}/findings/${findingId}/redmine`,
+      body,
+    );
   },
 };
