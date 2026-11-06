@@ -2,18 +2,54 @@
 
 Отдельный стенд для проверки экрана «Прогоны». Рабочий стенд `:8600` и его `data/sessions.db` не затрагиваются.
 
-## Запуск
+## Запуск (по умолчанию)
 
 ```bash
-bash scripts/run_validation_stand.sh            # поднять; при первом запуске наполнить
-bash scripts/run_validation_stand.sh --status   # жив ли
-bash scripts/run_validation_stand.sh --stop     # остановить
+bash scripts/run_validation_stand.sh            # поднять в фоне (без привязки к терминалу IDE)
+bash scripts/run_validation_stand.sh --status   # жив ли и как поднят (pid или LaunchAgent)
+bash scripts/run_validation_stand.sh --stop     # остановить (снимает и LaunchAgent, если был)
 VALSTAND_CONFIRM_RESET=1 bash scripts/run_validation_stand.sh --reset   # всё с нуля
 ```
 
-Адрес `http://127.0.0.1:8612/office/1/runs`. Порт меняет `VALSTAND_PORT`, каталог данных `VALSTAND_DIR` (имя каталога должно оканчиваться на `validation-stand`), пакет прогона `VALSTAND_PACKAGE`. Фронт пересобирается сам, если `web/src` новее `web/dist`. После внутреннего `stop` скрипт проверяет, что порт не занят чужим процессом (нужен `lsof`), затем после старта ждёт ответ `GET /api/health` с таймаутом; при ошибке процесс завершается с кодом 1 и печатается хвост `stand.log`.
+Адрес `http://127.0.0.1:8612/office/1/runs`. Порт меняет `VALSTAND_PORT`, каталог данных `VALSTAND_DIR` (имя каталога должно оканчиваться на `validation-stand`), пакет прогона `VALSTAND_PACKAGE`, хост `VALSTAND_HOST`. Фронт пересобирается сам, если `web/src` новее `web/dist`.
 
-Если после «поднял, `curl` /health ок» стенд сразу пропадает, часто виноват **не** uvicorn, а сценарий: итоговая строка скрипта с текстом «остановить» воспринимается агентом как шаг чек-листа и выполняется `bash scripts/run_validation_stand.sh --stop`. Диагностику делайте через `--status`, стоп только когда стенд сознательно больше не нужен. Долгоживущий процесс удобнее держать в отдельном окне Терминала (не в короткой сессии встроенного терминала) или через `launchd` на macOS.
+Перед стартом скрипт останавливает прежний экземпляр, проверяет порт (`lsof`) и ждёт `GET /api/health` с таймаутом; при ошибке код выхода 1 и хвост `data/validation-stand/stand.log`.
+
+### Почему стенд «пропадал»
+
+1. **Сценарий агента:** строка «остановите вручную» иногда выполнялась как шаг чек-листа (`--stop`). Диагностика: `--status`. Стоп только когда стенд сознательно не нужен.
+
+2. **Сессия терминала IDE:** фоновый job иногда получал сигналы при закрытии панели. В скрипте: `nohup`, перенаправление stdin на `/dev/null`, `disown`; на Linux без macOS дополнительно оборачивается `setsid` (новая сессия).
+
+3. **Падение процесса:** смотрите `stand.log`. Для постоянной работы на macOS удобнее LaunchAgent ниже.
+
+## macOS: LaunchAgent (устойчивый режим)
+
+Один раз установить службу пользователя (`KeepAlive`, автоперезапуск). Шаблон: `scripts/launchd/com.ai-workspace.validation-stand.plist.in`. Секреты репозитория в plist не кладутся: в окружение подставляется только `WEB_JWT_SECRET` из `data/validation-stand/jwt_secret` (файл создаётся скриптом).
+
+```bash
+cd /path/to/AI-Workspace
+bash scripts/run_validation_stand.sh --install-daemon
+```
+
+Что делает команда: готовит каталог стенда (сборка фронта при необходимости, сид БД, `jwt_secret`), пишет `~/Library/LaunchAgents/com.ai-workspace.validation-stand.plist`, выполняет `launchctl bootstrap`, `enable`, `kickstart`, ждёт health.
+
+Своя метка (если нужно несколько стендов): `VALSTAND_LAUNCH_LABEL=com.example.other bash scripts/run_validation_stand.sh --install-daemon`.
+
+Убрать службу и plist:
+
+```bash
+bash scripts/run_validation_stand.sh --uninstall-daemon
+```
+
+Ручная проверка (после установки):
+
+```bash
+launchctl print "gui/$(id -u)/com.ai-workspace.validation-stand"
+curl -fsS http://127.0.0.1:8612/api/health
+```
+
+Остановка без удаления plist: `bash scripts/run_validation_stand.sh --stop` (снимет LaunchAgent с текущей сессии). Чтобы снова поднять после `--stop` без ручного `bootstrap`: `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.ai-workspace.validation-stand.plist` или снова `--install-daemon`.
 
 ## Что внутри
 

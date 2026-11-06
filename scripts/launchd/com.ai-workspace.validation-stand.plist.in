@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>@LABEL@</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+	<key>WorkingDirectory</key>
+	<string>@STAND_DIR@</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PYTHONPATH</key>
+		<string>@ROOT@</string>
+		<key>SESSION_DATABASE_PATH</key>
+		<string>@STAND_DIR@/sessions.db</string>
+		<key>WEB_JWT_SECRET</key>
+		<string>@JWT_SECRET@</string>
+		<key>ADMIN_LOGIN</key>
+		<string></string>
+		<key>ADMIN_PASSWORD</key>
+		<string></string>
+	</dict>
+	<key>ProgramArguments</key>
+	<array>
+		<string>@PYTHON@</string>
+		<string>@ROOT@/scripts/run_office.py</string>
+		<string>--host</string>
+		<string>@HOST@</string>
+		<string>--port</string>
+		<string>@PORT@</string>
+	</array>
+	<key>StandardOutPath</key>
+	<string>@STAND_DIR@/stand.log</string>
+	<key>StandardErrorPath</key>
+	<string>@STAND_DIR@/stand.log</string>
+</dict>
+</plist>
