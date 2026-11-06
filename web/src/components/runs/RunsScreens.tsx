@@ -1,4 +1,4 @@
-// Экран «Прогоны»: список находок, карточка с решением, статистика, панель PDF.
+// Экран «Прогоны»: список находок, карточка с решением, статистика.
 import LoadingCenter from "@/components/uikit/LoadingCenter";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import FindingCard from "@/components/runs/FindingCard";
@@ -6,7 +6,6 @@ import RunsAggregateStatsPanel from "@/components/runs/RunsAggregateStatsPanel";
 import RunsRegistryPanel from "@/components/runs/RunsRegistryPanel";
 import RedmineStandRemediationModal from "@/components/runs/RedmineStandRemediationModal";
 import {
-  assetUrl,
   errorText,
   runsApi,
   type FindingDetail,
@@ -48,7 +47,6 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
   const [severity, setSeverity] = useState("");
   const [doc, setDoc] = useState("");
   const [query, setQuery] = useState("");
-  const [pdf, setPdf] = useState<{ name: string; page: number | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -210,18 +208,12 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
   const openRun = useCallback((id: number) => {
     setRunId(id);
     setSelected(null);
-    setPdf(null);
     setView("run");
   }, []);
 
   const backToRegistry = useCallback(() => {
     setView("registry");
     setSelected(null);
-    setPdf(null);
-  }, []);
-
-  const openPdf = useCallback((name: string, page: number | null | undefined) => {
-    setPdf({ name, page: page ?? null });
   }, []);
 
   const importFile = async (file: File) => {
@@ -271,8 +263,6 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
       setError(errorText(err));
     }
   };
-
-  const pdfAsset = pdf && run ? run.docs.find((d) => d.name === pdf.name) : undefined;
 
   if (!list && !error) return <LoadingCenter label="Загрузка прогонов…" className="min-h-[40vh]" />;
 
@@ -543,11 +533,7 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
                   </ul>
                 </aside>
 
-                <div
-                  className={`min-w-0 space-y-4 ${
-                    pdf ? "grid gap-4 xl:grid-cols-2 xl:space-y-0" : ""
-                  }`}
-                >
+                <div className="min-w-0 space-y-4">
                   {detail ? (
                     <FindingCard
                       key={detail.id}
@@ -556,39 +542,11 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
                       finding={detail}
                       canDecide={list?.can_decide ?? false}
                       onDecided={afterDecision}
-                      onOpenPdf={openPdf}
                     />
                   ) : (
                     <p className="text-sm text-[var(--fg-secondary)]">
                       Выберите находку в списке слева.
                     </p>
-                  )}
-                  {pdf && (
-                    <section className="rounded-lg border border-[var(--border-subtle)] p-2">
-                      <div className="mb-2 flex items-center justify-between text-sm">
-                        <span>
-                          {pdf.name}
-                          {pdf.page ? `, стр. ${pdf.page}` : ""}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setPdf(null)}
-                          className="rounded-lg bg-[var(--bg-hover)] px-2 py-1"
-                        >
-                          Закрыть
-                        </button>
-                      </div>
-                      {pdfAsset ? (
-                        <iframe
-                          key={`${pdf.name}-${pdf.page}`}
-                          title={pdf.name}
-                          src={assetUrl(projectId, run.id, pdfAsset.id, pdf.page)}
-                          className="h-[60vh] w-full rounded bg-white xl:h-[75vh]"
-                        />
-                      ) : (
-                        <p className="text-sm text-[var(--fg-secondary)]">Документа нет в прогоне.</p>
-                      )}
-                    </section>
                   )}
                 </div>
               </div>

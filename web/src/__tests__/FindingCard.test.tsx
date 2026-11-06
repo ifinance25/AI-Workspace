@@ -1,0 +1,104 @@
+import { describe, it, expect } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import FindingCard from "@/components/runs/FindingCard";
+import { openPdfInFindingCard } from "@/components/runs/findingCardTabs";
+import type { FindingDetail, RunDetail } from "@/components/runs/runsApi";
+
+const run: RunDetail = {
+  id: 1,
+  run_key: "RUN1",
+  series_key: "s",
+  import_version: 1,
+  parent_run_id: null,
+  source_kind: "package",
+  comparison_kind: "ftt_vs_stand",
+  title: "Тест",
+  stand_version: null,
+  started_at: null,
+  imported_at: "2026-01-01",
+  documents: [{ name: "ФТТ1.pdf", role: "ФТТ" }],
+  stats: {
+    total: 1,
+    by_status: {},
+    reviewed: 0,
+    validated: 0,
+    pending_decision: 1,
+    run_can_close: false,
+    findings_edits_done: 0,
+    edits_total: 0,
+    edits_applied: 0,
+    llm_agreement: null,
+    slices: { severity: [], doc: [], category: [] },
+  },
+  docs: [{ id: 10, name: "ФТТ1.pdf" }],
+};
+
+const finding: FindingDetail = {
+  id: 5,
+  gid: "F-001",
+  doc: "ФТТ1.pdf",
+  category: "cat",
+  defect_class: "content",
+  severity_raw: "major",
+  llm_verdict: "agree",
+  llm_verdict_reason: "причина",
+  review_status: "new",
+  lifecycle: "open",
+  decision_seq: 0,
+  section: "s",
+  summary: "Краткое описание",
+  why: "Обоснование",
+  clauses: [],
+  scenarios: [],
+  redmine: [],
+  redmine_links: [],
+  refs: [{ label: "ФТТ1, стр. 3", pdf: "ФТТ1.pdf", page: 3 }],
+  evidence: [],
+  marked: [],
+  edits: [],
+  history: [],
+};
+
+describe("openPdfInFindingCard", () => {
+  it("переключает на вкладку pdf и сохраняет страницу", () => {
+    expect(openPdfInFindingCard("ФТТ1.pdf", 7)).toEqual({
+      tab: "pdf",
+      pdf: { name: "ФТТ1.pdf", page: 7 },
+    });
+    expect(openPdfInFindingCard("a.pdf", undefined).pdf.page).toBeNull();
+  });
+});
+
+describe("FindingCard: вкладки и PDF", () => {
+  it("показывает четыре вкладки и переключает панели", () => {
+    render(
+      <FindingCard projectId={1} run={run} finding={finding} canDecide={false} onDecided={() => {}} />,
+    );
+    expect(screen.getByRole("tab", { name: "Суть несоответствия" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByText("Краткое описание")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "История решений" }));
+    expect(screen.getByRole("tab", { name: "История решений" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByText("Решений пока нет.")).toBeInTheDocument();
+  });
+
+  it("ссылка ref открывает PDF на странице во вкладке «Документ (PDF)»", () => {
+    render(
+      <FindingCard projectId={1} run={run} finding={finding} canDecide={false} onDecided={() => {}} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "ФТТ1, стр. 3" }));
+    expect(screen.getByRole("tab", { name: "Документ (PDF)" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    const iframe = screen.getByTestId("finding-pdf-iframe");
+    expect(iframe).toHaveAttribute("src", expect.stringContaining("/assets/10"));
+    expect(iframe.getAttribute("src")).toMatch(/#page=3$/);
+  });
+});

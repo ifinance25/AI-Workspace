@@ -1,7 +1,13 @@
-// Карточка находки: суть, правки, цитаты, решение проверяющего, история.
-import { useState } from "react";
+// Карточка находки: вкладки (суть, документы, PDF, история), решение проверяющего.
+import { useEffect, useMemo, useState } from "react";
 import ShotCarousel, { type Shot } from "@/components/runs/ShotCarousel";
 import RedmineExportModal from "@/components/runs/RedmineExportModal";
+import {
+  FINDING_CARD_TABS,
+  openPdfInFindingCard,
+  type FindingCardTab,
+  type PdfViewState,
+} from "@/components/runs/findingCardTabs";
 import {
   assetUrl,
   errorText,
@@ -31,7 +37,6 @@ interface Props {
   finding: FindingDetail;
   canDecide: boolean;
   onDecided: () => void;
-  onOpenPdf: (pdf: string, page: number | null | undefined) => void;
 }
 
 const NEEDS_FORM: DecisionAction[] = ["reject", "clarify", "edits_applied"];
@@ -40,12 +45,12 @@ function Shots({
   items,
   projectId,
   runId,
-  onOpenPdf,
+  onPdfLink,
 }: {
   items: FindingImage[];
   projectId: number;
   runId: number;
-  onOpenPdf: Props["onOpenPdf"];
+  onPdfLink: (pdf: string, page?: number | null) => void;
 }) {
   const [open, setOpen] = useState<number | null>(null);
   const shots: Shot[] = items.flatMap((item) =>
@@ -67,7 +72,10 @@ function Shots({
                   <button
                     type="button"
                     className="underline"
-                    onClick={() => onOpenPdf(item.pdf as string, item.page)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onPdfLink(item.pdf as string, item.page);
+                    }}
                   >
                     стр. {item.page}
                   </button>
@@ -95,13 +103,24 @@ function Shots({
         ))}
       </div>
       {open !== null && (
-        <ShotCarousel shots={shots} index={open} onIndex={setOpen} onClose={() => setOpen(null)} onOpenPdf={onOpenPdf} />
+        <ShotCarousel
+          shots={shots}
+          index={open}
+          onIndex={setOpen}
+          onClose={() => setOpen(null)}
+          onOpenPdf={(doc, page) => {
+            const pdfName = items.find((x) => x.doc === doc)?.pdf ?? doc;
+            onPdfLink(pdfName, page);
+          }}
+        />
       )}
     </>
   );
 }
 
-export default function FindingCard({ projectId, run, finding, canDecide, onDecided, onOpenPdf }: Props) {
+export default function FindingCard({ projectId, run, finding, canDecide, onDecided }: Props) {
+  const [activeTab, setActiveTab] = useState<FindingCardTab>("essence");
+  const [pdfView, setPdfView] = useState<PdfViewState | null>(null);
   const [action, setAction] = useState<DecisionAction | null>(null);
   const [why, setWhy] = useState("");
   const [reason, setReason] = useState("");
@@ -110,6 +129,24 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [redmineOpen, setRedmineOpen] = useState(false);
+
+  useEffect(() => {
+    setActiveTab("essence");
+    setPdfView(null);
+  }, [finding.id]);
+
+  const openPdfLink = (pdfName: string, page?: number | null) => {
+    const next = openPdfInFindingCard(pdfName, page);
+    setActiveTab(next.tab);
+    setPdfView(next.pdf);
+  };
+
+  const pdfAsset = pdfView ? run.docs.find((d) => d.name === pdfView.name) : undefined;
+
+  const manifestDocNames = useMemo(
+    () => new Set(run.documents.map((d) => d.name)),
+    [run.documents],
+  );
 
   const actions = availableActions(finding);
 
@@ -121,7 +158,6 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
       const result = await runsApi.decide(projectId, run.id, finding.id, {
         action: chosen,
         expected_seq: finding.decision_seq,
-        // Тот же ключ при повторном нажатии в том же состоянии: двойной клик не дублирует запись.
         request_key: `${finding.id}-${finding.decision_seq}-${chosen}`,
         why,
         reason_code: reason,
@@ -189,7 +225,10 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
             key={ref.label}
             type="button"
             className="mr-3 underline"
-            onClick={() => onOpenPdf(ref.pdf, ref.page)}
+            onClick={(e) => {
+              e.preventDefault();
+              openPdfLink(ref.pdf, ref.page);
+            }}
           >
             {ref.label}
           </button>
@@ -231,57 +270,252 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
         }}
       />
 
-      <section className="rounded-lg border border-[var(--status-error-border)] bg-[var(--status-error-bg)] p-3">
-        <h3 className="mb-1 text-sm font-medium">Суть несоответствия</h3>
-        <p className="whitespace-pre-wrap text-sm">{finding.summary}</p>
-      </section>
+      <div
+        role="tablist"
+        className="flex gap-2 overflow-x-auto border-b border-[var(--border-subtle)]"
+        aria-label="Разделы карточки находки"
+      >
+        {FINDING_CARD_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === t.id}
+            aria-controls={`finding-tab-${t.id}`}
+            id={`finding-tab-btn-${t.id}`}
+            onClick={() => setActiveTab(t.id)}
+            className={`shrink-0 px-3 py-2 text-sm font-medium transition-colors sm:px-4 ${
+              activeTab === t.id
+                ? "border-b-2 border-[var(--accent)] text-[var(--accent)]"
+                : "text-[var(--fg-secondary)] hover:text-[var(--fg-primary)]"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-      <section>
-        <h3 className="mb-2 text-sm font-medium">Что и где нужно исправить</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="text-[var(--fg-secondary)]">
-              <tr>
-                <th className="py-1 pr-3 font-normal">Где</th>
-                <th className="py-1 pr-3 font-normal">Было</th>
-                <th className="py-1 pr-3 font-normal">Стало</th>
-                <th className="py-1 font-normal">Состояние</th>
-              </tr>
-            </thead>
-            <tbody>
-              {finding.edits.map((edit) => (
-                <tr key={edit.edit_key} className="border-t border-[var(--border-subtle)] align-top">
-                  <td className="py-1 pr-3">{edit.place || edit.doc}</td>
-                  <td className="py-1 pr-3 text-[var(--status-error-fg)] line-through">{edit.old_text || "(пусто)"}</td>
-                  <td className="py-1 pr-3 text-[var(--status-success-fg)]">{edit.new_text || "(удалить)"}</td>
-                  <td className="py-1">
-                    {EDIT_STATE_LABEL[edit.state] ?? edit.state}
-                    {edit.doc_ref ? ` · ${edit.doc_ref}` : ""}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {activeTab === "essence" && (
+        <div
+          role="tabpanel"
+          id="finding-tab-essence"
+          aria-labelledby="finding-tab-btn-essence"
+          className="space-y-5"
+        >
+          <section className="rounded-lg border border-[var(--status-error-border)] bg-[var(--status-error-bg)] p-3">
+            <h3 className="mb-1 text-sm font-medium">Суть несоответствия</h3>
+            <p className="whitespace-pre-wrap text-sm">{finding.summary}</p>
+          </section>
+
+          <section>
+            <h3 className="mb-2 text-sm font-medium">Что и где нужно исправить</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="text-[var(--fg-secondary)]">
+                  <tr>
+                    <th className="py-1 pr-3 font-normal">Где</th>
+                    <th className="py-1 pr-3 font-normal">Было</th>
+                    <th className="py-1 pr-3 font-normal">Стало</th>
+                    <th className="py-1 font-normal">Состояние</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {finding.edits.map((edit) => (
+                    <tr key={edit.edit_key} className="border-t border-[var(--border-subtle)] align-top">
+                      <td className="py-1 pr-3">{edit.place || edit.doc}</td>
+                      <td className="py-1 pr-3 text-[var(--status-error-fg)] line-through">
+                        {edit.old_text || "(пусто)"}
+                      </td>
+                      <td className="py-1 pr-3 text-[var(--status-success-fg)]">
+                        {edit.new_text || "(удалить)"}
+                      </td>
+                      <td className="py-1">
+                        {EDIT_STATE_LABEL[edit.state] ?? edit.state}
+                        {edit.doc_ref ? ` · ${edit.doc_ref}` : ""}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-[var(--border-subtle)] p-3">
+            <h3 className="mb-1 text-sm font-medium">Почему агенты так решили</h3>
+            <p className="whitespace-pre-wrap text-sm">{finding.why || "Не указано."}</p>
+            <p className="mt-2 whitespace-pre-wrap text-sm text-[var(--fg-secondary)]">
+              <b>Проверка скептика: {finding.llm_verdict}.</b> {finding.llm_verdict_reason}
+            </p>
+          </section>
+
+          {(finding.clauses.length > 0 || finding.scenarios.length > 0) && (
+            <section className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-sidebar)] p-3">
+              <h3 className="mb-2 text-sm font-medium">Контекст прослеживаемости</h3>
+              {finding.clauses.length > 0 && (
+                <div className="mb-2">
+                  <p className="text-xs text-[var(--fg-secondary)]">Пункты / требования</p>
+                  <ul className="list-inside list-disc text-sm">
+                    {finding.clauses.map((c) => (
+                      <li key={c}>{c}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {finding.scenarios.length > 0 && (
+                <div>
+                  <p className="text-xs text-[var(--fg-secondary)]">Сценарии</p>
+                  <ul className="list-inside list-disc text-sm">
+                    {finding.scenarios.map((s) => (
+                      <li key={s}>{s}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </section>
+          )}
         </div>
-      </section>
+      )}
 
-      <section className="rounded-lg border border-[var(--border-subtle)] p-3">
-        <h3 className="mb-1 text-sm font-medium">Почему агенты так решили</h3>
-        <p className="whitespace-pre-wrap text-sm">{finding.why || "Не указано."}</p>
-        <p className="mt-2 whitespace-pre-wrap text-sm text-[var(--fg-secondary)]">
-          <b>Проверка скептика: {finding.llm_verdict}.</b> {finding.llm_verdict_reason}
-        </p>
-      </section>
+      {activeTab === "documents" && (
+        <div
+          role="tabpanel"
+          id="finding-tab-documents"
+          aria-labelledby="finding-tab-btn-documents"
+          className="space-y-5"
+        >
+          <section>
+            <h3 className="mb-2 text-sm font-medium">Документы прогона</h3>
+            {run.documents.length === 0 && run.docs.length === 0 ? (
+              <p className="text-sm text-[var(--fg-secondary)]">Список документов пуст.</p>
+            ) : (
+              <ul className="space-y-1 text-sm">
+                {run.documents.map((doc) => {
+                  const asset = run.docs.find((d) => d.name === doc.name);
+                  return (
+                    <li key={doc.name} className="flex flex-wrap items-baseline gap-2">
+                      <span>
+                        {doc.name}
+                        {typeof doc.role === "string" && doc.role ? (
+                          <span className="text-[var(--fg-secondary)]"> · {doc.role}</span>
+                        ) : null}
+                      </span>
+                      {asset ? (
+                        <button
+                          type="button"
+                          className="underline"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            openPdfLink(doc.name, null);
+                          }}
+                        >
+                          Открыть PDF
+                        </button>
+                      ) : null}
+                    </li>
+                  );
+                })}
+                {run.docs
+                  .filter((d) => !manifestDocNames.has(d.name))
+                  .map((d) => (
+                    <li key={`asset-${d.id}`}>
+                      {d.name}{" "}
+                      <button
+                        type="button"
+                        className="underline"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          openPdfLink(d.name, null);
+                        }}
+                      >
+                        Открыть PDF
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </section>
 
-      <section>
-        <h3 className="mb-2 text-sm font-medium">Документы: на что опирались</h3>
-        <Shots items={finding.evidence} projectId={projectId} runId={run.id} onOpenPdf={onOpenPdf} />
-      </section>
-      {finding.marked.length > 0 && (
-        <section>
-          <h3 className="mb-2 text-sm font-medium">Страница ПМИ с правками</h3>
-          <Shots items={finding.marked} projectId={projectId} runId={run.id} onOpenPdf={onOpenPdf} />
-        </section>
+          <section>
+            <h3 className="mb-2 text-sm font-medium">Документы: на что опирались</h3>
+            <Shots
+              items={finding.evidence}
+              projectId={projectId}
+              runId={run.id}
+              onPdfLink={openPdfLink}
+            />
+          </section>
+          {finding.marked.length > 0 && (
+            <section>
+              <h3 className="mb-2 text-sm font-medium">Страница ПМИ с правками</h3>
+              <Shots
+                items={finding.marked}
+                projectId={projectId}
+                runId={run.id}
+                onPdfLink={openPdfLink}
+              />
+            </section>
+          )}
+        </div>
+      )}
+
+      {activeTab === "pdf" && (
+        <div
+          role="tabpanel"
+          id="finding-tab-pdf"
+          aria-labelledby="finding-tab-btn-pdf"
+          className="rounded-lg border border-[var(--border-subtle)] p-2"
+        >
+          {pdfView ? (
+            <>
+              <p className="mb-2 text-sm">
+                {pdfView.name}
+                {pdfView.page ? `, стр. ${pdfView.page}` : ""}
+              </p>
+              {pdfAsset ? (
+                <iframe
+                  key={`${pdfView.name}-${pdfView.page ?? 0}`}
+                  title={pdfView.name}
+                  data-testid="finding-pdf-iframe"
+                  src={assetUrl(projectId, run.id, pdfAsset.id, pdfView.page)}
+                  className="h-[60vh] w-full rounded bg-white"
+                />
+              ) : (
+                <p className="text-sm text-[var(--fg-secondary)]">Документа нет в прогоне.</p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-[var(--fg-secondary)]">
+              Нажмите ссылку на документ или страницу в шапке карточки или на вкладке «Документы».
+            </p>
+          )}
+        </div>
+      )}
+
+      {activeTab === "history" && (
+        <div
+          role="tabpanel"
+          id="finding-tab-history"
+          aria-labelledby="finding-tab-btn-history"
+        >
+          {finding.history.length === 0 ? (
+            <p className="text-sm text-[var(--fg-secondary)]">Решений пока нет.</p>
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {finding.history.map((item) => (
+                <li key={item.decision_key}>
+                  <span className="text-[var(--fg-secondary)]">
+                    {formatStamp(item.at)} · {item.actor} (
+                    {ROLE_LABEL[item.actor_role] ?? item.actor_role}) ·{" "}
+                  </span>
+                  <b>{ACTION_LABEL[item.action as DecisionAction] ?? item.action}.</b> Статус «
+                  {STATUS_LABEL[item.review_to as ReviewStatus] ?? item.review_to}», этап «
+                  {LIFECYCLE_LABEL[item.lifecycle_to] ?? item.lifecycle_to}»
+                  {item.why ? `. ${item.why}` : ""}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       <section className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-sidebar)] p-3">
@@ -365,28 +599,6 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
         )}
         {error && <p role="alert" className="alert-error mt-2">{error}</p>}
         {note && <p className="alert-success mt-2">{note}</p>}
-      </section>
-
-      <section>
-        <h3 className="mb-2 text-sm font-medium">История решений</h3>
-        {finding.history.length === 0 ? (
-          <p className="text-sm text-[var(--fg-secondary)]">Решений пока нет.</p>
-        ) : (
-          <ul className="space-y-1 text-sm">
-            {finding.history.map((item) => (
-              <li key={item.decision_key}>
-                <span className="text-[var(--fg-secondary)]">
-                  {formatStamp(item.at)} · {item.actor} (
-                  {ROLE_LABEL[item.actor_role] ?? item.actor_role}) ·{" "}
-                </span>
-                <b>{ACTION_LABEL[item.action as DecisionAction] ?? item.action}.</b> Статус «
-                {STATUS_LABEL[item.review_to as ReviewStatus] ?? item.review_to}», этап «
-                {LIFECYCLE_LABEL[item.lifecycle_to] ?? item.lifecycle_to}»
-                {item.why ? `. ${item.why}` : ""}
-              </li>
-            ))}
-          </ul>
-        )}
       </section>
     </article>
   );
