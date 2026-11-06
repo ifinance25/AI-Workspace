@@ -17,12 +17,17 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 STAND_DIR="${VALSTAND_DIR:-$ROOT/data/validation-stand}"
 HOST="${VALSTAND_HOST:-127.0.0.1}"
 PORT="${VALSTAND_PORT:-8712}"
+if [[ -n "${VALSTAND_PORT:-}" ]]; then
+    echo "run_validation_stand: VALSTAND_PORT=$PORT (по умолчанию 8712; curl и URL ниже должны совпадать с этим портом)" >&2
+fi
 PACKAGE="${VALSTAND_PACKAGE:-$HOME/Documents/FACT/_рабочие_файлы/сопоставление_29102026_прогон4/out/package_RUN4-20261029.zip}"
 PIDFILE="$STAND_DIR/stand.pid"
 ACCOUNTS="$STAND_DIR/accounts.txt"
 URL="http://$HOST:$PORT"
 # curl по умолчанию уважает HTTP(S)_PROXY: запросы к 127.0.0.1 уходят в прокси
 # и висят до таймаута, хотя uvicorn уже слушает порт. Обходим для проверки здоровья.
+# Не передаём WEB_PORT в дочерний процесс: в config.yaml порт может быть ${WEB_PORT},
+# тогда expandvars подставит его раньше, чем run_office.py применит --port (гонка и «health на другом порту»).
 VALSTAND_HEALTH_MAX_TIME="${VALSTAND_HEALTH_MAX_TIME:-8}"
 VALSTAND_HEALTH_CONNECT_TIMEOUT="${VALSTAND_HEALTH_CONNECT_TIMEOUT:-3}"
 _curl_local_health() {
@@ -138,6 +143,25 @@ _wait_for_health() {
         echo "  (файл журнала отсутствует)" >&2
     fi
     return 1
+}
+
+# После успешного health: pidfile не пустой, процесс жив и это run_office.py (отсекает гонки и «успех» не на том PID).
+_verify_pidfile_matches_process() {
+    local pid
+    [[ -f "$PIDFILE" ]] || {
+        echo "run_validation_stand: нет $PIDFILE после ожидания health." >&2
+        return 1
+    }
+    pid="$(tr -cd '0-9' < "$PIDFILE" 2>/dev/null || true)"
+    [[ -n "$pid" ]] || {
+        echo "run_validation_stand: в $PIDFILE нет числового PID (повреждённый pidfile?)." >&2
+        return 1
+    }
+    if ! _is_our_run_office_pid "$pid"; then
+        echo "run_validation_stand: pid $pid из pidfile не похож на наш run_office.py (процесс умер или перезаписан)." >&2
+        return 1
+    fi
+    return 0
 }
 
 stop_stand() {
@@ -268,22 +292,23 @@ fi
 cd "$STAND_DIR" || exit 1
 {
     if command -v setsid >/dev/null 2>&1 && ! _is_darwin; then
-        setsid env PYTHONPATH="$ROOT" SESSION_DATABASE_PATH="$STAND_DIR/sessions.db" \
+        setsid env -u WEB_PORT PYTHONPATH="$ROOT" SESSION_DATABASE_PATH="$STAND_DIR/sessions.db" \
             WEB_JWT_SECRET="$(cat "$STAND_DIR/jwt_secret")" ADMIN_LOGIN= ADMIN_PASSWORD= \
             nohup "$PY" "$ROOT/scripts/run_office.py" --host "$HOST" --port "$PORT" \
             >> "$STAND_DIR/stand.log" 2>&1 < /dev/null &
     else
-        env PYTHONPATH="$ROOT" SESSION_DATABASE_PATH="$STAND_DIR/sessions.db" \
+        env -u WEB_PORT PYTHONPATH="$ROOT" SESSION_DATABASE_PATH="$STAND_DIR/sessions.db" \
             WEB_JWT_SECRET="$(cat "$STAND_DIR/jwt_secret")" ADMIN_LOGIN= ADMIN_PASSWORD= \
             nohup "$PY" "$ROOT/scripts/run_office.py" --host "$HOST" --port "$PORT" \
             >> "$STAND_DIR/stand.log" 2>&1 < /dev/null &
     fi
-    echo $! > "$PIDFILE"
+    printf '%s\n' "$!" > "$PIDFILE"
 } || exit 1
 disown -a 2>/dev/null || true
 cd "$ROOT" || exit 1
 
 _wait_for_health || exit 1
+_verify_pidfile_matches_process || exit 1
 
 echo "Стенд поднят: $URL/office/1/runs"
 echo "Учётки (логины и пароли): $ACCOUNTS"
