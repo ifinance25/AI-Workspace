@@ -22,14 +22,17 @@ export default function RunsPage() {
         {projectId === null ? (
           <p>Проект не найден</p>
         ) : (
-          <>
-            <div className="mb-3 text-right text-sm">
-              <Link to={`/office/${projectId}/members`} className="underline">
-                Команда
-              </Link>
-            </div>
-            <RunsScreens projectId={projectId} />
-          </>
+          <RunsScreens
+            projectId={projectId}
+            runViewTopRow={(backButton) => (
+              <div className="flex flex-wrap items-center justify-start gap-3">
+                {backButton}
+                <Link to={`/office/${projectId}/members`} className="underline">
+                  Команда
+                </Link>
+              </div>
+            )}
+          />
         )}
       </div>
     </AppShell>

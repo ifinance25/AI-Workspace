@@ -1,6 +1,14 @@
 // Экран «Прогоны»: список находок, карточка с решением, статистика.
 import LoadingCenter from "@/components/uikit/LoadingCenter";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import FindingCard from "@/components/runs/FindingCard";
 import RunsAggregateStatsPanel from "@/components/runs/RunsAggregateStatsPanel";
 import RunsRegistryPanel from "@/components/runs/RunsRegistryPanel";
@@ -35,7 +43,16 @@ type ViewId = "registry" | "run" | "stats";
 const SELECT_CLASS =
   "rounded-lg border border-[var(--border-subtle)] bg-transparent px-2 py-1.5 text-sm";
 
-export default function RunsScreens({ projectId }: { projectId: number }) {
+const BACK_BUTTON_CLASS = "rounded-lg bg-[var(--bg-hover)] px-3 py-1.5 text-sm";
+
+export default function RunsScreens({
+  projectId,
+  runViewTopRow,
+}: {
+  projectId: number;
+  /** Строка над заголовком прогона: «Назад» и ссылка «Команда» в одной линии. */
+  runViewTopRow?: (backButton: ReactElement) => ReactNode;
+}) {
   const [list, setList] = useState<RunsList | null>(null);
   const [runId, setRunId] = useState<number | null>(null);
   const [run, setRun] = useState<RunDetail | null>(null);
@@ -244,6 +261,25 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
     setSelected(null);
   }, []);
 
+  const toggleSeverityFilter = useCallback((value: string) => {
+    setSeverity((prev) => (prev === value ? "" : value));
+  }, []);
+
+  const backButtonEl = (
+    <button type="button" onClick={backToRegistry} className={BACK_BUTTON_CLASS}>
+      ← Назад
+    </button>
+  );
+
+  const pageTitle = useMemo(() => {
+    if (view === "run" && runId !== null) {
+      if (!run) return "Загрузка прогона…";
+      const meta = `${comparisonKindLabel(run.comparison_kind)} · ${formatRunDate(run.display_at ?? run.imported_at)}`;
+      return `${run.title || run.run_key} · ${meta}`;
+    }
+    return "Прогоны и валидация";
+  }, [view, runId, run]);
+
   const importFile = async (file: File) => {
     setBusy(true);
     setError(null);
@@ -296,8 +332,11 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
 
   return (
     <div className="space-y-4">
+      {view === "run" && runId !== null && runViewTopRow && (
+        <div className="text-sm">{runViewTopRow(backButtonEl)}</div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold sm:text-2xl">Прогоны и валидация</h1>
+        <h1 className="text-xl font-semibold sm:text-2xl">{pageTitle}</h1>
       </div>
 
       {error && (
@@ -389,26 +428,22 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
 
       {view === "run" && runId !== null && (
         <>
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={backToRegistry}
-              className="rounded-lg bg-[var(--bg-hover)] px-3 py-1.5 text-sm"
-            >
-              ← Назад
-            </button>
-            {run ? (
-              <div className="text-sm">
-                <span className="font-semibold">{run.title || run.run_key}</span>
-                <span className="ml-2 text-[var(--fg-secondary)]">
-                  {comparisonKindLabel(run.comparison_kind)} ·{" "}
-                  {formatRunDate(run.display_at ?? run.imported_at)}
-                </span>
-              </div>
-            ) : (
-              <span className="text-sm text-[var(--fg-secondary)]">Загрузка прогона…</span>
-            )}
-          </div>
+          {runViewTopRow ? null : (
+            <div className="flex flex-wrap items-center gap-3">
+              {backButtonEl}
+              {run ? (
+                <div className="text-sm">
+                  <span className="font-semibold">{run.title || run.run_key}</span>
+                  <span className="ml-2 text-[var(--fg-secondary)]">
+                    {comparisonKindLabel(run.comparison_kind)} ·{" "}
+                    {formatRunDate(run.display_at ?? run.imported_at)}
+                  </span>
+                </div>
+              ) : (
+                <span className="text-sm text-[var(--fg-secondary)]">Загрузка прогона…</span>
+              )}
+            </div>
+          )}
 
           {!run ? (
             <LoadingCenter label="Загрузка прогона…" className="min-h-[30vh]" />
@@ -532,7 +567,7 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
                     ))}
                   </select>
                 </div>
-                <p className="text-xs text-[var(--fg-secondary)]">
+                <p className="text-right text-xs text-[var(--fg-secondary)]">
                   Показано {visible.length} из {findings.length}
                 </p>
               </section>
@@ -581,6 +616,7 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
                       finding={detail}
                       canDecide={list?.can_decide ?? false}
                       onDecided={afterDecision}
+                      onToggleSeverityFilter={toggleSeverityFilter}
                     />
                   ) : runStatusSummary ? (
                     <section

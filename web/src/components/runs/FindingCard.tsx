@@ -39,9 +39,21 @@ interface Props {
   finding: FindingDetail;
   canDecide: boolean;
   onDecided: () => void;
+  /** Клик по бейджу важности: переключает фильтр в списке (повторный сброс). */
+  onToggleSeverityFilter?: (severity: string) => void;
 }
 
 const NEEDS_FORM: DecisionAction[] = ["reject", "clarify", "edits_applied"];
+
+function normalizeRefLabel(label: string): string {
+  return label.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** «ПМИ1 сц. N»: ссылка на сценарий, не на пункт требования. */
+function refIsScenarioRef(label: string): boolean {
+  const t = label.trim();
+  return /сц\.?\s*\d/i.test(t) || /\bscenario\b/i.test(t);
+}
 
 function Shots({
   items,
@@ -120,7 +132,14 @@ function Shots({
   );
 }
 
-export default function FindingCard({ projectId, run, finding, canDecide, onDecided }: Props) {
+export default function FindingCard({
+  projectId,
+  run,
+  finding,
+  canDecide,
+  onDecided,
+  onToggleSeverityFilter,
+}: Props) {
   const [activeTab, setActiveTab] = useState<FindingCardTab>("essence");
   const [pdfView, setPdfView] = useState<PdfViewState | null>(null);
   const [action, setAction] = useState<DecisionAction | null>(null);
@@ -150,18 +169,52 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
     [run.documents],
   );
 
-  const refLabels = useMemo(
-    () => new Set(finding.refs.map((r) => r.label.trim())),
+  const refLabelsNormalized = useMemo(
+    () => new Set(finding.refs.map((r) => normalizeRefLabel(r.label))),
     [finding.refs],
   );
 
+  const { requirementRefs, scenarioRefsFromData } = useMemo(() => {
+    const req: typeof finding.refs = [];
+    const scen: typeof finding.refs = [];
+    for (const r of finding.refs) {
+      (refIsScenarioRef(r.label) ? scen : req).push(r);
+    }
+    return { requirementRefs: req, scenarioRefsFromData: scen };
+  }, [finding.refs]);
+
   const clausesDeduped = useMemo(
-    () => finding.clauses.filter((c) => !refLabels.has(c.trim())),
-    [finding.clauses, refLabels],
+    () => finding.clauses.filter((c) => !refLabelsNormalized.has(normalizeRefLabel(c))),
+    [finding.clauses, refLabelsNormalized],
   );
 
+  const scenarioStringsFromClauses = useMemo(() => {
+    const fromScenario = new Set(finding.scenarios.map((s) => normalizeRefLabel(s)).filter(Boolean));
+    const fromRefScenarioLabels = new Set(
+      scenarioRefsFromData.map((r) => normalizeRefLabel(r.label)).filter(Boolean),
+    );
+    const dedup = new Set<string>();
+    for (const c of clausesDeduped) {
+      const t = c.trim();
+      if (!t) continue;
+      if (
+        /сц\.?\s*\d/i.test(t) ||
+        /\bscenario\b/i.test(t) ||
+        /сценар/i.test(t)
+      ) {
+        const n = normalizeRefLabel(t);
+        if (!fromScenario.has(n) && !fromRefScenarioLabels.has(n)) dedup.add(t);
+      }
+    }
+    return [...dedup];
+  }, [clausesDeduped, finding.scenarios, scenarioRefsFromData]);
+
   const hasTraceabilityBlock =
-    finding.refs.length > 0 || clausesDeduped.length > 0 || finding.scenarios.length > 0;
+    requirementRefs.length > 0 ||
+    scenarioRefsFromData.length > 0 ||
+    clausesDeduped.length > 0 ||
+    finding.scenarios.length > 0 ||
+    scenarioStringsFromClauses.length > 0;
 
   const actions = availableActions(finding);
 
@@ -228,9 +281,20 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
             Дефект стенда
           </span>
         )}
-        <span className="rounded-full bg-[var(--bg-hover)] px-2.5 py-0.5 text-xs">
-          {finding.severity_raw}
-        </span>
+        {onToggleSeverityFilter ? (
+          <button
+            type="button"
+            aria-label={`Фильтр по важности: ${finding.severity_raw}`}
+            onClick={() => onToggleSeverityFilter(finding.severity_raw)}
+            className="rounded-full bg-[var(--bg-hover)] px-2.5 py-0.5 text-xs hover:opacity-90"
+          >
+            {finding.severity_raw}
+          </button>
+        ) : (
+          <span className="rounded-full bg-[var(--bg-hover)] px-2.5 py-0.5 text-xs">
+            {finding.severity_raw}
+          </span>
+        )}
         <span className="text-sm text-[var(--fg-secondary)]">{finding.doc}</span>
       </header>
       <p className="text-sm text-[var(--fg-secondary)]">{finding.category}</p>
@@ -321,14 +385,16 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
           <p className="mb-2 text-xs text-[var(--fg-secondary)]">
             Создать задачу из подтверждённой находки (один запрос с вашим ключом).
           </p>
-          <button
-            type="button"
-            disabled={finding.review_status !== "confirmed"}
-            onClick={() => setRedmineOpen(true)}
-            className="rounded-lg bg-[var(--bg-hover)] px-3 py-1.5 text-sm disabled:opacity-40"
-          >
-            Задача в Redmine
-          </button>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              disabled={finding.review_status !== "confirmed"}
+              onClick={() => setRedmineOpen(true)}
+              className="rounded-lg bg-[var(--bg-hover)] px-3 py-1.5 text-sm disabled:opacity-40"
+            >
+              Задача в Redmine
+            </button>
+          </div>
         </div>
         {error && <p role="alert" className="alert-error mt-2">{error}</p>}
         {note && <p className="alert-success mt-2">{note}</p>}
@@ -446,11 +512,11 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
                   </p>
                 </div>
               )}
-              {(finding.refs.length > 0 || clausesDeduped.length > 0) && (
+              {(requirementRefs.length > 0 || clausesDeduped.length > 0) && (
                 <div className="mb-2">
-                  <p className="text-xs text-[var(--fg-secondary)]">Пункты / требования</p>
+                  <p className="text-xs text-[var(--fg-secondary)]">Требования</p>
                   <ul className="list-inside list-disc text-sm">
-                    {finding.refs.map((ref) => (
+                    {requirementRefs.map((ref) => (
                       <li key={ref.label}>
                         <button
                           type="button"
@@ -470,12 +536,31 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
                   </ul>
                 </div>
               )}
-              {finding.scenarios.length > 0 && (
+              {(finding.scenarios.length > 0 ||
+                scenarioRefsFromData.length > 0 ||
+                scenarioStringsFromClauses.length > 0) && (
                 <div>
                   <p className="text-xs text-[var(--fg-secondary)]">Сценарии</p>
                   <ul className="list-inside list-disc text-sm">
                     {finding.scenarios.map((s) => (
-                      <li key={s}>{s}</li>
+                      <li key={`s-${s}`}>{s}</li>
+                    ))}
+                    {scenarioRefsFromData.map((ref) => (
+                      <li key={`ref-sc-${ref.label}`}>
+                        <button
+                          type="button"
+                          className="underline"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            openPdfLink(ref.pdf, ref.page);
+                          }}
+                        >
+                          {ref.label}
+                        </button>
+                      </li>
+                    ))}
+                    {scenarioStringsFromClauses.map((s) => (
+                      <li key={`clause-sc-${s}`}>{s}</li>
                     ))}
                   </ul>
                 </div>

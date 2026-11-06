@@ -327,6 +327,18 @@ describe("Экран прогонов", () => {
     );
   });
 
+  it("клик по бейджу важности включает и сбрасывает фильтр", async () => {
+    setup();
+    await openRunFindings();
+    const severityBtn = screen.getByRole("button", { name: /Фильтр по важности/ });
+    const severitySelect = screen.getByLabelText("Важность") as HTMLSelectElement;
+    expect(severitySelect.value).toBe("");
+    fireEvent.click(severityBtn);
+    expect(severitySelect.value).toBe("средняя");
+    fireEvent.click(severityBtn);
+    expect(severitySelect.value).toBe("");
+  });
+
   it("фильтр по классу находки оставляет только выбранный класс", async () => {
     setup({}, [
       row(),

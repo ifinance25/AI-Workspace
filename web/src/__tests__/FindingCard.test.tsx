@@ -132,4 +132,22 @@ describe("FindingCard: вкладки и PDF", () => {
     expect(iframe).toHaveAttribute("src", expect.stringContaining("/assets/10"));
     expect(iframe.getAttribute("src")).toMatch(/#page=3$/);
   });
+
+  it("«ПМИ сц. N» в refs относит к блоку «Сценарии», «Требования» только пункты", () => {
+    const mixed: FindingDetail = {
+      ...finding,
+      refs: [
+        { label: "ФТТ1 п. 4.1", pdf: "ФТТ1.pdf", page: 2 },
+        { label: "ПМИ1 сц. 6", pdf: "ПМИ1.pdf", page: 1 },
+      ],
+    };
+    render(
+      <FindingCard projectId={1} run={run} finding={mixed} canDecide={false} onDecided={() => {}} />,
+    );
+    expect(screen.getByText("Требования")).toBeInTheDocument();
+    const scenarioHeadings = screen.getAllByText("Сценарии");
+    expect(scenarioHeadings.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole("button", { name: "ФТТ1 п. 4.1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ПМИ1 сц. 6" })).toBeInTheDocument();
+  });
 });
