@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import type { RunSummary } from "@/components/runs/runsApi";
-import { STATUS_LABEL, type ReviewStatus } from "@/components/runs/runsLabels";
+import type { ReviewStatus, RunSummary } from "@/components/runs/runsApi";
+import { STATUS_LABEL } from "@/components/runs/runsLabels";
 import { comparisonKindLabel, formatRunDate } from "@/components/runs/runsRegistryLabels";
 
 const STATUS_ORDER: ReviewStatus[] = ["new", "needs_info", "confirmed", "rejected"];

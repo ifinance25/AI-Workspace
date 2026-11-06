@@ -227,6 +227,25 @@ describe("Экран прогонов", () => {
     expect(save.disabled).toBe(false);
   });
 
+  it("кнопка Redmine активна только после подтверждения", async () => {
+    const view = setup();
+    await openCard();
+    expect((screen.getByRole("button", { name: "Задача в Redmine" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    view.unmount();
+    vi.clearAllMocks();
+    setup(
+      {},
+      [row({ review_status: "confirmed", lifecycle: "confirmed", decision_seq: 1 })],
+      detail({ review_status: "confirmed", lifecycle: "confirmed", decision_seq: 1 }),
+    );
+    await openCard();
+    expect((screen.getByRole("button", { name: "Задача в Redmine" }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
+  });
+
   it("ошибка сервера выводится в карточке", async () => {
     setup();
     mockRuns.decide.mockRejectedValue(
