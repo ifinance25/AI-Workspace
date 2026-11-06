@@ -16,7 +16,7 @@ import {
 import {
   STATUS_LABEL,
   FIXED_LABEL,
-  QUICK_FILTERS,
+  defectClassFilterLabel,
   displayStatus,
   matchesFilter,
   statusTone,
@@ -46,6 +46,8 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
   const [status, setStatus] = useState<StatusFilter>("all");
   const [severity, setSeverity] = useState("");
   const [doc, setDoc] = useState("");
+  const [defectClass, setDefectClass] = useState("");
+  const [category, setCategory] = useState("");
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -153,6 +155,14 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
   }, [projectId, runId, selected, loadRun]);
 
   const docs = useMemo(() => [...new Set(findings.map((f) => f.doc))].sort(), [findings]);
+  const defectClasses = useMemo(
+    () => [...new Set(findings.map((f) => f.defect_class))].filter(Boolean).sort(),
+    [findings],
+  );
+  const categories = useMemo(
+    () => [...new Set(findings.map((f) => f.category))].filter(Boolean).sort(),
+    [findings],
+  );
   const severities = useMemo(
     () => [...new Set(findings.map((f) => f.severity_raw))],
     [findings],
@@ -164,9 +174,27 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
         matchesFilter(f, status) &&
         (!severity || f.severity_raw === severity) &&
         (!doc || f.doc === doc) &&
+        (!defectClass || f.defect_class === defectClass) &&
+        (!category || f.category === category) &&
         (!needle || f.gid.toLowerCase().includes(needle) || f.summary.toLowerCase().includes(needle)),
     );
-  }, [findings, status, severity, doc, query]);
+  }, [findings, status, severity, doc, defectClass, category, query]);
+
+  const runStatusSummary = useMemo(() => {
+    if (!run) return null;
+    const by = run.stats.by_status ?? {};
+    const fixedCount = findings.filter((f) => f.lifecycle === "fixed").length;
+    return {
+      total: run.stats.total,
+      new: by.new ?? 0,
+      needs_info: by.needs_info ?? 0,
+      confirmed: by.confirmed ?? 0,
+      rejected: by.rejected ?? 0,
+      fixed: fixedCount,
+      pending_decision: run.stats.pending_decision,
+      reviewed: run.stats.reviewed,
+    };
+  }, [run, findings]);
 
   const pendingVisible = useMemo(
     () => visible.filter((f) => isPendingDecision(f.review_status)),
@@ -279,7 +307,7 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
       )}
       {message && <div className="alert-success">{message}</div>}
 
-      {list?.can_manage && (
+      {list?.can_manage && view === "registry" && (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-[var(--border-subtle)] p-3 text-sm">
           <input
             ref={fileInput}
@@ -367,7 +395,7 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
               onClick={backToRegistry}
               className="rounded-lg bg-[var(--bg-hover)] px-3 py-1.5 text-sm"
             >
-              ← Назад к реестру
+              ← Назад
             </button>
             {run ? (
               <div className="text-sm">
@@ -425,23 +453,6 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
                     placeholder="Номер или слово из сути"
                     className={`${SELECT_CLASS} w-full`}
                   />
-                  <div className="flex flex-wrap gap-2">
-                    {QUICK_FILTERS.map((preset) => (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        aria-pressed={status === preset.id}
-                        onClick={() => setStatus(preset.id)}
-                        className={`rounded-lg px-2 py-1 text-xs ${
-                          status === preset.id
-                            ? "bg-[var(--accent)] text-white"
-                            : "bg-[var(--bg-hover)] text-[var(--fg-secondary)]"
-                        }`}
-                      >
-                        {preset.label}
-                      </button>
-                    ))}
-                  </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
@@ -495,6 +506,32 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
                         <option key={d}>{d}</option>
                       ))}
                     </select>
+                    <select
+                      aria-label="Класс находки"
+                      value={defectClass}
+                      onChange={(e) => setDefectClass(e.target.value)}
+                      className={SELECT_CLASS}
+                    >
+                      <option value="">Все классы</option>
+                      {defectClasses.map((c) => (
+                        <option key={c} value={c}>
+                          {defectClassFilterLabel(c)}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      aria-label="Категория"
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      className={SELECT_CLASS}
+                    >
+                      <option value="">Все категории</option>
+                      {categories.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <p className="text-xs text-[var(--fg-secondary)]">
                     Показано {visible.length} из {findings.length}
@@ -543,10 +580,43 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
                       canDecide={list?.can_decide ?? false}
                       onDecided={afterDecision}
                     />
+                  ) : runStatusSummary ? (
+                    <section
+                      className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-sidebar)] p-4"
+                      aria-label="Сводка по прогону"
+                    >
+                      <h3 className="mb-3 text-sm font-medium">Сводка по прогону</h3>
+                      <p className="mb-2 text-xs text-[var(--fg-secondary)]">
+                        Всего находок: {runStatusSummary.total}. Разобрано записей: {runStatusSummary.reviewed}.
+                        {runStatusSummary.pending_decision > 0
+                          ? ` Осталось без финального решения: ${runStatusSummary.pending_decision}.`
+                          : ""}
+                      </p>
+                      <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                        <li>
+                          <span className="text-[var(--fg-secondary)]">{STATUS_LABEL.confirmed}:</span>{" "}
+                          <b>{runStatusSummary.confirmed}</b>
+                        </li>
+                        <li>
+                          <span className="text-[var(--fg-secondary)]">{STATUS_LABEL.new}:</span>{" "}
+                          <b>{runStatusSummary.new}</b>
+                        </li>
+                        <li>
+                          <span className="text-[var(--fg-secondary)]">{STATUS_LABEL.needs_info}:</span>{" "}
+                          <b>{runStatusSummary.needs_info}</b>
+                        </li>
+                        <li>
+                          <span className="text-[var(--fg-secondary)]">{STATUS_LABEL.rejected}:</span>{" "}
+                          <b>{runStatusSummary.rejected}</b>
+                        </li>
+                        <li>
+                          <span className="text-[var(--fg-secondary)]">{FIXED_LABEL}:</span>{" "}
+                          <b>{runStatusSummary.fixed}</b>
+                        </li>
+                      </ul>
+                    </section>
                   ) : (
-                    <p className="text-sm text-[var(--fg-secondary)]">
-                      Выберите находку в списке слева.
-                    </p>
+                    <p className="text-sm text-[var(--fg-secondary)]">Загрузка сводки…</p>
                   )}
                 </div>
               </div>

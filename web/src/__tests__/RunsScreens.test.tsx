@@ -173,7 +173,7 @@ describe("Экран прогонов", () => {
   it("показывает список и открывает карточку", async () => {
     setup();
     await openRunFindings();
-    expect(screen.getByText("Суть несоответствия")).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Суть несоответствия" })).toBeTruthy();
     expect(screen.getByRole("columnheader", { name: "Стало" })).toBeTruthy();
     expect(screen.getByText("Стало", { selector: "td" })).toBeTruthy();
     expect(screen.getByText("#118443").getAttribute("href")).toBe(
@@ -296,10 +296,39 @@ describe("Экран прогонов", () => {
     view.unmount();
     vi.clearAllMocks();
     setup({ can_manage: true, export_ban: "none" });
-    fireEvent.click(await screen.findByRole("button", { name: "Открыть" }));
-    const download = (await screen.findByText("Скачать markdown для LLM")) as HTMLButtonElement;
-    expect(download.disabled).toBe(false);
+    await screen.findByTestId("runs-registry");
     expect(screen.getByText("Загрузить прогон")).toBeTruthy();
     expect(screen.getByLabelText(/Разрешить вывоз markdown/)).toBeTruthy();
+    const downloadOnRegistry = screen.getByText(
+      "Скачать markdown для LLM",
+    ) as HTMLButtonElement;
+    expect(downloadOnRegistry.disabled).toBe(true);
+    fireEvent.click(await screen.findByRole("button", { name: "Открыть" }));
+    expect(screen.queryByText("Загрузить прогон")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "← Назад" }));
+    await screen.findByTestId("runs-registry");
+    const download = screen.getByText("Скачать markdown для LLM") as HTMLButtonElement;
+    expect(download.disabled).toBe(false);
+  });
+
+  it("без выбранной находки показывает сводку статусов прогона", async () => {
+    setup();
+    fireEvent.click(await screen.findByRole("button", { name: "Открыть" }));
+    expect(await screen.findByLabelText("Сводка по прогону")).toBeInTheDocument();
+    expect(screen.getByText(/Всего находок/)).toBeInTheDocument();
+  });
+
+  it("фильтр по классу находки оставляет только выбранный класс", async () => {
+    setup({}, [
+      row(),
+      row({ id: 12, gid: "R4-002", defect_class: "stand_defect", summary: "Стенд" }),
+    ]);
+    fireEvent.click(await screen.findByRole("button", { name: "Открыть" }));
+    const classSelect = await screen.findByLabelText("Класс находки");
+    fireEvent.change(classSelect, {
+      target: { value: "stand_defect" },
+    });
+    expect(screen.queryByRole("button", { name: /R4-001/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /R4-002/ })).toBeTruthy();
   });
 });

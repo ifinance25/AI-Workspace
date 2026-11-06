@@ -69,6 +69,37 @@ describe("openPdfInFindingCard", () => {
   });
 });
 
+describe("FindingCard: история решений", () => {
+  it("не дублирует похожие статус, этап и пояснение при возврате в разбор", () => {
+    const reopen: FindingDetail = {
+      ...finding,
+      history: [
+        {
+          seq: 1,
+          decision_key: "k1",
+          action: "reopen",
+          review_to: "new",
+          lifecycle_to: "reopened",
+          reason_code: "",
+          why: "Возвращено в разбор",
+          actor: "U",
+          actor_role: "tester",
+          at: "2026-01-02T12:00:00Z",
+        },
+      ],
+    };
+    render(
+      <FindingCard projectId={1} run={run} finding={reopen} canDecide={false} onDecided={() => {}} />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "История решений" }));
+    const item = screen.getByRole("listitem");
+    expect(item.textContent).toContain("Вернуть в разбор");
+    expect(item.textContent).not.toMatch(/этап.*этап/i);
+    expect(item.textContent).not.toContain("Статус «Не разобрано», этап «возвращена в разбор»");
+    expect(item.textContent).not.toContain("Возвращено в разбор");
+  });
+});
+
 describe("FindingCard: вкладки и PDF", () => {
   it("показывает четыре вкладки и переключает панели", () => {
     render(

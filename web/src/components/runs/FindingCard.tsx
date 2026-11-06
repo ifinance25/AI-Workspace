@@ -28,6 +28,8 @@ import {
   availableActions,
   displayStatus,
   formatStamp,
+  historyCompareNorm,
+  historyPhrasesRedundant,
   statusTone,
 } from "@/components/runs/runsLabels";
 
@@ -614,31 +616,42 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
                   ACTION_LABEL[item.action as DecisionAction] ?? item.action;
                 const statusShown =
                   STATUS_LABEL[item.review_to as ReviewStatus] ?? item.review_to;
+                const lifecycleRaw = LIFECYCLE_LABEL[item.lifecycle_to] ?? item.lifecycle_to;
                 const dupStatus =
                   typeof actionShown === "string" &&
                   typeof statusShown === "string" &&
-                  actionShown.replace(/\.$/, "").trim().toLowerCase() === statusShown.trim().toLowerCase();
+                  historyCompareNorm(actionShown) === historyCompareNorm(statusShown);
+                const showLifecycle =
+                  Boolean(lifecycleRaw?.trim()) &&
+                  !historyPhrasesRedundant(String(actionShown), lifecycleRaw) &&
+                  (dupStatus
+                    ? true
+                    : !historyPhrasesRedundant(String(statusShown), lifecycleRaw));
+                const metaParts: string[] = [];
+                if (!dupStatus) metaParts.push(`Статус «${statusShown}»`);
+                if (showLifecycle) metaParts.push(`этап «${lifecycleRaw}»`);
+                const metaStr = metaParts.join(", ");
                 const whyTrim = item.why?.trim() ?? "";
+                const showWhy =
+                  Boolean(whyTrim) &&
+                  !historyPhrasesRedundant(String(actionShown), whyTrim) &&
+                  !historyPhrasesRedundant(String(statusShown), whyTrim) &&
+                  (!metaStr || !historyPhrasesRedundant(metaStr, whyTrim));
                 return (
                   <li key={item.decision_key}>
                     <span className="text-[var(--fg-secondary)]">
                       {formatStamp(item.at)} · {item.actor} (
                       {ROLE_LABEL[item.actor_role] ?? item.actor_role})
                     </span>
-                    {dupStatus ? (
+                    {" · "}
+                    <b>{actionShown}</b>
+                    {metaStr ? (
                       <>
-                        {" "}
-                        <b>{actionShown}</b>
-                        {whyTrim ? ` · ${whyTrim}` : ""}
+                        {". "}
+                        {metaStr}
                       </>
-                    ) : (
-                      <>
-                        {" · "}
-                        <b>{actionShown}</b>
-                        {`. Статус «${statusShown}», этап «${LIFECYCLE_LABEL[item.lifecycle_to] ?? item.lifecycle_to}»`}
-                        {whyTrim ? ` · ${whyTrim}` : ""}
-                      </>
-                    )}
+                    ) : null}
+                    {showWhy ? ` · ${whyTrim}` : ""}
                   </li>
                 );
               })}

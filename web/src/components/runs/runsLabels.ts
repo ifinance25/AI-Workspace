@@ -67,13 +67,6 @@ export const ROLE_LABEL: Record<string, string> = {
 
 export type StatusFilter = "all" | ReviewStatus | "fixed" | "undecided" | "traceability" | "stand_defect";
 
-export const QUICK_FILTERS: Array<{ id: StatusFilter; label: string }> = [
-  { id: "new", label: "Только новые" },
-  { id: "undecided", label: "Без решения" },
-  { id: "traceability", label: "Разрыв прослеживаемости" },
-  { id: "stand_defect", label: "Дефект стенда" },
-];
-
 export function displayStatus(f: Pick<FindingRow, "review_status" | "lifecycle">): string {
   return f.lifecycle === "fixed" ? FIXED_LABEL : STATUS_LABEL[f.review_status];
 }
@@ -128,4 +121,48 @@ export function formatStamp(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleString("ru-RU", { timeZone: "Europe/Moscow" });
+}
+
+/** Нормализация для сравнения подписей в истории (без точки в конце, нижний регистр). */
+export function historyCompareNorm(s: string): string {
+  return s.replace(/\.$/, "").trim().toLowerCase();
+}
+
+const REOPEN_HINT = /вернут|возврат|разбор/;
+
+/**
+ * Два фрагмента текста не должны идти подряд, если повторяют смысл
+ * (одинаково, вложенность, общие значимые слова или явный сценарий «в разбор»).
+ */
+export function historyPhrasesRedundant(a: string, b: string): boolean {
+  const na = historyCompareNorm(a);
+  const nb = historyCompareNorm(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  if (na.length >= 4 && nb.length >= 4 && (na.includes(nb) || nb.includes(na))) return true;
+  const wa = na.split(/\s+/).filter((w) => w.length > 2);
+  const wb = nb.split(/\s+/).filter((w) => w.length > 2);
+  if (wa.length && wb.length) {
+    const setB = new Set(wb);
+    let inter = 0;
+    for (const w of wa) if (setB.has(w)) inter++;
+    const union = new Set([...wa, ...wb]).size;
+    if (union > 0 && inter / union >= 0.45) return true;
+  }
+  if (REOPEN_HINT.test(na) && REOPEN_HINT.test(nb)) return true;
+  return false;
+}
+
+/** Подпись класса дефекта для фильтра и опций (не дублирует статус). */
+export function defectClassFilterLabel(code: string): string {
+  switch (code) {
+    case "traceability_break":
+      return "Разрыв прослеживаемости";
+    case "stand_defect":
+      return "Дефект стенда";
+    case "document_defect":
+      return "Дефект в документе";
+    default:
+      return code;
+  }
 }
