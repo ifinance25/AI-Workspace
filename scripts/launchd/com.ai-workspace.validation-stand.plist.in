@@ -14,6 +14,8 @@
 	<string>@STAND_DIR@</string>
 	<key>EnvironmentVariables</key>
 	<dict>
+		<key>VALSTAND_PORT</key>
+		<string>@PORT@</string>
 		<key>PYTHONPATH</key>
 		<string>@ROOT@</string>
 		<key>SESSION_DATABASE_PATH</key>

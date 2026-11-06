@@ -11,7 +11,7 @@ bash scripts/run_validation_stand.sh --stop     # остановить (сним
 VALSTAND_CONFIRM_RESET=1 bash scripts/run_validation_stand.sh --reset   # всё с нуля
 ```
 
-Адрес `http://127.0.0.1:8612/office/1/runs`. Порт меняет `VALSTAND_PORT`, каталог данных `VALSTAND_DIR` (имя каталога должно оканчиваться на `validation-stand`), пакет прогона `VALSTAND_PACKAGE`, хост `VALSTAND_HOST`. Фронт пересобирается сам, если `web/src` новее `web/dist`.
+Адрес `http://127.0.0.1:8712/office/1/runs`. Порт меняет `VALSTAND_PORT`, каталог данных `VALSTAND_DIR` (имя каталога должно оканчиваться на `validation-stand`), пакет прогона `VALSTAND_PACKAGE`, хост `VALSTAND_HOST`. Фронт пересобирается сам, если `web/src` новее `web/dist`.
 
 Перед стартом скрипт останавливает прежний экземпляр, проверяет порт (`lsof`) и ждёт `GET /api/health` (внутри скрипта curl с `--noproxy '*'`, чтобы при заданном `HTTP_PROXY` запрос к `127.0.0.1` не уходил в прокси). Таймауты: `VALSTAND_HEALTH_MAX_TIME` (по умолчанию 8 с) и `VALSTAND_HEALTH_CONNECT_TIMEOUT` (3 с). При ошибке код выхода 1 и хвост `data/validation-stand/stand.log`.
 
@@ -46,7 +46,7 @@ bash scripts/run_validation_stand.sh --uninstall-daemon
 
 ```bash
 launchctl print "gui/$(id -u)/com.ai-workspace.validation-stand"
-curl -fsS --noproxy '*' http://127.0.0.1:8612/api/health
+curl -fsS --noproxy '*' http://127.0.0.1:8712/api/health
 ```
 
 Остановка без удаления plist: `bash scripts/run_validation_stand.sh --stop` (снимет LaunchAgent с текущей сессии). Чтобы снова поднять после `--stop` без ручного `bootstrap`: `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.ai-workspace.validation-stand.plist` или снова `--install-daemon`.

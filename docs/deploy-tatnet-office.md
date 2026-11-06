@@ -13,7 +13,7 @@
 - пакет прогона № 4 загружен: 82 находки, 139 правок, 408 файлов (48 МБ), проект «ФАКТ: валидация прогона № 4»;
 - **nginx контура:** блоки `runs.pm-workspace.ru` из `deploy/tatnet-office/nginx-runs.conf` на VPS, зона `fakt_login`, nginx в сети `fakt_runs-net`. Публично по DNS: `GET /api/health` → 200, `/api/files/tree` → 404.
 
-**PDF во фрейме (Chrome):** стенд `http://127.0.0.1:8612/office/1/runs`, 2026-11-04, iframe + inline PDF, Chrome **PASS**. Код не менялся.
+**PDF во фрейме (Chrome):** стенд `http://127.0.0.1:8712/office/1/runs`, 2026-11-04, iframe + inline PDF, Chrome **PASS**. Код не менялся.
 
 Сделано 2026-11-04 (после DNS у tatnet):
 
