@@ -21,6 +21,14 @@ PACKAGE="${VALSTAND_PACKAGE:-$HOME/Documents/FACT/_рабочие_файлы/с�
 PIDFILE="$STAND_DIR/stand.pid"
 ACCOUNTS="$STAND_DIR/accounts.txt"
 URL="http://$HOST:$PORT"
+# curl по умолчанию уважает HTTP(S)_PROXY: запросы к 127.0.0.1 уходят в прокси
+# и висят до таймаута, хотя uvicorn уже слушает порт. Обходим для проверки здоровья.
+VALSTAND_HEALTH_MAX_TIME="${VALSTAND_HEALTH_MAX_TIME:-8}"
+VALSTAND_HEALTH_CONNECT_TIMEOUT="${VALSTAND_HEALTH_CONNECT_TIMEOUT:-3}"
+_curl_local_health() {
+    curl -fsS --noproxy '*' --max-time "$VALSTAND_HEALTH_MAX_TIME" \
+        --connect-timeout "$VALSTAND_HEALTH_CONNECT_TIMEOUT" "$URL/api/health"
+}
 LAUNCH_LABEL="${VALSTAND_LAUNCH_LABEL:-com.ai-workspace.validation-stand}"
 PLIST_TMPL="$ROOT/scripts/launchd/com.ai-workspace.validation-stand.plist.in"
 PLIST_DEST="${HOME}/Library/LaunchAgents/${LAUNCH_LABEL}.plist"
@@ -117,12 +125,12 @@ _ensure_port_free_before_start() {
 _wait_for_health() {
     local attempt log_path="$STAND_DIR/stand.log"
     for attempt in $(seq 1 40); do
-        if curl -fsS --max-time 3 --connect-timeout 2 "$URL/api/health" >/dev/null 2>&1; then
+        if _curl_local_health >/dev/null 2>&1; then
             return 0
         fi
         sleep 0.5
     done
-    echo "Стенд не ответил по GET /api/health за отведённое время (curl, таймаут 3 с)." >&2
+    echo "Стенд не ответил по GET /api/health за отведённое время (curl, см. VALSTAND_HEALTH_*; при HTTP_PROXY без --noproxy localhost уходит в прокси)." >&2
     echo "Последние строки журнала $log_path:" >&2
     if [[ -f "$log_path" ]]; then
         tail -n 60 "$log_path" >&2
@@ -190,7 +198,7 @@ done
 
 if [[ "$MODE" == "stop" ]]; then stop_stand; echo "Стенд остановлен"; exit 0; fi
 if [[ "$MODE" == "status" ]]; then
-    if curl -fsS --max-time 3 --connect-timeout 2 "$URL/api/health" >/dev/null; then
+    if _curl_local_health >/dev/null; then
         echo "Стенд жив: $URL"
         if _launchd_loaded; then
             echo "Режим: LaunchAgent $LAUNCH_LABEL (launchctl)"
