@@ -159,7 +159,8 @@ def get_finding(store: Any, project_id: int, run_id: int, finding_id: int) -> di
         ).fetchall()
     payload = json.loads(row["payload"])
     return {
-        "id": row["id"], "gid": row["gid"], "doc": row["doc"], "category": row["category"],
+        "id": row["id"], "gid": row["gid"], "source_id": row["source_id"],
+        "doc": row["doc"], "category": row["category"],
         "defect_class": row["defect_class"],
         "severity_raw": row["severity_raw"], "llm_verdict": row["llm_verdict"],
         "llm_verdict_reason": row["llm_verdict_reason"], "review_status": row["review_status"],

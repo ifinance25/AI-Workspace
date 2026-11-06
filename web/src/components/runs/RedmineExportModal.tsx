@@ -78,7 +78,8 @@ export default function RedmineExportModal({
       >
         <h3 className="text-lg font-semibold">Задача в Redmine</h3>
         <p className="text-sm text-[var(--fg-secondary)]">
-          Ключ API не сохраняется на сервере. Он уходит только в этот запрос.
+          Ключ API не сохраняется на сервере. Описание и поля задачи собираются по шаблону v6
+          (docs/redmine/).
         </p>
         <input
           aria-label="Ключ API Redmine"

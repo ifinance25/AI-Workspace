@@ -13,6 +13,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
+from pathlib import Path
 
 from src.office.redmine_mirror._account import url_allowed
 from src.office.redmine_mirror._mirror import MirrorError, RedmineUnavailableError
@@ -178,6 +179,42 @@ class HttpRedmine:
         project_id = self._resolve_project_id(project)
         body = {"issue": {"project_id": project_id, **fields}}
         return self._call("POST", "/issues.json", payload=body)
+
+    def upload_attachment(self, path: Path, filename: str | None = None) -> str:
+        file_path = Path(path)
+        name = filename or file_path.name
+        url = self._base + "/uploads.json?" + urllib.parse.urlencode({"filename": name})
+        headers = {
+            "X-Redmine-API-Key": self._key,
+            "Accept": "application/json",
+            "Content-Type": "application/octet-stream",
+        }
+        data = file_path.read_bytes()
+        request = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        try:
+            with _OPENER.open(request, timeout=120) as response:
+                raw = response.read()
+        except urllib.error.HTTPError as exc:
+            raise RedmineUnavailableError("Redmine не принял вложение") from exc
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            raise RedmineUnavailableError("Redmine не ответил") from exc
+        try:
+            page = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise RedmineUnavailableError("Redmine не ответил") from exc
+        token = (page.get("upload") or {}).get("token")
+        if not token:
+            raise RedmineUnavailableError("Redmine не вернул token вложения")
+        return str(token)
+
+    def create_relation(self, issue_id: int, issue_to_id: int, relation_type: str = "relates") -> None:
+        if issue_to_id == issue_id:
+            return
+        self._call(
+            "POST",
+            f"/issues/{int(issue_id)}/relations.json",
+            payload={"relation": {"issue_to_id": int(issue_to_id), "relation_type": relation_type}},
+        )
 
     def update_issue(self, issue_id: int, fields: dict) -> None:
         self._call("PUT", f"/issues/{int(issue_id)}.json", payload={"issue": fields})

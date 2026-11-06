@@ -580,12 +580,21 @@ def test_redmine_export_creates_issue(store, run, monkeypatch):
         api_key="platform-key-1234567890",
     )
 
+    captured = {}
+
     class _Client:
         def _call(self, *_args, **_kwargs):
             return {"user": {"id": 7}}
 
-        def create_issue(self, _project, _fields):
+        def upload_attachment(self, _path, _name=None):
+            return "upload-token"
+
+        def create_issue(self, _project, fields):
+            captured["fields"] = fields
             return {"issue": {"id": 901}}
+
+        def create_relation(self, *_args, **_kwargs):
+            captured.setdefault("relations", []).append(_args)
 
     monkeypatch.setattr(
         "src.office.delivery._validation_redmine.HttpRedmine",
@@ -597,6 +606,12 @@ def test_redmine_export_creates_issue(store, run, monkeypatch):
     )
     assert out["issue_id"] == 901
     assert out["created"] is True
+    fields = captured["fields"]
+    assert fields["uploads"][0]["token"] == "upload-token"
+    assert "*Предусловия:*" in fields["description"]
+    assert "table{background:#ffffff}." in fields["description"]
+    assert fields["custom_fields"]
+    assert captured.get("relations")
     card = delivery.get_finding(store, project_id, run_id, finding_id)
     assert "901" in str(card["redmine_links"][0])
 
