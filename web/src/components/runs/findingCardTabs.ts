@@ -3,7 +3,7 @@ export type FindingCardTab = "essence" | "documents" | "pdf" | "history";
 export const FINDING_CARD_TABS: Array<{ id: FindingCardTab; label: string }> = [
   { id: "essence", label: "Суть несоответствия" },
   { id: "documents", label: "Документы" },
-  { id: "pdf", label: "Документ (PDF)" },
+  { id: "pdf", label: "Документ" },
   { id: "history", label: "История решений" },
 ];
 

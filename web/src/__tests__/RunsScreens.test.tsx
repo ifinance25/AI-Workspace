@@ -318,6 +318,15 @@ describe("Экран прогонов", () => {
     expect(screen.getByText(/Всего находок/)).toBeInTheDocument();
   });
 
+  it("панель фильтров над списком и карточкой", async () => {
+    setup();
+    fireEvent.click(await screen.findByRole("button", { name: "Открыть" }));
+    expect(await screen.findByRole("region", { name: "Фильтры и поиск" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Фильтры и поиск" }).compareDocumentPosition(screen.getByLabelText("Находки"))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
   it("фильтр по классу находки оставляет только выбранный класс", async () => {
     setup({}, [
       row(),

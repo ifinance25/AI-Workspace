@@ -119,12 +119,12 @@ describe("FindingCard: вкладки и PDF", () => {
     expect(screen.getByText("Решений пока нет.")).toBeInTheDocument();
   });
 
-  it("ссылка ref открывает PDF на странице во вкладке «Документ (PDF)»", () => {
+  it("ссылка ref открывает PDF на странице во вкладке «Документ»", () => {
     render(
       <FindingCard projectId={1} run={run} finding={finding} canDecide={false} onDecided={() => {}} />,
     );
     fireEvent.click(screen.getByRole("button", { name: "ФТТ1, стр. 3" }));
-    expect(screen.getByRole("tab", { name: "Документ (PDF)" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "Документ" })).toHaveAttribute(
       "aria-selected",
       "true",
     );

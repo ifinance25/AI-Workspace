@@ -444,98 +444,100 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
                   ) : null}
                 </div>
               ) : null}
+              <section className="w-full max-w-none space-y-3" aria-label="Фильтры и поиск">
+                <input
+                  aria-label="Поиск"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Номер или слово из сути"
+                  className={`${SELECT_CLASS} w-full max-w-none`}
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={pendingVisible.length === 0}
+                    onClick={jumpNextPending}
+                    className="rounded-lg bg-[var(--bg-hover)] px-2 py-1 text-xs disabled:opacity-40"
+                  >
+                    Следующая без решения
+                  </button>
+                  <span className="text-xs text-[var(--fg-secondary)]">
+                    осталось {pendingVisible.length}
+                  </span>
+                </div>
+                <div className="flex w-full flex-wrap gap-2">
+                  <select
+                    aria-label="Статус"
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value as StatusFilter)}
+                    className={`${SELECT_CLASS} min-w-0 flex-1 basis-[11rem] sm:basis-auto sm:flex-none`}
+                  >
+                    <option value="all">Все статусы</option>
+                    {(Object.keys(STATUS_LABEL) as Array<keyof typeof STATUS_LABEL>).map((k) => (
+                      <option key={k} value={k}>
+                        {STATUS_LABEL[k]}
+                      </option>
+                    ))}
+                    <option value="undecided">Без решения</option>
+                    <option value="traceability">Разрыв прослеживаемости</option>
+                    <option value="stand_defect">Дефект стенда</option>
+                    <option value="fixed">{FIXED_LABEL}</option>
+                  </select>
+                  <select
+                    aria-label="Важность"
+                    value={severity}
+                    onChange={(e) => setSeverity(e.target.value)}
+                    className={`${SELECT_CLASS} min-w-0 flex-1 basis-[11rem] sm:basis-auto sm:flex-none`}
+                  >
+                    <option value="">Любая важность</option>
+                    {severities.map((s) => (
+                      <option key={s}>{s}</option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="Документ"
+                    value={doc}
+                    onChange={(e) => setDoc(e.target.value)}
+                    className={`${SELECT_CLASS} min-w-0 flex-1 basis-[11rem] sm:basis-auto sm:flex-none`}
+                  >
+                    <option value="">Все документы</option>
+                    {docs.map((d) => (
+                      <option key={d}>{d}</option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="Класс находки"
+                    value={defectClass}
+                    onChange={(e) => setDefectClass(e.target.value)}
+                    className={`${SELECT_CLASS} min-w-0 flex-1 basis-[11rem] sm:basis-auto sm:flex-none`}
+                  >
+                    <option value="">Все классы</option>
+                    {defectClasses.map((c) => (
+                      <option key={c} value={c}>
+                        {defectClassFilterLabel(c)}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="Категория"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className={`${SELECT_CLASS} min-w-0 flex-1 basis-[11rem] sm:basis-auto sm:flex-none`}
+                  >
+                    <option value="">Все категории</option>
+                    {categories.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-xs text-[var(--fg-secondary)]">
+                  Показано {visible.length} из {findings.length}
+                </p>
+              </section>
               <div className="grid gap-4 lg:grid-cols-[20rem_1fr]">
-                <aside className="space-y-2">
-                  <input
-                    aria-label="Поиск"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Номер или слово из сути"
-                    className={`${SELECT_CLASS} w-full`}
-                  />
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={pendingVisible.length === 0}
-                      onClick={jumpNextPending}
-                      className="rounded-lg bg-[var(--bg-hover)] px-2 py-1 text-xs disabled:opacity-40"
-                    >
-                      Следующая без решения
-                    </button>
-                    <span className="text-xs text-[var(--fg-secondary)]">
-                      осталось {pendingVisible.length}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <select
-                      aria-label="Статус"
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value as StatusFilter)}
-                      className={SELECT_CLASS}
-                    >
-                      <option value="all">Все статусы</option>
-                      {(Object.keys(STATUS_LABEL) as Array<keyof typeof STATUS_LABEL>).map((k) => (
-                        <option key={k} value={k}>
-                          {STATUS_LABEL[k]}
-                        </option>
-                      ))}
-                      <option value="undecided">Без решения</option>
-                      <option value="traceability">Разрыв прослеживаемости</option>
-                      <option value="stand_defect">Дефект стенда</option>
-                      <option value="fixed">{FIXED_LABEL}</option>
-                    </select>
-                    <select
-                      aria-label="Важность"
-                      value={severity}
-                      onChange={(e) => setSeverity(e.target.value)}
-                      className={SELECT_CLASS}
-                    >
-                      <option value="">Любая важность</option>
-                      {severities.map((s) => (
-                        <option key={s}>{s}</option>
-                      ))}
-                    </select>
-                    <select
-                      aria-label="Документ"
-                      value={doc}
-                      onChange={(e) => setDoc(e.target.value)}
-                      className={SELECT_CLASS}
-                    >
-                      <option value="">Все документы</option>
-                      {docs.map((d) => (
-                        <option key={d}>{d}</option>
-                      ))}
-                    </select>
-                    <select
-                      aria-label="Класс находки"
-                      value={defectClass}
-                      onChange={(e) => setDefectClass(e.target.value)}
-                      className={SELECT_CLASS}
-                    >
-                      <option value="">Все классы</option>
-                      {defectClasses.map((c) => (
-                        <option key={c} value={c}>
-                          {defectClassFilterLabel(c)}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      aria-label="Категория"
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                      className={SELECT_CLASS}
-                    >
-                      <option value="">Все категории</option>
-                      {categories.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <p className="text-xs text-[var(--fg-secondary)]">
-                    Показано {visible.length} из {findings.length}
-                  </p>
+                <aside className="min-w-0 space-y-2">
                   <ul
                     ref={listRef}
                     className="max-h-[70vh] space-y-1 overflow-y-auto"
