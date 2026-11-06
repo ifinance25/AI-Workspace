@@ -30,6 +30,10 @@ URL="http://$HOST:$PORT"
 # тогда expandvars подставит его раньше, чем run_office.py применит --port (гонка и «health на другом порту»).
 VALSTAND_HEALTH_MAX_TIME="${VALSTAND_HEALTH_MAX_TIME:-8}"
 VALSTAND_HEALTH_CONNECT_TIMEOUT="${VALSTAND_HEALTH_CONNECT_TIMEOUT:-3}"
+# Пауза после первого успешного health перед второй проверкой (ловит мгновенный crash).
+VALSTAND_POST_HEALTH_DELAY="${VALSTAND_POST_HEALTH_DELAY:-1}"
+# Сколько секунд после старта порт и pid должны оставаться валидными (самопроверка скрипта).
+VALSTAND_STABILITY_SECONDS="${VALSTAND_STABILITY_SECONDS:-5}"
 _curl_local_health() {
     curl -fsS --noproxy '*' --max-time "$VALSTAND_HEALTH_MAX_TIME" \
         --connect-timeout "$VALSTAND_HEALTH_CONNECT_TIMEOUT" "$URL/api/health"
@@ -129,7 +133,7 @@ _ensure_port_free_before_start() {
 # Ожидание ответа /api/health; при провале: хвост журнала и код выхода 1.
 _wait_for_health() {
     local attempt log_path="$STAND_DIR/stand.log"
-    for attempt in $(seq 1 40); do
+    for attempt in $(seq 1 90); do
         if _curl_local_health >/dev/null 2>&1; then
             return 0
         fi
@@ -164,18 +168,92 @@ _verify_pidfile_matches_process() {
     return 0
 }
 
+# Кто слушает $PORT и похож на наш run_office.py: записать PID в pidfile (обходит stale PID от nohup без exec).
+_refresh_pidfile_from_listener() {
+    local pid
+    for pid in $(_listen_pids_on_port); do
+        [[ -n "$pid" ]] || continue
+        if _is_our_run_office_pid "$pid"; then
+            printf '%s\n' "$pid" > "$PIDFILE"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Процесс держит открытой именно базу стенда validation-stand (узко для --stop).
+_pid_has_validation_stand_db() {
+    local pid="$1"
+    [[ -n "$pid" ]] || return 1
+    lsof -p "$pid" 2>/dev/null | grep -qF "$STAND_DIR/sessions.db"
+}
+
+# Вторая проверка после health: пауза, повторный curl, pidfile и стабильность несколько секунд.
+_verify_still_up() {
+    local log_path="$STAND_DIR/stand.log"
+    local deadline now pid
+    sleep "$VALSTAND_POST_HEALTH_DELAY"
+    if ! _curl_local_health >/dev/null 2>&1; then
+        echo "run_validation_stand: после паузы ${VALSTAND_POST_HEALTH_DELAY}s сервер не ответил на GET /api/health." >&2
+        echo "Последние строки журнала $log_path:" >&2
+        [[ -f "$log_path" ]] && tail -n 60 "$log_path" >&2 || echo "  (файл журнала отсутствует)" >&2
+        return 1
+    fi
+    if ! _verify_pidfile_matches_process; then
+        echo "run_validation_stand: подправляю pidfile по слушателю порта $PORT…" >&2
+        if ! _refresh_pidfile_from_listener; then
+            echo "run_validation_stand: не удалось сопоставить PID с run_office.py на порту $PORT." >&2
+            echo "Последние строки журнала $log_path:" >&2
+            [[ -f "$log_path" ]] && tail -n 60 "$log_path" >&2 || echo "  (файл журнала отсутствует)" >&2
+            return 1
+        fi
+    fi
+    if [[ -z "${VALSTAND_STABILITY_SECONDS:-}" ]] || ! [[ "${VALSTAND_STABILITY_SECONDS}" =~ ^[0-9]+$ ]]; then
+        VALSTAND_STABILITY_SECONDS=5
+    fi
+    deadline=$(( $(date +%s) + VALSTAND_STABILITY_SECONDS ))
+    while [[ "$(date +%s)" -lt "$deadline" ]]; do
+        if ! _curl_local_health >/dev/null 2>&1; then
+            echo "run_validation_stand: сервер перестал отвечать до истечения ${VALSTAND_STABILITY_SECONDS}s стабильности." >&2
+            echo "Последние строки журнала $log_path:" >&2
+            [[ -f "$log_path" ]] && tail -n 60 "$log_path" >&2 || echo "  (файл журнала отсутствует)" >&2
+            return 1
+        fi
+        pid="$(tr -cd '0-9' < "$PIDFILE" 2>/dev/null || true)"
+        if [[ -z "$pid" ]] || ! kill -0 "$pid" 2>/dev/null || ! _is_our_run_office_pid "$pid"; then
+            echo "run_validation_stand: процесс из pidfile ($pid) не жив или не run_office.py." >&2
+            echo "Последние строки журнала $log_path:" >&2
+            [[ -f "$log_path" ]] && tail -n 60 "$log_path" >&2 || echo "  (файл журнала отсутствует)" >&2
+            return 1
+        fi
+        sleep 1
+    done
+    return 0
+}
+
 stop_stand() {
+    local pid orphan
     if _launchd_loaded; then
         launchctl bootout "gui/$(id -u)/$LAUNCH_LABEL" 2>/dev/null || \
             launchctl bootout "gui/$(id -u)" "$PLIST_DEST" 2>/dev/null || true
     fi
     if [[ -f "$PIDFILE" ]]; then
-        pid="$(cat "$PIDFILE")"
-        if kill -0 "$pid" 2>/dev/null && ps -p "$pid" -o command= | grep -q run_office.py; then
-            kill "$pid" 2>/dev/null || true
+        pid="$(tr -cd '0-9' < "$PIDFILE" 2>/dev/null || true)"
+        if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null && ps -p "$pid" -o command= 2>/dev/null | grep -q run_office.py; then
+            kill -TERM "$pid" 2>/dev/null || true
             for _ in $(seq 1 20); do kill -0 "$pid" 2>/dev/null || break; sleep 0.25; done
         fi
         rm -f "$PIDFILE"
+    fi
+    # Остатки без pidfile: run_office.py с открытой БД этого стенда (SESSION_DATABASE_PATH → validation-stand).
+    if command -v pgrep >/dev/null 2>&1; then
+        while read -r orphan; do
+            [[ -n "$orphan" ]] || continue
+            if _pid_has_validation_stand_db "$orphan"; then
+                echo "run_validation_stand: останавливаю оставшийся run_office.py (pid $orphan, $STAND_DIR/sessions.db)…" >&2
+                kill -TERM "$orphan" 2>/dev/null || true
+            fi
+        done < <(pgrep -f "run_office.py" 2>/dev/null || true)
     fi
 }
 
@@ -265,11 +343,20 @@ if [[ "$MODE" == "install-daemon" ]]; then
     mkdir -p "$(dirname "$PLIST_DEST")"
     _render_launchd_plist "$PLIST_DEST"
     chmod 644 "$PLIST_DEST"
+    # Снять job и по метке, и по пути plist (иначе bootstrap может не подхватить новый plist).
     launchctl bootout "gui/$(id -u)/$LAUNCH_LABEL" 2>/dev/null || true
+    launchctl bootout "gui/$(id -u)" "$PLIST_DEST" 2>/dev/null || true
     launchctl bootstrap "gui/$(id -u)" "$PLIST_DEST"
     launchctl enable "gui/$(id -u)/$LAUNCH_LABEL"
     launchctl kickstart -k "gui/$(id -u)/$LAUNCH_LABEL"
+    # KeepAlive + первый импорт Python: иногда ответ на /api/health появляется не сразу.
+    sleep 2
     _wait_for_health || exit 1
+    sleep "$VALSTAND_POST_HEALTH_DELAY"
+    if ! _curl_local_health >/dev/null 2>&1; then
+        echo "run_validation_stand: LaunchAgent: после паузы сервер не ответил на GET /api/health." >&2
+        exit 1
+    fi
     echo "LaunchAgent загружен: $LAUNCH_LABEL"
     echo "plist: $PLIST_DEST"
     echo "Стенд: $URL/office/1/runs"
@@ -288,18 +375,20 @@ if _launchd_loaded; then
 fi
 
 # Из каталога стенда: .env репозитория с настоящими секретами не читается.
-# nohup + stdin /dev/null: без управляющего TTY; disown снимает job с оболочки (в том числе встроенный терминал IDE).
+# nohup bash -c 'exec python …': $! это PID uvicorn/python. Прямой «nohup python» на macOS давал PID краткоживущего nohup, pidfile устаревал.
+# stdin /dev/null: без управляющего TTY; disown снимает job с оболочки (в том числе встроенный терминал IDE).
+OFFICE_EXEC_CMD=$(printf 'exec %q %q --host %q --port %q' "$PY" "$ROOT/scripts/run_office.py" "$HOST" "$PORT")
 cd "$STAND_DIR" || exit 1
 {
     if command -v setsid >/dev/null 2>&1 && ! _is_darwin; then
         setsid env -u WEB_PORT PYTHONPATH="$ROOT" SESSION_DATABASE_PATH="$STAND_DIR/sessions.db" \
             WEB_JWT_SECRET="$(cat "$STAND_DIR/jwt_secret")" ADMIN_LOGIN= ADMIN_PASSWORD= \
-            nohup "$PY" "$ROOT/scripts/run_office.py" --host "$HOST" --port "$PORT" \
+            nohup bash -c "$OFFICE_EXEC_CMD" \
             >> "$STAND_DIR/stand.log" 2>&1 < /dev/null &
     else
         env -u WEB_PORT PYTHONPATH="$ROOT" SESSION_DATABASE_PATH="$STAND_DIR/sessions.db" \
             WEB_JWT_SECRET="$(cat "$STAND_DIR/jwt_secret")" ADMIN_LOGIN= ADMIN_PASSWORD= \
-            nohup "$PY" "$ROOT/scripts/run_office.py" --host "$HOST" --port "$PORT" \
+            nohup bash -c "$OFFICE_EXEC_CMD" \
             >> "$STAND_DIR/stand.log" 2>&1 < /dev/null &
     fi
     printf '%s\n' "$!" > "$PIDFILE"
@@ -308,7 +397,7 @@ disown -a 2>/dev/null || true
 cd "$ROOT" || exit 1
 
 _wait_for_health || exit 1
-_verify_pidfile_matches_process || exit 1
+_verify_still_up || exit 1
 
 echo "Стенд поднят: $URL/office/1/runs"
 echo "Учётки (логины и пароли): $ACCOUNTS"

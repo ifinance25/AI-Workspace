@@ -13,7 +13,7 @@ VALSTAND_CONFIRM_RESET=1 bash scripts/run_validation_stand.sh --reset   # всё
 
 Адрес `http://127.0.0.1:8712/office/1/runs`. Порт меняет `VALSTAND_PORT`, каталог данных `VALSTAND_DIR` (имя каталога должно оканчиваться на `validation-stand`), пакет прогона `VALSTAND_PACKAGE`, хост `VALSTAND_HOST`. Фронт пересобирается сам, если `web/src` новее `web/dist`.
 
-Перед стартом скрипт останавливает прежний экземпляр, проверяет порт (`lsof`) и ждёт `GET /api/health` (внутри скрипта curl с `--noproxy '*'`, чтобы при заданном `HTTP_PROXY` запрос к `127.0.0.1` не уходил в прокси). Таймауты: `VALSTAND_HEALTH_MAX_TIME` (по умолчанию 8 с) и `VALSTAND_HEALTH_CONNECT_TIMEOUT` (3 с). При ошибке код выхода 1 и хвост `data/validation-stand/stand.log`.
+Перед стартом скрипт останавливает прежний экземпляр, проверяет порт (`lsof`) и ждёт `GET /api/health` (внутри скрипта curl с `--noproxy '*'`, чтобы при заданном `HTTP_PROXY` запрос к `127.0.0.1` не уходил в прокси). Таймауты: `VALSTAND_HEALTH_MAX_TIME` (по умолчанию 8 с) и `VALSTAND_HEALTH_CONNECT_TIMEOUT` (3 с). После первого успеха: пауза `VALSTAND_POST_HEALTH_DELAY` (по умолчанию 1 с), повторный health, при необходимости обновление `stand.pid` по слушателю порта, затем проверка стабильности `VALSTAND_STABILITY_SECONDS` (по умолчанию 5 с: curl и живой PID). При ошибке код выхода 1 и хвост `data/validation-stand/stand.log`.
 
 ### Почему стенд «пропадал»
 
@@ -21,7 +21,9 @@ VALSTAND_CONFIRM_RESET=1 bash scripts/run_validation_stand.sh --reset   # всё
 
 2. **Сессия терминала IDE:** фоновый job иногда получал сигналы при закрытии панели. В скрипте: `nohup`, перенаправление stdin на `/dev/null`, `disown`; на Linux без macOS дополнительно оборачивается `setsid` (новая сессия).
 
-3. **Падение процесса:** смотрите `stand.log`. Для постоянной работы на macOS удобнее LaunchAgent ниже.
+3. **Устаревший PID в `stand.pid` (macOS):** раньше в pidfile попадал краткоживущий процесс `nohup`, а не Python. Запуск через `nohup bash -c 'exec python …'`, плюс сверка PID с процессом на порту после health.
+
+4. **Падение процесса:** смотрите `stand.log`. Для постоянной работы на macOS удобнее LaunchAgent ниже.
 
 ## macOS: LaunchAgent (устойчивый режим)
 
