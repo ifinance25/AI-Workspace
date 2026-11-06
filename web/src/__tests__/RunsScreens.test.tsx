@@ -133,8 +133,8 @@ function setup(listOver: Partial<RunsList> = {}, rows = [row()], card = detail()
   return render(<RunsScreens projectId={3} />);
 }
 
-async function openCard() {
-  fireEvent.click(await screen.findByRole("tab", { name: "Карточки" }));
+async function openRunFindings() {
+  fireEvent.click(await screen.findByRole("button", { name: "Открыть" }));
   fireEvent.click(await screen.findByRole("button", { name: /R4-001/ }));
   await screen.findByRole("article");
 }
@@ -160,6 +160,7 @@ describe("Экран прогонов", () => {
     });
     mockRuns.listFindings.mockResolvedValue([row()]);
     render(<RunsScreens projectId={3} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Открыть" }));
     expect(await screen.findByTestId("stand-run-hint")).toBeInTheDocument();
   });
 
@@ -171,7 +172,7 @@ describe("Экран прогонов", () => {
 
   it("показывает список и открывает карточку", async () => {
     setup();
-    await openCard();
+    await openRunFindings();
     expect(screen.getByText("Суть несоответствия")).toBeTruthy();
     expect(screen.getByRole("columnheader", { name: "Стало" })).toBeTruthy();
     expect(screen.getByText("Стало", { selector: "td" })).toBeTruthy();
@@ -182,7 +183,7 @@ describe("Экран прогонов", () => {
 
   it("подтверждение шлёт ключ запроса и номер решения", async () => {
     setup();
-    await openCard();
+    await openRunFindings();
     fireEvent.click(screen.getByRole("button", { name: "Подтверждено" }));
     await waitFor(() => expect(mockRuns.decide).toHaveBeenCalledTimes(1));
     expect(mockRuns.decide).toHaveBeenCalledWith(
@@ -195,7 +196,7 @@ describe("Экран прогонов", () => {
 
   it("отклонение требует причину и пояснение", async () => {
     setup();
-    await openCard();
+    await openRunFindings();
     fireEvent.click(screen.getByRole("button", { name: "Отклонено" }));
     const save = screen.getByRole("button", { name: /Сохранить: Отклонено/ });
     expect((save as HTMLButtonElement).disabled).toBe(true);
@@ -214,7 +215,7 @@ describe("Экран прогонов", () => {
   it("правки внесены доступны после подтверждения и просят версию документа", async () => {
     const confirmed = detail({ review_status: "confirmed", lifecycle: "confirmed", decision_seq: 1 });
     setup({}, [row({ review_status: "confirmed", lifecycle: "confirmed", decision_seq: 1 })], confirmed);
-    await openCard();
+    await openRunFindings();
     const apply = screen.getByRole("button", { name: "Правки внесены" }) as HTMLButtonElement;
     expect(apply.disabled).toBe(false);
     expect((screen.getByRole("button", { name: "Подтверждено" }) as HTMLButtonElement).disabled).toBe(true);
@@ -229,7 +230,7 @@ describe("Экран прогонов", () => {
 
   it("кнопка Redmine активна только после подтверждения", async () => {
     const view = setup();
-    await openCard();
+    await openRunFindings();
     expect((screen.getByRole("button", { name: "Задача в Redmine" }) as HTMLButtonElement).disabled).toBe(
       true,
     );
@@ -240,7 +241,7 @@ describe("Экран прогонов", () => {
       [row({ review_status: "confirmed", lifecycle: "confirmed", decision_seq: 1 })],
       detail({ review_status: "confirmed", lifecycle: "confirmed", decision_seq: 1 }),
     );
-    await openCard();
+    await openRunFindings();
     expect((screen.getByRole("button", { name: "Задача в Redmine" }) as HTMLButtonElement).disabled).toBe(
       false,
     );
@@ -251,7 +252,7 @@ describe("Экран прогонов", () => {
     mockRuns.decide.mockRejectedValue(
       new Error('409 Conflict: {"detail":"Находку уже изменил другой проверяющий"}'),
     );
-    await openCard();
+    await openRunFindings();
     fireEvent.click(screen.getByRole("button", { name: "Подтверждено" }));
     expect((await screen.findByRole("alert")).textContent).toBe(
       "Находку уже изменил другой проверяющий",
@@ -260,23 +261,28 @@ describe("Экран прогонов", () => {
 
   it("без права решения кнопок статуса нет", async () => {
     setup({ can_decide: false });
-    await openCard();
+    await openRunFindings();
     expect(screen.queryByRole("button", { name: "Подтверждено" })).toBeNull();
     expect(screen.getByText(/Статус ставят менеджер проекта/)).toBeTruthy();
   });
 
-  it("вкладка статистики показывает оба нужных показателя", async () => {
+  it("вкладка статистики группирует прогоны по типу сравнения", async () => {
     setup();
     fireEvent.click(await screen.findByRole("tab", { name: "Статистика" }));
-    const panel = await screen.findByTestId("stats-panel");
-    expect(panel.textContent).toContain("Разобрано");
-    expect(panel.textContent).toContain("Прогон можно закрыть");
-    expect(panel.textContent).toContain("2 из 3");
+    const panel = await screen.findByTestId("runs-aggregate-stats");
+    expect(panel.textContent).toContain("ПМИ ↔ ФТТ");
+    expect(panel.textContent).toContain("Находок");
+  });
+
+  it("нет вкладки карточек на верхнем уровне", async () => {
+    setup();
+    await screen.findByTestId("runs-registry");
+    expect(screen.queryByRole("tab", { name: "Карточки" })).toBeNull();
   });
 
   it("фильтр по статусу прячет лишние находки", async () => {
     setup({}, [row(), row({ id: 12, gid: "R4-002", review_status: "rejected", lifecycle: "rejected" })]);
-    fireEvent.click(await screen.findByRole("tab", { name: "Карточки" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Открыть" }));
     await screen.findByRole("button", { name: /R4-002/ });
     fireEvent.change(screen.getByLabelText("Статус"), { target: { value: "rejected" } });
     expect(screen.queryByRole("button", { name: /R4-001/ })).toBeNull();
@@ -285,11 +291,12 @@ describe("Экран прогонов", () => {
 
   it("управление прогоном видно только менеджеру, выгрузка доступна", async () => {
     const view = setup();
-    await screen.findByRole("tab", { name: "Карточки" });
+    await screen.findByTestId("runs-registry");
     expect(screen.queryByText("Загрузить прогон")).toBeNull();
     view.unmount();
     vi.clearAllMocks();
     setup({ can_manage: true, export_ban: "none" });
+    fireEvent.click(await screen.findByRole("button", { name: "Открыть" }));
     const download = (await screen.findByText("Скачать markdown для LLM")) as HTMLButtonElement;
     expect(download.disabled).toBe(false);
     expect(screen.getByText("Загрузить прогон")).toBeTruthy();

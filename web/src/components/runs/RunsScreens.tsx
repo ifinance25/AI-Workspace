@@ -2,7 +2,7 @@
 import LoadingCenter from "@/components/uikit/LoadingCenter";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import FindingCard from "@/components/runs/FindingCard";
-import StatsPanel from "@/components/runs/StatsPanel";
+import RunsAggregateStatsPanel from "@/components/runs/RunsAggregateStatsPanel";
 import RunsRegistryPanel from "@/components/runs/RunsRegistryPanel";
 import RedmineStandRemediationModal from "@/components/runs/RedmineStandRemediationModal";
 import {
@@ -29,7 +29,9 @@ import {
   markFindingOpened,
 } from "@/components/runs/runsOpened";
 
-type ViewId = "registry" | "cards" | "stats";
+import { comparisonKindLabel, formatRunDate } from "@/components/runs/runsRegistryLabels";
+
+type ViewId = "registry" | "run" | "stats";
 
 const SELECT_CLASS =
   "rounded-lg border border-[var(--border-subtle)] bg-transparent px-2 py-1.5 text-sm";
@@ -60,7 +62,7 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
       try {
         const data = await runsApi.listRuns(projectId);
         setList(data);
-        setRunId((current) => preferred ?? current ?? data.runs[0]?.id ?? null);
+        setRunId((current) => preferred ?? current ?? null);
       } catch (err) {
         setError(errorText(err));
       }
@@ -181,7 +183,7 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
   }, [pendingVisible, selected, selectFinding]);
 
   useEffect(() => {
-    if (view !== "cards") return;
+    if (view !== "run") return;
     const onKey = (event: KeyboardEvent) => {
       if (document.querySelector('[role=dialog][aria-modal="true"]')) return;
       const target = event.target as HTMLElement | null;
@@ -204,6 +206,19 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [view, visible, selected, selectFinding]);
+
+  const openRun = useCallback((id: number) => {
+    setRunId(id);
+    setSelected(null);
+    setPdf(null);
+    setView("run");
+  }, []);
+
+  const backToRegistry = useCallback(() => {
+    setView("registry");
+    setSelected(null);
+    setPdf(null);
+  }, []);
 
   const openPdf = useCallback((name: string, page: number | null | undefined) => {
     setPdf({ name, page: page ?? null });
@@ -265,24 +280,6 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold sm:text-2xl">Прогоны и валидация</h1>
-        {list && list.runs.length > 1 && (
-          <select
-            aria-label="Прогон"
-            value={runId ?? ""}
-            onChange={(e) => {
-              setRunId(Number(e.target.value));
-              setSelected(null);
-              setPdf(null);
-            }}
-            className={SELECT_CLASS}
-          >
-            {list.runs.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.title || r.run_key}
-              </option>
-            ))}
-          </select>
-        )}
       </div>
 
       {error && (
@@ -339,243 +336,263 @@ export default function RunsScreens({ projectId }: { projectId: number }) {
         </p>
       )}
 
-      {run && (
-        <>
-          {run.source_kind === "stand_run" && (
-            <p
-              className="rounded-lg border border-[color-mix(in_srgb,var(--accent-brand)_35%,transparent)] bg-[color-mix(in_srgb,var(--accent-brand)_10%,transparent)] px-3 py-2 text-sm text-[var(--fg-secondary)]"
-              data-testid="stand-run-hint"
+      {list && list.runs.length > 0 && view !== "run" && (
+        <div role="tablist" className="flex gap-2 border-b border-[var(--border-subtle)]">
+          {(
+            [
+              ["registry", "Реестр прогонов"],
+              ["stats", "Статистика"],
+            ] as Array<[ViewId, string]>
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              role="tab"
+              aria-selected={view === id}
+              onClick={() => setView(id)}
+              className={`px-4 py-2 text-sm font-medium ${
+                view === id
+                  ? "border-b-2 border-[var(--accent)] text-[var(--accent)]"
+                  : "text-[var(--fg-secondary)]"
+              }`}
             >
-              Прогон соответствия стенда документации: карточки с классом «дефект стенда» описывают
-              расхождение поведения стенда с ПМИ/ФТТ. После разбора всех находок можно создать
-              сводный тикет Redmine на исправление стенда.
-            </p>
-          )}
-          <div role="tablist" className="flex gap-2 border-b border-[var(--border-subtle)]">
-            {(
-              [
-                ["registry", "Реестр прогонов"],
-                ["cards", "Карточки"],
-                ["stats", "Статистика"],
-              ] as Array<[ViewId, string]>
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                role="tab"
-                aria-selected={view === id}
-                onClick={() => setView(id)}
-                className={`px-4 py-2 text-sm font-medium ${
-                  view === id
-                    ? "border-b-2 border-[var(--accent)] text-[var(--accent)]"
-                    : "text-[var(--fg-secondary)]"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {view === "registry" && list && (
+        <RunsRegistryPanel runs={list.runs} activeRunId={runId} onOpenRun={openRun} />
+      )}
+
+      {view === "stats" && list && (
+        <RunsAggregateStatsPanel runs={list.runs} onOpenRun={openRun} />
+      )}
+
+      {view === "run" && runId !== null && (
+        <>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={backToRegistry}
+              className="rounded-lg bg-[var(--bg-hover)] px-3 py-1.5 text-sm"
+            >
+              ← Назад к реестру
+            </button>
+            {run ? (
+              <div className="text-sm">
+                <span className="font-semibold">{run.title || run.run_key}</span>
+                <span className="ml-2 text-[var(--fg-secondary)]">
+                  {comparisonKindLabel(run.comparison_kind)} ·{" "}
+                  {formatRunDate(run.display_at ?? run.imported_at)}
+                </span>
+              </div>
+            ) : (
+              <span className="text-sm text-[var(--fg-secondary)]">Загрузка прогона…</span>
+            )}
           </div>
 
-          {view === "registry" && list && (
-            <RunsRegistryPanel
-              runs={list.runs}
-              activeRunId={runId}
-              onOpenRun={(id) => {
-                setRunId(id);
-                setSelected(null);
-                setPdf(null);
-                setView("cards");
-              }}
-            />
-          )}
-
-          {view === "stats" && (
-            <div className="space-y-4">
-              <StatsPanel stats={run.stats} />
-              {run.stats.stand_remediation_ready && !run.stand_remediation_issue_id && (
-                <button
-                  type="button"
-                  data-testid="stand-remediation-btn"
-                  onClick={() => setStandRemediationOpen(true)}
-                  className="rounded-lg bg-[var(--accent)] px-3 py-2 text-sm text-white"
+          {!run ? (
+            <LoadingCenter label="Загрузка прогона…" className="min-h-[30vh]" />
+          ) : (
+            <>
+              {run.source_kind === "stand_run" && (
+                <p
+                  className="rounded-lg border border-[color-mix(in_srgb,var(--accent-brand)_35%,transparent)] bg-[color-mix(in_srgb,var(--accent-brand)_10%,transparent)] px-3 py-2 text-sm text-[var(--fg-secondary)]"
+                  data-testid="stand-run-hint"
                 >
-                  Создать тикет Redmine на исправление стенда
-                </button>
+                  Прогон соответствия стенда документации: карточки с классом «дефект стенда» описывают
+                  расхождение поведения стенда с ПМИ/ФТТ. После разбора всех находок можно создать
+                  сводный тикет Redmine на исправление стенда.
+                </p>
               )}
-              {run.stand_remediation_issue_id ? (
-                <p className="text-sm text-[var(--fg-secondary)]">
-                  Сводный тикет на исправление стенда: #{run.stand_remediation_issue_id}
-                </p>
-              ) : null}
-            </div>
-          )}
-
-          {view === "cards" && (
-            <div className="grid gap-4 lg:grid-cols-[20rem_1fr]">
-              <aside className="space-y-2">
-                <input
-                  aria-label="Поиск"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Номер или слово из сути"
-                  className={`${SELECT_CLASS} w-full`}
-                />
-                <div className="flex flex-wrap gap-2">
-                  {QUICK_FILTERS.map((preset) => (
+              {(run.stats.stand_remediation_ready && !run.stand_remediation_issue_id) ||
+              run.stand_remediation_issue_id ? (
+                <div className="space-y-2">
+                  {run.stats.stand_remediation_ready && !run.stand_remediation_issue_id && (
                     <button
-                      key={preset.id}
                       type="button"
-                      aria-pressed={status === preset.id}
-                      onClick={() => setStatus(preset.id)}
-                      className={`rounded-lg px-2 py-1 text-xs ${
-                        status === preset.id
-                          ? "bg-[var(--accent)] text-white"
-                          : "bg-[var(--bg-hover)] text-[var(--fg-secondary)]"
-                      }`}
+                      data-testid="stand-remediation-btn"
+                      onClick={() => setStandRemediationOpen(true)}
+                      className="rounded-lg bg-[var(--accent)] px-3 py-2 text-sm text-white"
                     >
-                      {preset.label}
+                      Создать тикет Redmine на исправление стенда
                     </button>
-                  ))}
+                  )}
+                  {run.stand_remediation_issue_id ? (
+                    <p className="text-sm text-[var(--fg-secondary)]">
+                      Сводный тикет на исправление стенда: #{run.stand_remediation_issue_id}
+                    </p>
+                  ) : null}
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    disabled={pendingVisible.length === 0}
-                    onClick={jumpNextPending}
-                    className="rounded-lg bg-[var(--bg-hover)] px-2 py-1 text-xs disabled:opacity-40"
-                  >
-                    Следующая без решения
-                  </button>
-                  <span className="text-xs text-[var(--fg-secondary)]">
-                    осталось {pendingVisible.length}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <select
-                    aria-label="Статус"
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as StatusFilter)}
-                    className={SELECT_CLASS}
-                  >
-                    <option value="all">Все статусы</option>
-                    {(Object.keys(STATUS_LABEL) as Array<keyof typeof STATUS_LABEL>).map((k) => (
-                      <option key={k} value={k}>
-                        {STATUS_LABEL[k]}
-                      </option>
-                    ))}
-                    <option value="undecided">Без решения</option>
-                    <option value="traceability">Разрыв прослеживаемости</option>
-                    <option value="stand_defect">Дефект стенда</option>
-                    <option value="fixed">{FIXED_LABEL}</option>
-                  </select>
-                  <select
-                    aria-label="Важность"
-                    value={severity}
-                    onChange={(e) => setSeverity(e.target.value)}
-                    className={SELECT_CLASS}
-                  >
-                    <option value="">Любая важность</option>
-                    {severities.map((s) => (
-                      <option key={s}>{s}</option>
-                    ))}
-                  </select>
-                  <select
-                    aria-label="Документ"
-                    value={doc}
-                    onChange={(e) => setDoc(e.target.value)}
-                    className={SELECT_CLASS}
-                  >
-                    <option value="">Все документы</option>
-                    {docs.map((d) => (
-                      <option key={d}>{d}</option>
-                    ))}
-                  </select>
-                </div>
-                <p className="text-xs text-[var(--fg-secondary)]">
-                  Показано {visible.length} из {findings.length}
-                </p>
-                <ul
-                  ref={listRef}
-                  className="max-h-[70vh] space-y-1 overflow-y-auto"
-                  aria-label="Находки"
-                >
-                  {visible.map((f) => {
-                    const openedPending =
-                      openedIds.has(f.id) && isPendingDecision(f.review_status);
-                    return (
-                    <li key={f.id}>
-                      <button
-                        type="button"
-                        onClick={() => selectFinding(f.id)}
-                        aria-current={selected === f.id}
-                        className={`w-full rounded-lg px-3 py-2 text-left text-sm ${
-                          selected === f.id ? "bg-[var(--bg-hover)]" : "hover:bg-[var(--bg-hover)]"
-                        } ${openedPending ? "ring-1 ring-[var(--accent-brand)]" : ""}`}
-                      >
-                        <span className="flex items-center justify-between gap-2">
-                          <b>{f.gid}</b>
-                          <span className={`rounded-full px-2 py-0.5 text-xs ${statusTone(f)}`}>
-                            {displayStatus(f)}
-                          </span>
-                        </span>
-                        <span className="line-clamp-2 text-xs text-[var(--fg-secondary)]">
-                          {f.severity_raw} · {f.doc} · {f.summary}
-                        </span>
-                      </button>
-                    </li>
-                    );
-                  })}
-                </ul>
-              </aside>
-
-              <div
-                className={`min-w-0 space-y-4 ${
-                  pdf ? "grid gap-4 xl:grid-cols-2 xl:space-y-0" : ""
-                }`}
-              >
-                {detail ? (
-                  <FindingCard
-                    key={detail.id}
-                    projectId={projectId}
-                    run={run}
-                    finding={detail}
-                    canDecide={list?.can_decide ?? false}
-                    onDecided={afterDecision}
-                    onOpenPdf={openPdf}
+              ) : null}
+              <div className="grid gap-4 lg:grid-cols-[20rem_1fr]">
+                <aside className="space-y-2">
+                  <input
+                    aria-label="Поиск"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Номер или слово из сути"
+                    className={`${SELECT_CLASS} w-full`}
                   />
-                ) : (
-                  <p className="text-sm text-[var(--fg-secondary)]">
-                    Выберите находку в списке слева.
-                  </p>
-                )}
-                {pdf && (
-                  <section className="rounded-lg border border-[var(--border-subtle)] p-2">
-                    <div className="mb-2 flex items-center justify-between text-sm">
-                      <span>
-                        {pdf.name}
-                        {pdf.page ? `, стр. ${pdf.page}` : ""}
-                      </span>
+                  <div className="flex flex-wrap gap-2">
+                    {QUICK_FILTERS.map((preset) => (
                       <button
+                        key={preset.id}
                         type="button"
-                        onClick={() => setPdf(null)}
-                        className="rounded-lg bg-[var(--bg-hover)] px-2 py-1"
+                        aria-pressed={status === preset.id}
+                        onClick={() => setStatus(preset.id)}
+                        className={`rounded-lg px-2 py-1 text-xs ${
+                          status === preset.id
+                            ? "bg-[var(--accent)] text-white"
+                            : "bg-[var(--bg-hover)] text-[var(--fg-secondary)]"
+                        }`}
                       >
-                        Закрыть
+                        {preset.label}
                       </button>
-                    </div>
-                    {pdfAsset ? (
-                      <iframe
-                        key={`${pdf.name}-${pdf.page}`}
-                        title={pdf.name}
-                        src={assetUrl(projectId, run.id, pdfAsset.id, pdf.page)}
-                        className="h-[60vh] w-full rounded bg-white xl:h-[75vh]"
-                      />
-                    ) : (
-                      <p className="text-sm text-[var(--fg-secondary)]">Документа нет в прогоне.</p>
-                    )}
-                  </section>
-                )}
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={pendingVisible.length === 0}
+                      onClick={jumpNextPending}
+                      className="rounded-lg bg-[var(--bg-hover)] px-2 py-1 text-xs disabled:opacity-40"
+                    >
+                      Следующая без решения
+                    </button>
+                    <span className="text-xs text-[var(--fg-secondary)]">
+                      осталось {pendingVisible.length}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <select
+                      aria-label="Статус"
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value as StatusFilter)}
+                      className={SELECT_CLASS}
+                    >
+                      <option value="all">Все статусы</option>
+                      {(Object.keys(STATUS_LABEL) as Array<keyof typeof STATUS_LABEL>).map((k) => (
+                        <option key={k} value={k}>
+                          {STATUS_LABEL[k]}
+                        </option>
+                      ))}
+                      <option value="undecided">Без решения</option>
+                      <option value="traceability">Разрыв прослеживаемости</option>
+                      <option value="stand_defect">Дефект стенда</option>
+                      <option value="fixed">{FIXED_LABEL}</option>
+                    </select>
+                    <select
+                      aria-label="Важность"
+                      value={severity}
+                      onChange={(e) => setSeverity(e.target.value)}
+                      className={SELECT_CLASS}
+                    >
+                      <option value="">Любая важность</option>
+                      {severities.map((s) => (
+                        <option key={s}>{s}</option>
+                      ))}
+                    </select>
+                    <select
+                      aria-label="Документ"
+                      value={doc}
+                      onChange={(e) => setDoc(e.target.value)}
+                      className={SELECT_CLASS}
+                    >
+                      <option value="">Все документы</option>
+                      {docs.map((d) => (
+                        <option key={d}>{d}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <p className="text-xs text-[var(--fg-secondary)]">
+                    Показано {visible.length} из {findings.length}
+                  </p>
+                  <ul
+                    ref={listRef}
+                    className="max-h-[70vh] space-y-1 overflow-y-auto"
+                    aria-label="Находки"
+                  >
+                    {visible.map((f) => {
+                      const openedPending =
+                        openedIds.has(f.id) && isPendingDecision(f.review_status);
+                      return (
+                        <li key={f.id}>
+                          <button
+                            type="button"
+                            onClick={() => selectFinding(f.id)}
+                            aria-current={selected === f.id}
+                            className={`w-full rounded-lg px-3 py-2 text-left text-sm ${
+                              selected === f.id ? "bg-[var(--bg-hover)]" : "hover:bg-[var(--bg-hover)]"
+                            } ${openedPending ? "ring-1 ring-[var(--accent-brand)]" : ""}`}
+                          >
+                            <span className="flex items-center justify-between gap-2">
+                              <b>{f.gid}</b>
+                              <span className={`rounded-full px-2 py-0.5 text-xs ${statusTone(f)}`}>
+                                {displayStatus(f)}
+                              </span>
+                            </span>
+                            <span className="line-clamp-2 text-xs text-[var(--fg-secondary)]">
+                              {f.severity_raw} · {f.doc} · {f.summary}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </aside>
+
+                <div
+                  className={`min-w-0 space-y-4 ${
+                    pdf ? "grid gap-4 xl:grid-cols-2 xl:space-y-0" : ""
+                  }`}
+                >
+                  {detail ? (
+                    <FindingCard
+                      key={detail.id}
+                      projectId={projectId}
+                      run={run}
+                      finding={detail}
+                      canDecide={list?.can_decide ?? false}
+                      onDecided={afterDecision}
+                      onOpenPdf={openPdf}
+                    />
+                  ) : (
+                    <p className="text-sm text-[var(--fg-secondary)]">
+                      Выберите находку в списке слева.
+                    </p>
+                  )}
+                  {pdf && (
+                    <section className="rounded-lg border border-[var(--border-subtle)] p-2">
+                      <div className="mb-2 flex items-center justify-between text-sm">
+                        <span>
+                          {pdf.name}
+                          {pdf.page ? `, стр. ${pdf.page}` : ""}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setPdf(null)}
+                          className="rounded-lg bg-[var(--bg-hover)] px-2 py-1"
+                        >
+                          Закрыть
+                        </button>
+                      </div>
+                      {pdfAsset ? (
+                        <iframe
+                          key={`${pdf.name}-${pdf.page}`}
+                          title={pdf.name}
+                          src={assetUrl(projectId, run.id, pdfAsset.id, pdf.page)}
+                          className="h-[60vh] w-full rounded bg-white xl:h-[75vh]"
+                        />
+                      ) : (
+                        <p className="text-sm text-[var(--fg-secondary)]">Документа нет в прогоне.</p>
+                      )}
+                    </section>
+                  )}
+                </div>
               </div>
-            </div>
+            </>
           )}
         </>
       )}

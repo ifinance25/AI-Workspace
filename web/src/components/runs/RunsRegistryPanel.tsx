@@ -61,7 +61,16 @@ export default function RunsRegistryPanel({
             return (
               <tr
                 key={run.id}
-                className={`border-b border-[var(--border-subtle)] ${
+                role="button"
+                tabIndex={0}
+                onClick={() => onOpenRun(run.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onOpenRun(run.id);
+                  }
+                }}
+                className={`cursor-pointer border-b border-[var(--border-subtle)] hover:bg-[var(--bg-hover)] ${
                   activeRunId === run.id ? "bg-[color-mix(in_srgb,var(--accent)_8%,transparent)]" : ""
                 }`}
               >
@@ -85,7 +94,10 @@ export default function RunsRegistryPanel({
                   <button
                     type="button"
                     className="text-left text-xs text-[var(--accent)] underline"
-                    onClick={() => setExpanded(isOpen ? null : run.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpanded(isOpen ? null : run.id);
+                    }}
                   >
                     {run.documents.length} док.
                   </button>
@@ -144,7 +156,10 @@ export default function RunsRegistryPanel({
                   <button
                     type="button"
                     className="rounded-lg bg-[var(--bg-hover)] px-2 py-1 text-xs"
-                    onClick={() => onOpenRun(run.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenRun(run.id);
+                    }}
                   >
                     Открыть
                   </button>
