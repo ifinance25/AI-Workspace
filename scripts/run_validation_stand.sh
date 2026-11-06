@@ -20,6 +20,84 @@ PIDFILE="$STAND_DIR/stand.pid"
 ACCOUNTS="$STAND_DIR/accounts.txt"
 URL="http://$HOST:$PORT"
 
+# PID процессов, слушающих TCP-порт $PORT (пусто, если порт свободен).
+_listen_pids_on_port() {
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -nP -iTCP:"$PORT" -sTCP:LISTEN -t 2>/dev/null | sort -u
+        return 0
+    fi
+    echo "run_validation_stand: нужен lsof для проверки порта $PORT (macOS: встроен; Linux: пакет lsof)" >&2
+    return 2
+}
+
+_is_our_run_office_pid() {
+    local pid="$1" cmd
+    [[ -n "$pid" ]] || return 1
+    kill -0 "$pid" 2>/dev/null || return 1
+    cmd="$(ps -p "$pid" -o command= 2>/dev/null || true)"
+    cmd="${cmd#"${cmd%%[![:space:]]*}"}"
+    [[ -n "$cmd" ]] || return 1
+    echo "$cmd" | grep -q run_office.py
+}
+
+# После --stop: порт должен быть свободен, либо слушать только наш run_office.py (тогда SIGTERM).
+# Чужой процесс на порту: понятное сообщение и выход с ошибкой.
+_ensure_port_free_before_start() {
+    local max_rounds=40
+    local round pid pids foreign saw_ours
+    for round in $(seq 1 "$max_rounds"); do
+        pids="$(_listen_pids_on_port)" || return 1
+        [[ -z "${pids//[$'\t\n\r ']/}" ]] && return 0
+        foreign=0
+        saw_ours=0
+        for pid in $pids; do
+            if _is_our_run_office_pid "$pid"; then
+                saw_ours=1
+                echo "Порт $PORT ещё занят нашим run_office.py (pid $pid), отправляю SIGTERM…" >&2
+                kill -TERM "$pid" 2>/dev/null || true
+            else
+                foreign=1
+                echo "Порт $PORT занят другим процессом (pid $pid), не run_office.py этой стойки:" >&2
+                ps -p "$pid" -o pid=,command= 2>/dev/null | sed 's/^/  /' >&2 || echo "  (процесс уже завершился)" >&2
+            fi
+        done
+        if [[ "$foreign" -eq 1 ]]; then
+            echo "Освободите порт $PORT или задайте другой: VALSTAND_PORT=… bash scripts/run_validation_stand.sh" >&2
+            return 1
+        fi
+        if [[ "$saw_ours" -eq 1 ]]; then
+            sleep 0.25
+            continue
+        fi
+        sleep 0.25
+    done
+    echo "Порт $PORT не освободился за отведённое время. Слушатели:" >&2
+    _listen_pids_on_port | while read -r pid; do
+        [[ -n "$pid" ]] || continue
+        ps -p "$pid" -o pid=,command= 2>/dev/null | sed 's/^/  /' >&2 || true
+    done
+    return 1
+}
+
+# Ожидание ответа /api/health; при провале: хвост журнала и код выхода 1.
+_wait_for_health() {
+    local attempt log_path="$STAND_DIR/stand.log"
+    for attempt in $(seq 1 40); do
+        if curl -fsS --max-time 3 --connect-timeout 2 "$URL/api/health" >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 0.5
+    done
+    echo "Стенд не ответил по GET /api/health за отведённое время (curl, таймаут 3 с)." >&2
+    echo "Последние строки журнала $log_path:" >&2
+    if [[ -f "$log_path" ]]; then
+        tail -n 60 "$log_path" >&2
+    else
+        echo "  (файл журнала отсутствует)" >&2
+    fi
+    return 1
+}
+
 stop_stand() {
     if [[ -f "$PIDFILE" ]]; then
         pid="$(cat "$PIDFILE")"
@@ -44,7 +122,7 @@ done
 
 if [[ "$MODE" == "stop" ]]; then stop_stand; echo "Стенд остановлен"; exit 0; fi
 if [[ "$MODE" == "status" ]]; then
-    if curl -fs --max-time 3 "$URL/api/health" >/dev/null; then echo "Стенд жив: $URL"; else echo "Стенд не отвечает"; exit 1; fi
+    if curl -fsS --max-time 3 --connect-timeout 2 "$URL/api/health" >/dev/null; then echo "Стенд жив: $URL"; else echo "Стенд не отвечает"; exit 1; fi
     exit 0
 fi
 if [[ "$MODE" == "reset" ]]; then
@@ -63,6 +141,7 @@ PY="$ROOT/.venv/bin/python"
 [[ -x "$PY" ]] || { echo "Нет venv: $ROOT/.venv" >&2; exit 1; }
 
 stop_stand
+_ensure_port_free_before_start || exit 1
 mkdir -p "$STAND_DIR"; chmod 700 "$STAND_DIR"
 
 WEB_DIST="$ROOT/web/dist/index.html"
@@ -92,11 +171,7 @@ env PYTHONPATH="$ROOT" SESSION_DATABASE_PATH="$STAND_DIR/sessions.db" \
 echo $! > "$PIDFILE"
 cd "$ROOT" || exit 1
 
-for _ in $(seq 1 40); do
-    curl -fs --max-time 2 "$URL/api/health" >/dev/null 2>&1 && break
-    sleep 0.5
-done
-curl -fs --max-time 3 "$URL/api/health" >/dev/null || { echo "Стенд не поднялся, журнал: $STAND_DIR/stand.log" >&2; exit 1; }
+_wait_for_health || exit 1
 
 echo "Стенд поднят: $URL/office/1/runs"
 echo "Учётки (логины и пароли): $ACCOUNTS"
