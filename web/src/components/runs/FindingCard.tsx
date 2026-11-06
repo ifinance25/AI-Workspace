@@ -148,6 +148,19 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
     [run.documents],
   );
 
+  const refLabels = useMemo(
+    () => new Set(finding.refs.map((r) => r.label.trim())),
+    [finding.refs],
+  );
+
+  const clausesDeduped = useMemo(
+    () => finding.clauses.filter((c) => !refLabels.has(c.trim())),
+    [finding.clauses, refLabels],
+  );
+
+  const hasTraceabilityBlock =
+    finding.refs.length > 0 || clausesDeduped.length > 0 || finding.scenarios.length > 0;
+
   const actions = availableActions(finding);
 
   const submit = async (chosen: DecisionAction) => {
@@ -219,43 +232,105 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
         <span className="text-sm text-[var(--fg-secondary)]">{finding.doc}</span>
       </header>
       <p className="text-sm text-[var(--fg-secondary)]">{finding.category}</p>
-      <p className="text-sm">
-        {finding.refs.map((ref) => (
-          <button
-            key={ref.label}
-            type="button"
-            className="mr-3 underline"
-            onClick={(e) => {
-              e.preventDefault();
-              openPdfLink(ref.pdf, ref.page);
-            }}
-          >
-            {ref.label}
-          </button>
-        ))}
-        {finding.redmine_links.map((link, index) => (
-          <a
-            key={link}
-            href={link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mr-3 underline"
-          >
-            #{finding.redmine[index]}
-          </a>
-        ))}
-      </p>
 
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          disabled={finding.review_status !== "confirmed"}
-          onClick={() => setRedmineOpen(true)}
-          className="rounded-lg bg-[var(--bg-hover)] px-3 py-1.5 text-sm disabled:opacity-40"
-        >
-          Задача в Redmine
-        </button>
-      </div>
+      <section className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-sidebar)] p-3">
+        <h3 className="mb-2 text-sm font-medium">Решение проверяющего</h3>
+        {!canDecide && (
+          <p className="text-sm text-[var(--fg-secondary)]">
+            Статус ставят менеджер проекта, тестировщик, бизнес- и системный аналитик.
+          </p>
+        )}
+        {canDecide && (
+          <div className="flex flex-wrap gap-2">
+            {(Object.keys(ACTION_LABEL) as DecisionAction[]).map((item) => (
+              <button
+                key={item}
+                type="button"
+                disabled={busy || !actions.includes(item)}
+                onClick={() => click(item)}
+                aria-pressed={action === item}
+                className="rounded-lg bg-[var(--bg-hover)] px-3 py-1.5 text-sm disabled:opacity-40"
+              >
+                {ACTION_LABEL[item]}
+              </button>
+            ))}
+          </div>
+        )}
+        {canDecide && action && (
+          <div className="mt-3 space-y-2">
+            {action === "reject" && (
+              <select
+                aria-label="Причина отклонения"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="w-full rounded-lg border border-[var(--border-subtle)] bg-transparent px-2 py-1.5 text-sm"
+              >
+                <option value="">Выберите причину</option>
+                {REASONS.map((r) => (
+                  <option key={r.code} value={r.code}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            )}
+            {action === "edits_applied" ? (
+              <input
+                aria-label="Версия документа с правками"
+                value={docRef}
+                onChange={(e) => setDocRef(e.target.value)}
+                maxLength={300}
+                placeholder="Версия документа с правками, например ПМИ1 от 02.11.2026"
+                className="w-full rounded-lg border border-[var(--border-subtle)] bg-transparent px-2 py-1.5 text-sm"
+              />
+            ) : (
+              <textarea
+                aria-label="Пояснение"
+                value={why}
+                onChange={(e) => setWhy(e.target.value)}
+                maxLength={2000}
+                rows={3}
+                placeholder="Пояснение. Не пишите сюда пароли, ключи и личные данные."
+                className="w-full rounded-lg border border-[var(--border-subtle)] bg-transparent px-2 py-1.5 text-sm"
+              />
+            )}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={busy || !formValid}
+                onClick={() => void submit(action)}
+                className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm text-white disabled:opacity-40"
+              >
+                Сохранить: {ACTION_LABEL[action]}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAction(null)}
+                className="rounded-lg bg-[var(--bg-hover)] px-3 py-1.5 text-sm"
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        )}
+        <div className="mt-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-canvas)] p-3">
+          <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-[var(--fg-secondary)]">
+            Выгрузка в Redmine
+          </h4>
+          <p className="mb-2 text-xs text-[var(--fg-secondary)]">
+            Создать задачу из подтверждённой находки (один запрос с вашим ключом).
+          </p>
+          <button
+            type="button"
+            disabled={finding.review_status !== "confirmed"}
+            onClick={() => setRedmineOpen(true)}
+            className="rounded-lg bg-[var(--bg-hover)] px-3 py-1.5 text-sm disabled:opacity-40"
+          >
+            Задача в Redmine
+          </button>
+        </div>
+        {error && <p role="alert" className="alert-error mt-2">{error}</p>}
+        {note && <p className="alert-success mt-2">{note}</p>}
+      </section>
 
       <RedmineExportModal
         projectId={projectId}
@@ -348,14 +423,46 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
             </p>
           </section>
 
-          {(finding.clauses.length > 0 || finding.scenarios.length > 0) && (
+          {hasTraceabilityBlock && (
             <section className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-sidebar)] p-3">
               <h3 className="mb-2 text-sm font-medium">Контекст прослеживаемости</h3>
-              {finding.clauses.length > 0 && (
+              {finding.redmine_links.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-xs text-[var(--fg-secondary)]">Задачи Redmine</p>
+                  <p className="text-sm">
+                    {finding.redmine_links.map((link, index) => (
+                      <a
+                        key={link}
+                        href={link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mr-3 underline"
+                      >
+                        #{finding.redmine[index]}
+                      </a>
+                    ))}
+                  </p>
+                </div>
+              )}
+              {(finding.refs.length > 0 || clausesDeduped.length > 0) && (
                 <div className="mb-2">
                   <p className="text-xs text-[var(--fg-secondary)]">Пункты / требования</p>
                   <ul className="list-inside list-disc text-sm">
-                    {finding.clauses.map((c) => (
+                    {finding.refs.map((ref) => (
+                      <li key={ref.label}>
+                        <button
+                          type="button"
+                          className="underline"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            openPdfLink(ref.pdf, ref.page);
+                          }}
+                        >
+                          {ref.label}
+                        </button>
+                      </li>
+                    ))}
+                    {clausesDeduped.map((c) => (
                       <li key={c}>{c}</li>
                     ))}
                   </ul>
@@ -485,7 +592,8 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
             </>
           ) : (
             <p className="text-sm text-[var(--fg-secondary)]">
-              Нажмите ссылку на документ или страницу в шапке карточки или на вкладке «Документы».
+              Нажмите ссылку на документ или страницу в блоке «Контекст прослеживаемости» или на вкладке
+              «Документы».
             </p>
           )}
         </div>
@@ -501,105 +609,43 @@ export default function FindingCard({ projectId, run, finding, canDecide, onDeci
             <p className="text-sm text-[var(--fg-secondary)]">Решений пока нет.</p>
           ) : (
             <ul className="space-y-1 text-sm">
-              {finding.history.map((item) => (
-                <li key={item.decision_key}>
-                  <span className="text-[var(--fg-secondary)]">
-                    {formatStamp(item.at)} · {item.actor} (
-                    {ROLE_LABEL[item.actor_role] ?? item.actor_role}) ·{" "}
-                  </span>
-                  <b>{ACTION_LABEL[item.action as DecisionAction] ?? item.action}.</b> Статус «
-                  {STATUS_LABEL[item.review_to as ReviewStatus] ?? item.review_to}», этап «
-                  {LIFECYCLE_LABEL[item.lifecycle_to] ?? item.lifecycle_to}»
-                  {item.why ? `. ${item.why}` : ""}
-                </li>
-              ))}
+              {finding.history.map((item) => {
+                const actionShown =
+                  ACTION_LABEL[item.action as DecisionAction] ?? item.action;
+                const statusShown =
+                  STATUS_LABEL[item.review_to as ReviewStatus] ?? item.review_to;
+                const dupStatus =
+                  typeof actionShown === "string" &&
+                  typeof statusShown === "string" &&
+                  actionShown.replace(/\.$/, "").trim().toLowerCase() === statusShown.trim().toLowerCase();
+                const whyTrim = item.why?.trim() ?? "";
+                return (
+                  <li key={item.decision_key}>
+                    <span className="text-[var(--fg-secondary)]">
+                      {formatStamp(item.at)} · {item.actor} (
+                      {ROLE_LABEL[item.actor_role] ?? item.actor_role})
+                    </span>
+                    {dupStatus ? (
+                      <>
+                        {" "}
+                        <b>{actionShown}</b>
+                        {whyTrim ? ` · ${whyTrim}` : ""}
+                      </>
+                    ) : (
+                      <>
+                        {" · "}
+                        <b>{actionShown}</b>
+                        {`. Статус «${statusShown}», этап «${LIFECYCLE_LABEL[item.lifecycle_to] ?? item.lifecycle_to}»`}
+                        {whyTrim ? ` · ${whyTrim}` : ""}
+                      </>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
       )}
-
-      <section className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-sidebar)] p-3">
-        <h3 className="mb-2 text-sm font-medium">Решение проверяющего</h3>
-        {!canDecide && (
-          <p className="text-sm text-[var(--fg-secondary)]">
-            Статус ставят менеджер проекта, тестировщик, бизнес- и системный аналитик.
-          </p>
-        )}
-        {canDecide && (
-          <div className="flex flex-wrap gap-2">
-            {(Object.keys(ACTION_LABEL) as DecisionAction[]).map((item) => (
-              <button
-                key={item}
-                type="button"
-                disabled={busy || !actions.includes(item)}
-                onClick={() => click(item)}
-                aria-pressed={action === item}
-                className="rounded-lg bg-[var(--bg-hover)] px-3 py-1.5 text-sm disabled:opacity-40"
-              >
-                {ACTION_LABEL[item]}
-              </button>
-            ))}
-          </div>
-        )}
-        {canDecide && action && (
-          <div className="mt-3 space-y-2">
-            {action === "reject" && (
-              <select
-                aria-label="Причина отклонения"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                className="w-full rounded-lg border border-[var(--border-subtle)] bg-transparent px-2 py-1.5 text-sm"
-              >
-                <option value="">Выберите причину</option>
-                {REASONS.map((r) => (
-                  <option key={r.code} value={r.code}>
-                    {r.label}
-                  </option>
-                ))}
-              </select>
-            )}
-            {action === "edits_applied" ? (
-              <input
-                aria-label="Версия документа с правками"
-                value={docRef}
-                onChange={(e) => setDocRef(e.target.value)}
-                maxLength={300}
-                placeholder="Версия документа с правками, например ПМИ1 от 02.11.2026"
-                className="w-full rounded-lg border border-[var(--border-subtle)] bg-transparent px-2 py-1.5 text-sm"
-              />
-            ) : (
-              <textarea
-                aria-label="Пояснение"
-                value={why}
-                onChange={(e) => setWhy(e.target.value)}
-                maxLength={2000}
-                rows={3}
-                placeholder="Пояснение. Не пишите сюда пароли, ключи и личные данные."
-                className="w-full rounded-lg border border-[var(--border-subtle)] bg-transparent px-2 py-1.5 text-sm"
-              />
-            )}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                disabled={busy || !formValid}
-                onClick={() => void submit(action)}
-                className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm text-white disabled:opacity-40"
-              >
-                Сохранить: {ACTION_LABEL[action]}
-              </button>
-              <button
-                type="button"
-                onClick={() => setAction(null)}
-                className="rounded-lg bg-[var(--bg-hover)] px-3 py-1.5 text-sm"
-              >
-                Отмена
-              </button>
-            </div>
-          </div>
-        )}
-        {error && <p role="alert" className="alert-error mt-2">{error}</p>}
-        {note && <p className="alert-success mt-2">{note}</p>}
-      </section>
     </article>
   );
 }
