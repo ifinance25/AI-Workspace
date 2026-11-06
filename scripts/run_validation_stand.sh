@@ -82,15 +82,15 @@ fi
 [[ -s "$STAND_DIR/jwt_secret" ]] || { umask 077; openssl rand -hex 32 > "$STAND_DIR/jwt_secret"; }
 
 # Из каталога стенда: .env репозитория с настоящими секретами не читается.
-# Фоновый процесс запускается последней командой подоболочки, поэтому $! это pid самого сервера.
-(
-    cd "$STAND_DIR"
-    env PYTHONPATH="$ROOT" SESSION_DATABASE_PATH="$STAND_DIR/sessions.db" \
-        WEB_JWT_SECRET="$(cat "$STAND_DIR/jwt_secret")" ADMIN_LOGIN= ADMIN_PASSWORD= \
-        nohup "$PY" "$ROOT/scripts/run_office.py" --host "$HOST" --port "$PORT" \
-        > "$STAND_DIR/stand.log" 2>&1 < /dev/null &
-    echo $! > "$PIDFILE"
-)
+# Без подоболочки вокруг nohup: при выходе subshell bash по умолчанию шлёт SIGHUP
+# фоновым job в этой группе; nohup обычно спасает, но надёжнее не зависеть от окружения IDE.
+cd "$STAND_DIR" || exit 1
+env PYTHONPATH="$ROOT" SESSION_DATABASE_PATH="$STAND_DIR/sessions.db" \
+    WEB_JWT_SECRET="$(cat "$STAND_DIR/jwt_secret")" ADMIN_LOGIN= ADMIN_PASSWORD= \
+    nohup "$PY" "$ROOT/scripts/run_office.py" --host "$HOST" --port "$PORT" \
+    > "$STAND_DIR/stand.log" 2>&1 < /dev/null &
+echo $! > "$PIDFILE"
+cd "$ROOT" || exit 1
 
 for _ in $(seq 1 40); do
     curl -fs --max-time 2 "$URL/api/health" >/dev/null 2>&1 && break
@@ -100,4 +100,4 @@ curl -fs --max-time 3 "$URL/api/health" >/dev/null || { echo "Стенд не п
 
 echo "Стенд поднят: $URL/office/1/runs"
 echo "Учётки (логины и пароли): $ACCOUNTS"
-echo "Остановить: bash scripts/run_validation_stand.sh --stop"
+echo "Остановка только вручную, когда стенд больше не нужен (не шаг проверки «поднял и curl»): bash scripts/run_validation_stand.sh --stop"
